@@ -1,66 +1,67 @@
-import { UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { EmployeeGrid } from "@/components/employees/employee-grid";
-import { PolicyFooter } from "@/components/policies/policy-footer";
-import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { BarChart, Users, Wrench, Trophy } from 'lucide-react';
 
-import {
-  getEmployees,
-  getLeaves,
-  getQuotas,
-  getPolicies,
-  getVacationTiers,
-  getPublicHolidays,
-  getCustomHolidays,
-} from "@/lib/data";
-
-export default async function Home() {
-  const [
-    employees,
-    leaves,
-    quotas,
-    policies,
-    vacationTiers,
-    publicHolidays,
-    customHolidays,
-  ] = await Promise.all([
-    getEmployees(),
-    getLeaves(),
-    getQuotas(),
-    getPolicies(),
-    getVacationTiers(),
-    getPublicHolidays(),
-    getCustomHolidays(),
-  ]);
-
-  const title = policies.find((p) => p.key === "system_title")?.value || "RuamChok Fitness HRM";
+export default function Home() {
+  const menuItems = [
+    {
+      title: 'RCF Sales Dashboard',
+      description: 'Dashboard for sales analytics.',
+      href: '#', // Not implemented yet
+      icon: <BarChart className="w-8 h-8 text-primary" />,
+      disabled: true,
+    },
+    {
+      title: 'RCF HRM',
+      description: 'Employee leave management system.',
+      href: '/hrm',
+      icon: <Users className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'RCF Maintenance Log',
+      description: 'Track and manage equipment maintenance.',
+      href: '/maintenance',
+      icon: <Wrench className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'RCF PT Session & Commission Tracker',
+      description: 'Track personal training sessions and commissions.',
+      href: '#', // Not implemented yet
+      icon: <Trophy className="w-8 h-8 text-primary" />,
+      disabled: true,
+    },
+  ];
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <header className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2 font-headline">{title}</h1>
-        <AddEmployeeDialog>
-          <Button className="mt-4 transition-transform hover:scale-105">
-            <UserPlus className="mr-2 h-5 w-5" />
-            เพิ่มพนักงาน
-          </Button>
-        </AddEmployeeDialog>
+      <header className="text-center mb-12">
+        <h1 className="text-5xl font-extrabold text-gray-800 mb-2 font-headline">
+          Ruamchok Fitness OS
+        </h1>
+        <p className="text-lg text-gray-600">Your central hub for managing fitness center operations.</p>
       </header>
-      <main className="mb-12">
-        <EmployeeGrid
-          employees={employees}
-          leaves={leaves}
-          quotas={quotas}
-          publicHolidays={publicHolidays}
-          customHolidays={customHolidays}
-        />
+      <main>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+          {menuItems.map((item) => (
+            <Link key={item.title} href={item.disabled ? '#' : item.href} passHref>
+              <Card className={`transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <CardHeader className="flex flex-row items-center gap-4">
+                  <div>{item.icon}</div>
+                  <div>
+                    <CardTitle>{item.title}</CardTitle>
+                    <CardDescription>{item.description}</CardDescription>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </main>
-      <PolicyFooter
-        policies={policies}
-        vacationTiers={vacationTiers}
-        publicHolidays={publicHolidays}
-        customHolidays={customHolidays}
-      />
+      <footer className="text-center mt-12 text-gray-500">
+        <p>&copy; {new Date().getFullYear()} Ruamchok Fitness. All rights reserved.</p>
+      </footer>
     </div>
   );
 }

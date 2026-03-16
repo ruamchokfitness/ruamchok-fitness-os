@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'FitFlow HR',
-  description: 'Employee Leave Management System for RuamChok Fitness',
+  title: 'Ruamchok Fitness OS',
+  description: 'Integrated Management System for RuamChok Fitness',
 };
 
 export default function RootLayout({
@@ -22,7 +22,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased bg-gradient-to-br from-blue-50 to-indigo-100">
+      <body className="font-body antialiased bg-gray-50 text-gray-900">
         {children}
         <Toaster />
       </body>
