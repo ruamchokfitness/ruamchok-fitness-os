@@ -229,7 +229,7 @@ export default function MaintenancePage() {
             const snapshot = await getDocs(q);
             let searchResult = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MaintenanceReport));
 
-            if (searchCategory) {
+            if (searchCategory && searchCategory !== 'all') {
                 searchResult = searchResult.filter(report => report.category === searchCategory);
             }
             
@@ -308,7 +308,7 @@ export default function MaintenancePage() {
                             <Select value={searchCategory} onValueChange={setSearchCategory}>
                                 <SelectTrigger><SelectValue placeholder="ทุกประเภท" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">ทุกประเภท</SelectItem>
+                                    <SelectItem value="all">ทุกประเภท</SelectItem>
                                     {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
