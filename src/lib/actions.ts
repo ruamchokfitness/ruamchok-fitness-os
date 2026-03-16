@@ -36,6 +36,11 @@ export async function updateEmployeeName(id: string, name: string): Promise<void
   revalidatePath("/");
 }
 
+export async function deleteEmployee(id: string): Promise<void> {
+  await data.deleteEmployee(id);
+  revalidatePath("/");
+}
+
 // --- Leave Actions ---
 
 export async function addOrUpdateLeave(formData: FormData): Promise<{ success: boolean, message?: string }> {

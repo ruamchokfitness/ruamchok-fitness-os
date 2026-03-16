@@ -67,6 +67,12 @@ export const updateEmployee = async (updatedEmployee: Employee): Promise<void> =
   await simulateDelay();
   employees = employees.map(e => e.id === updatedEmployee.id ? updatedEmployee : e);
 };
+export const deleteEmployee = async (id: string): Promise<void> => {
+  await simulateDelay();
+  employees = employees.filter(e => e.id !== id);
+  leaves = leaves.filter(l => l.employeeId !== id);
+  quotas = quotas.filter(q => q.employeeId !== id);
+};
 
 // --- Leave ---
 export const getLeaves = async (): Promise<Leave[]> => { await simulateDelay(); return [...leaves]; };

@@ -5,13 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { updateEmployeeName } from "@/lib/actions";
+import { updateEmployeeName, deleteEmployee } from "@/lib/actions";
 import type { Employee, Leave, Quota, PublicHoliday, CustomHoliday } from "@/lib/types";
-import { Plus, Settings, Loader2 } from "lucide-react";
+import { Plus, Settings, Loader2, Trash2 } from "lucide-react";
 import { QuotaSummary } from "./quota-summary";
 import { LeaveEntry } from "./leave-entry";
 import { AddLeaveDialog } from "./add-leave-dialog";
 import { SetQuotaDialog } from "./set-quota-dialog";
+import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 
 interface EmployeeCardProps {
   employee: Employee;
@@ -29,6 +30,7 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
   const [isLeaveModalOpen, setLeaveModalOpen] = useState(false);
   const [isQuotaModalOpen, setQuotaModalOpen] = useState(false);
   const [leaveToEdit, setLeaveToEdit] = useState<Leave | undefined>(undefined);
+  const [isConfirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const handleNameChange = () => {
     if (name === employee.name || !name.trim()) {
@@ -42,6 +44,15 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
         description: `เปลี่ยนชื่อเป็น "${name}" เรียบร้อย`,
         className: "bg-accent text-accent-foreground",
       });
+    });
+  };
+
+  const handleDeleteEmployee = async () => {
+    await deleteEmployee(employee.id);
+    toast({
+      title: "ลบพนักงานสำเร็จ",
+      description: `พนักงาน "${employee.name}" ถูกลบออกจากระบบแล้ว`,
+      className: "bg-accent text-accent-foreground",
     });
   };
 
@@ -75,9 +86,14 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
               />
               {isPending && <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
-            <Button onClick={() => setQuotaModalOpen(true)} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary">
-              <Settings className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center">
+              <Button onClick={() => setQuotaModalOpen(true)} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary">
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button onClick={() => setConfirmDeleteOpen(true)} variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <QuotaSummary employeeId={employee.id} leaves={leaves} quota={quota} publicHolidays={publicHolidays} customHolidays={customHolidays} />
@@ -116,6 +132,14 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
         quota={quota}
         publicHolidays={publicHolidays}
         customHolidays={customHolidays}
+      />
+
+      <ConfirmationDialog
+        open={isConfirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`ลบพนักงาน ${employee.name}`}
+        description="คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานคนนี้? ข้อมูลการลาและโควต้าทั้งหมดจะถูกลบไปด้วยและไม่สามารถกู้คืนได้"
+        onConfirm={handleDeleteEmployee}
       />
     </>
   );
