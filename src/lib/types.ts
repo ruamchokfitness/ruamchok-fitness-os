@@ -40,3 +40,19 @@ export type CustomHoliday = {
   id: string;
   name: string;
 };
+
+export interface MaintenanceCategory {
+  id: string;
+  name: string;
+}
+
+export interface MaintenanceReport {
+  id: string;
+  date: string;
+  responsible: string;
+  category: string;
+  maintenanceItem: string;
+  notes: string;
+  completed: boolean;
+  timestamp: any; // Firestore timestamp
+}
