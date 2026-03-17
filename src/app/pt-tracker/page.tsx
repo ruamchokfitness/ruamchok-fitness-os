@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar, BarChart2, Settings, Trash2, Edit } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar, BarChart2, Settings, Trash2, Edit, Trophy } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -235,7 +235,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                                     <div key={session.id} className="flex items-center justify-between py-2 border-b last:border-0">
                                         <div>
                                             <p className="font-medium">{client?.name || 'Unknown'}</p>
-                                            <p className="text-sm text-muted-foreground">with {trainer?.name || 'Unknown'}</p>
+                                            <p className="text-sm text-muted-foreground">with ${trainer?.name || 'Unknown'}</p>
                                         </div>
                                         <div className="text-right">
                                             <Badge variant={session.session_status === 'completed' ? 'default' : 'secondary'} className={`badge-${session.session_status}`}>{session.session_status}</Badge>
@@ -462,8 +462,8 @@ function DeleteButton({ type, id, name }: { type: string, id: string, name: stri
             <AlertDialog open={open} onOpenChange={setOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
-                        <AlertDialogDescription>This action cannot be undone and will permanently delete this {type}.</AlertDialogDescription>
+                        <AlertDialogTitle>Delete ${name}?</AlertDialogTitle>
+                        <AlertDialogDescription>This action cannot be undone and will permanently delete this ${type}.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
