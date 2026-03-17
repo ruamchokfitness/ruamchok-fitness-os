@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
@@ -674,7 +674,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
-                        <div id="salesperson-targets-display" className="mt-4 space-y-4 max-h-64 overflow-y-auto pr-3">
+                        <div id="salesperson-targets-display" className="mt-4 space-y-4">
                             {Object.keys(salespersonTargets).length > 0 ? (
                                 Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
                                     const currentSales = salespersonChartData.find(s => s.name === salespersonName)?.sales || 0;
@@ -962,7 +962,7 @@ function ProductSelect({ products, name = "product", defaultValue = "" } : { pro
     )
 }
 function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm }: { open: boolean, onOpenChange: (open: boolean) => void, title: string, description: string, onConfirm: () => void }) {
-    const [isPending, startTransition] = useState(false);
+    const [isPending, startTransition] = useTransitionReact();
     const handleConfirm = () => {
         startTransition(async () => {
             onConfirm();
