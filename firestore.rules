@@ -3,19 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is signed in.
-    // This includes anonymous users, which are used for this application.
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Default rule for all collections:
-    // Allow any authenticated user (including anonymous) to read and write.
-    // This is suitable for development and prototyping. For a production
-    // environment with real user accounts, these rules should be replaced
-    // with more restrictive, per-collection rules.
+    // Allow all reads and writes to the database.
+    // This is for development purposes only.
+    // For production, you should implement more restrictive rules.
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
