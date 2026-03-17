@@ -102,7 +102,7 @@ export default function PTTrackerPage() {
         <>
             <header className="bg-dark-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                     <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Trophy className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -300,7 +300,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center p-4 bg-slate-50 rounded-xl">
                         <p className="text-sm text-slate-500">Total Revenue</p>
-                        <p className="text-2xl font-bold text-slate-800 mt-1">{formatCurrency(stats.totalRevenue)}</p>
+                        <p className="text-2xl font-bold text-slate-800 mt-1">${formatCurrency(stats.totalRevenue)}</p>
                         <p className="text-xs text-slate-400">from package sales</p>
                     </div>
                     <div className="text-center p-4 bg-slate-50 rounded-xl">
@@ -493,12 +493,12 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
     )
 }
 function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PTClient[] }) { 
-     const [filter, setFilter] = useState('');
+    const [filter, setFilter] = useState('all');
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
 
      const filteredPackages = useMemo(() => 
-        packages.filter(p => !filter || p.status === filter)
+        packages.filter(p => filter === 'all' || p.status === filter)
     , [packages, filter]);
 
     const handleEdit = (pkg: PTPackage) => {
@@ -517,7 +517,7 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                         <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">All Statuses</SelectItem>
+                        <SelectItem value="all">All Statuses</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="expired">Expired</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
@@ -565,8 +565,8 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <p className="font-semibold text-slate-800">{formatCurrency(pkg.price_paid)}</p>
-                                        <p className="text-xs text-slate-500">{formatCurrency(pkg.price_per_hour)}/hr</p>
+                                        <p className="font-semibold text-slate-800">${formatCurrency(pkg.price_paid)}</p>
+                                        <p className="text-xs text-slate-500">${formatCurrency(pkg.price_per_hour)}/hr</p>
                                     </TableCell>
                                     <TableCell>{formatDate(pkg.expiry_date)}</TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
@@ -586,10 +586,10 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
 }
 function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[] }) { 
     const [modalOpen, setModalOpen] = useState(false);
-    const [trainerFilter, setTrainerFilter] = useState('');
+    const [trainerFilter, setTrainerFilter] = useState('all');
 
     const filteredSessions = useMemo(() => {
-        return sessions.filter(s => !trainerFilter || s.trainer_id === trainerFilter);
+        return sessions.filter(s => trainerFilter === 'all' || s.trainer_id === trainerFilter);
     }, [sessions, trainerFilter]);
 
     async function handleCompleteSession(sessionId: string) {
@@ -612,7 +612,7 @@ function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSe
                         <SelectValue placeholder="All Trainers" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">All Trainers</SelectItem>
+                        <SelectItem value="all">All Trainers</SelectItem>
                         {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
@@ -662,15 +662,15 @@ function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSe
 }
 
 function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[] }) { 
-    const [trainerFilter, setTrainerFilter] = useState('');
-    const [monthFilter, setMonthFilter] = useState('');
+    const [trainerFilter, setTrainerFilter] = useState('all');
+    const [monthFilter, setMonthFilter] = useState('all');
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
     const filteredCommissions = useMemo(() => {
         return commissions.filter(c => 
-            (!trainerFilter || c.trainer_id === trainerFilter) && 
-            (!monthFilter || c.month_reference === monthFilter)
+            (trainerFilter === 'all' || c.trainer_id === trainerFilter) && 
+            (monthFilter === 'all' || c.month_reference === monthFilter)
         );
     }, [commissions, trainerFilter, monthFilter]);
 
@@ -683,7 +683,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                             <SelectValue placeholder="All Trainers" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All Trainers</SelectItem>
+                            <SelectItem value="all">All Trainers</SelectItem>
                             {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
@@ -692,7 +692,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                             <SelectValue placeholder="All Months" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All Months</SelectItem>
+                            <SelectItem value="all">All Months</SelectItem>
                             {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                         </SelectContent>
                     </Select>
@@ -711,7 +711,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                         <Card key={trainer.id} className="p-5">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-lg">
-                                    {trainer.name?.charAt(0)?.toUpperCase() || '?'}
+                                    ${trainer.name?.charAt(0)?.toUpperCase() || '?'}
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-slate-800">${trainer.name}</h4>
@@ -1184,7 +1184,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages }: { ope
                         <Select name="purchase_id" required>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
                             <SelectContent>
-                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}h left)</SelectItem>)}
+                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} (${p.hours_remaining}h left)</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
