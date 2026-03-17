@@ -100,9 +100,9 @@ export default function PTTrackerPage() {
 
     return (
         <>
-            <header className="bg-dark-900 text-white py-4 md:py-6">
+            <header className="bg-slate-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                     <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Trophy className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -185,7 +185,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="stat-card text-white p-6">
+                <Card className="bg-gradient-to-br from-sky-500 to-sky-700 text-white p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm opacity-80">Total Clients</p>
@@ -283,7 +283,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                                             </div>
                                             <div className="text-right">
                                                 <Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge>
-                                                <p className="text-xs text-slate-400 mt-1">{formatDateTime(session.session_datetime)}</p>
+                                                <p className="text-xs text-slate-400 mt-1">${formatDateTime(session.session_datetime)}</p>
                                             </div>
                                         </div>
                                     )
@@ -463,7 +463,7 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold">
                                                 {trainer.name?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
-                                            <span className="font-medium text-slate-800">{trainer.name}</span>
+                                            <span className="font-medium text-slate-800">${trainer.name}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -475,7 +475,7 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                                     </TableCell>
                                     <TableCell>
                                         <p className="font-semibold text-slate-800">{monthlyHours} hours</p>
-                                        <p className="text-sm text-green-600">{formatCurrency(monthlyEarnings)}</p>
+                                        <p className="text-sm text-green-600">${formatCurrency(monthlyEarnings)}</p>
                                     </TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${trainer.status}`}>{trainer.status}</Badge></TableCell>
                                      <TableCell className="text-right">
@@ -549,7 +549,7 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                                             <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
                                                 {client?.name?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
-                                            <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
+                                            <span className="font-medium text-slate-800">${client?.name || 'Unknown'}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="font-medium text-slate-800">{pkg.package_name}</TableCell>
