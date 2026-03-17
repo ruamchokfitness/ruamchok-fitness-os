@@ -20,9 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { addOrUpdateLeave } from "@/lib/actions";
 import type { Employee, Leave, Quota, PublicHoliday, CustomHoliday } from "@/lib/types";
 import { Loader2, Save, X } from "lucide-react";
+import { useFirebase } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc, getDocs, query, where, collection } from "firebase/firestore";
 
 interface AddLeaveDialogProps {
   open: boolean;
@@ -43,6 +45,7 @@ export function AddLeaveDialog({
   customHolidays,
   leaveToEdit,
 }: AddLeaveDialogProps) {
+  const { firestore } = useFirebase();
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const [leaveType, setLeaveType] = useState(leaveToEdit?.type || "");
@@ -51,28 +54,69 @@ export function AddLeaveDialog({
   const isHoliday = allHolidays.includes(leaveType);
   const isBirthday = leaveType === "วันเกิด";
 
-  const handleSubmit = (formData: FormData) => {
-    formData.append("employeeId", employee.id);
-    if (leaveToEdit) {
-      formData.append("leaveId", leaveToEdit.id);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firestore) return;
+
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const leaveId = leaveToEdit?.id || `leave${Date.now()}`;
+    const leaveData: Leave = {
+      id: leaveId,
+      employeeId: employee.id,
+      date: formData.get("date") as string,
+      type: formData.get("type") as string,
+      days: Number(formData.get("days")),
+    };
 
     startTransition(async () => {
-      const result = await addOrUpdateLeave(formData);
-      if (result.success) {
-        toast({
-          title: "บันทึกสำเร็จ",
-          description: "ข้อมูลการลาได้รับการบันทึกแล้ว",
-          className: "bg-accent text-accent-foreground",
-        });
-        onOpenChange(false);
-      } else {
-        toast({
-          title: "เกิดข้อผิดพลาด",
-          description: result.message || "ไม่สามารถบันทึกข้อมูลได้",
-          variant: "destructive",
-        });
+      // --- Validation ---
+      const leavesQuery = query(collection(firestore, "leaves"), where("employeeId", "==", employee.id));
+      const leavesSnapshot = await getDocs(leavesQuery);
+      let currentLeaves: Leave[] = leavesSnapshot.docs.map(doc => doc.data() as Leave);
+
+      if (leaveToEdit) {
+        currentLeaves = currentLeaves.filter(l => l.id !== leaveToEdit.id);
       }
+
+      if (!quota) {
+        toast({ title: "เกิดข้อผิดพลาด", description: "ไม่พบข้อมูลโควต้าของพนักงาน", variant: "destructive" });
+        return;
+      }
+       if(leaveData.type === "พักร้อน") {
+        const used = currentLeaves.filter(l => l.type === "พักร้อน").reduce((sum, l) => sum + l.days, 0);
+        if(used + leaveData.days > quota.vacation) {
+            toast({ title: "สิทธิ์ไม่เพียงพอ", description: `สิทธิ์พักร้อนไม่เพียงพอ คงเหลือ ${quota.vacation - used} วัน`, variant: "destructive" });
+            return;
+        }
+      } else if (leaveData.type === "วันเกิด") {
+        const used = currentLeaves.filter(l => l.type === "วันเกิด").reduce((sum, l) => sum + l.days, 0);
+        if(used + leaveData.days > quota.birthday) {
+            toast({ title: "สิทธิ์ไม่เพียงพอ", description: `สิทธิ์วันเกิดไม่เพียงพอ คงเหลือ ${quota.birthday - used} วัน`, variant: "destructive" });
+            return;
+        }
+      } else if (allHolidays.includes(leaveData.type)) {
+        const used = currentLeaves.filter(l => allHolidays.includes(l.type)).reduce((sum, l) => sum + l.days, 0);
+        if(used + leaveData.days > quota.holiday) {
+            toast({ title: "สิทธิ์ไม่เพียงพอ", description: `สิทธิ์วันหยุดนักขัตฤกษ์ไม่เพียงพอ คงเหลือ ${quota.holiday - used} วัน`, variant: "destructive" });
+            return;
+        }
+        const alreadyTaken = currentLeaves.find(l => l.type === leaveData.type);
+        if (alreadyTaken && (alreadyTaken.days + leaveData.days > 1)) {
+            toast({ title: "เกิดข้อผิดพลาด", description: `ไม่สามารถใช้วันหยุด ${leaveData.type} ซ้ำได้`, variant: "destructive" });
+            return;
+        }
+      }
+
+      // --- Save Data ---
+      const leaveRef = doc(firestore, "leaves", leaveId);
+      setDocumentNonBlocking(leaveRef, leaveData, { merge: true });
+      
+      toast({
+        title: "บันทึกสำเร็จ",
+        description: "ข้อมูลการลาได้รับการบันทึกแล้ว",
+        className: "bg-accent text-accent-foreground",
+      });
+      onOpenChange(false);
     });
   };
 
@@ -85,7 +129,7 @@ export function AddLeaveDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{leaveToEdit ? 'แก้ไขข้อมูลการลา' : 'เพิ่มข้อมูลการลา'}</DialogTitle>
           </DialogHeader>

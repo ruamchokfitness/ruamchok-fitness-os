@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { updateEmployeeName, deleteEmployee } from "@/lib/actions";
 import type { Employee, Leave, Quota, PublicHoliday, CustomHoliday } from "@/lib/types";
 import { Plus, Settings, Loader2, Trash2 } from "lucide-react";
 import { QuotaSummary } from "./quota-summary";
@@ -13,6 +12,9 @@ import { LeaveEntry } from "./leave-entry";
 import { AddLeaveDialog } from "./add-leave-dialog";
 import { SetQuotaDialog } from "./set-quota-dialog";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { useFirebase } from "@/firebase/provider";
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
 
 interface EmployeeCardProps {
   employee: Employee;
@@ -23,6 +25,7 @@ interface EmployeeCardProps {
 }
 
 export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHolidays }: EmployeeCardProps) {
+  const { firestore } = useFirebase();
   const [name, setName] = useState(employee.name);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -33,12 +36,13 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
   const [isConfirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const handleNameChange = () => {
-    if (name === employee.name || !name.trim()) {
+    if (name === employee.name || !name.trim() || !firestore) {
       setName(employee.name);
       return;
     }
     startTransition(async () => {
-      await updateEmployeeName(employee.id, name);
+      const employeeRef = doc(firestore, "employees", employee.id);
+      updateDocumentNonBlocking(employeeRef, { name });
       toast({
         title: "อัปเดตสำเร็จ",
         description: `เปลี่ยนชื่อเป็น "${name}" เรียบร้อย`,
@@ -48,7 +52,21 @@ export function EmployeeCard({ employee, leaves, quota, publicHolidays, customHo
   };
 
   const handleDeleteEmployee = async () => {
-    await deleteEmployee(employee.id);
+    if (!firestore) return;
+    const batch = writeBatch(firestore);
+
+    const employeeRef = doc(firestore, "employees", employee.id);
+    batch.delete(employeeRef);
+    
+    const leavesQuery = query(collection(firestore, "leaves"), where("employeeId", "==", employee.id));
+    const leavesSnapshot = await getDocs(leavesQuery);
+    leavesSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    const quotaRef = doc(firestore, "quotas", employee.id);
+    batch.delete(quotaRef);
+
+    await batch.commit();
+
     toast({
       title: "ลบพนักงานสำเร็จ",
       description: `พนักงาน "${employee.name}" ถูกลบออกจากระบบแล้ว`,

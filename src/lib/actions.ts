@@ -27,18 +27,18 @@ export async function addEmployee(name: string): Promise<{ success: boolean }> {
   };
   await data.upsertQuota(defaultQuota);
   
-  revalidatePath("/");
+  revalidatePath("/hrm");
   return { success: true };
 }
 
 export async function updateEmployeeName(id: string, name: string): Promise<void> {
   await data.updateEmployee({ id, name });
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 export async function deleteEmployee(id: string): Promise<void> {
   await data.deleteEmployee(id);
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 // --- Leave Actions ---
@@ -92,13 +92,13 @@ export async function addOrUpdateLeave(formData: FormData): Promise<{ success: b
   } else {
     await data.addLeave(leave);
   }
-  revalidatePath("/");
+  revalidatePath("/hrm");
   return { success: true };
 }
 
 export async function deleteLeave(id: string): Promise<void> {
   await data.deleteLeave(id);
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 // --- Quota Actions ---
@@ -115,19 +115,19 @@ export async function updateQuota(formData: FormData): Promise<void> {
     holidayPermissions: permissions,
   };
   await data.upsertQuota(newQuota);
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 // --- Policy & Settings Actions ---
 
 export async function updatePolicy(key: string, value: string): Promise<void> {
   await data.updatePolicy({ key, value });
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 export async function updateVacationTier(id: string, years: string, days: string): Promise<void> {
   await data.updateVacationTier({ id, years, days });
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 export async function updatePublicHoliday(id: string, date: string): Promise<void> {
@@ -135,7 +135,7 @@ export async function updatePublicHoliday(id: string, date: string): Promise<voi
   if (holiday) {
     await data.updatePublicHoliday({ ...holiday, date });
   }
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }
 
 export async function addCustomHoliday(name: string): Promise<{success: boolean}> {
@@ -145,11 +145,11 @@ export async function addCustomHoliday(name: string): Promise<{success: boolean}
     name: name.trim(),
   };
   await data.addCustomHoliday(newHoliday);
-  revalidatePath("/");
+  revalidatePath("/hrm");
   return { success: true };
 }
 
 export async function deleteCustomHoliday(id: string): Promise<void> {
   await data.deleteCustomHoliday(id);
-  revalidatePath("/");
+  revalidatePath("/hrm");
 }

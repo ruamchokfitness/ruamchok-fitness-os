@@ -3,13 +3,15 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { deleteCustomHoliday, updatePublicHoliday } from "@/lib/actions";
 import type { PublicHoliday, CustomHoliday } from "@/lib/types";
 import { Trash2 } from "lucide-react";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
 import { useState } from "react";
 import { AddCustomHolidayDialog } from "./add-custom-holiday-dialog";
 import { EditableTextItem } from "./editable-text-item";
+import { useFirebase } from "@/firebase/provider";
+import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 
 interface PublicHolidaysProps {
   publicHolidays: PublicHoliday[];
@@ -29,7 +31,8 @@ export function PublicHolidays({ publicHolidays, customHolidays }: PublicHoliday
                 itemKey={holiday.id}
                 initialValue={holiday.date}
                 label={holiday.name}
-                action={(key, value) => updatePublicHoliday(key, value)}
+                action={async (key, value, collection) => {}}
+                collectionName="publicHolidays"
                 className="py-2 px-3 items-center"
               >
                   <span className="font-medium">{holiday.name}:</span>
@@ -56,11 +59,14 @@ export function PublicHolidays({ publicHolidays, customHolidays }: PublicHoliday
 }
 
 function CustomHolidayItem({ holiday }: { holiday: CustomHoliday }) {
+  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isConfirmOpen, setConfirmOpen] = useState(false);
 
   const handleDelete = async () => {
-    await deleteCustomHoliday(holiday.id);
+    if(!firestore) return;
+    const holidayRef = doc(firestore, "customHolidays", holiday.id);
+    deleteDocumentNonBlocking(holidayRef);
     toast({
       title: "ลบสำเร็จ",
       description: `ลบวันหยุด "${holiday.name}" แล้ว`,

@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { EmployeeGrid } from "@/components/employees/employee-grid";
 import { PolicyFooter } from "@/components/policies/policy-footer";
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
+import { FirebaseClientProvider } from '@/firebase/client-provider';
+
 
 import {
   getEmployees,
@@ -12,9 +14,12 @@ import {
   getVacationTiers,
   getPublicHolidays,
   getCustomHolidays,
+  seedInitialData,
 } from "@/lib/data";
 
 export default async function HrmPage() {
+  await seedInitialData();
+
   const [
     employees,
     leaves,
@@ -33,15 +38,17 @@ export default async function HrmPage() {
     getCustomHolidays(),
   ]);
 
+  const systemTitle = policies.find(p => p.key === 'system_title')?.value || 'RCF HRM';
+
   return (
-    <>
+    <FirebaseClientProvider>
       <header className="bg-slate-900 text-white py-4 md:py-6">
         <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
           <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">RCF HRM</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">{systemTitle}</h1>
             <p className="text-slate-300 text-sm md:text-base">Employee leave management system.</p>
           </div>
         </div>
@@ -71,6 +78,6 @@ export default async function HrmPage() {
           customHolidays={customHolidays}
         />
       </div>
-    </>
+    </FirebaseClientProvider>
   );
 }

@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { updateVacationTier } from "@/lib/actions";
 import type { VacationTier } from "@/lib/types";
 import { useState, useTransition } from "react";
 import { Input } from "../ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Edit, Loader2 } from "lucide-react";
+import { useFirebase } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 
 interface VacationEntitlementTableProps {
   tiers: VacationTier[];
@@ -48,6 +50,7 @@ export function VacationEntitlementTable({ tiers }: VacationEntitlementTableProp
 }
 
 function EditableTierRow({ tier }: { tier: VacationTier }) {
+  const { firestore } = useFirebase();
   const [isEditing, setIsEditing] = useState(false);
   const [years, setYears] = useState(tier.years);
   const [days, setDays] = useState(tier.days);
@@ -55,13 +58,14 @@ function EditableTierRow({ tier }: { tier: VacationTier }) {
   const { toast } = useToast();
 
   const handleSave = () => {
-    if (years === tier.years && days === tier.days) {
+    if ((years === tier.years && days === tier.days) || !firestore) {
       setIsEditing(false);
       return;
     }
 
     startTransition(async () => {
-      await updateVacationTier(tier.id, years, days);
+      const tierRef = doc(firestore, "vacationTiers", tier.id);
+      setDocumentNonBlocking(tierRef, { years, days }, { merge: true });
       toast({
         title: "อัปเดตสำเร็จ",
         className: "bg-accent text-accent-foreground",

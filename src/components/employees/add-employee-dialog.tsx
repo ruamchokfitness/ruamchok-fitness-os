@@ -16,8 +16,12 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { addEmployee } from "@/lib/actions";
 import { Loader2, UserPlus, X } from "lucide-react";
+import { useFirebase } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc, collection } from "firebase/firestore";
 
 export function AddEmployeeDialog({ children }: { children: React.ReactNode }) {
+  const { firestore } = useFirebase();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -25,7 +29,7 @@ export function AddEmployeeDialog({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!name.trim() || !firestore) {
       toast({
         title: "ข้อมูลไม่ครบถ้วน",
         description: "กรุณากรอกชื่อพนักงาน",
@@ -34,8 +38,14 @@ export function AddEmployeeDialog({ children }: { children: React.ReactNode }) {
       return;
     }
     startTransition(async () => {
-      const result = await addEmployee(name);
-      if (result.success) {
+      const employeeId = `emp${Date.now()}`;
+      const employeeRef = doc(firestore, "employees", employeeId);
+      const quotaRef = doc(firestore, "quotas", employeeId);
+
+      try {
+        setDocumentNonBlocking(employeeRef, { id: employeeId, name: name.trim() }, {});
+        setDocumentNonBlocking(quotaRef, { employeeId, vacation: 0, holiday: 0, birthday: 0, holidayPermissions: [] }, {});
+        
         toast({
           title: "เพิ่มพนักงานสำเร็จ",
           description: `พนักงาน "${name}" ถูกเพิ่มในระบบแล้ว`,
@@ -43,7 +53,7 @@ export function AddEmployeeDialog({ children }: { children: React.ReactNode }) {
         });
         setOpen(false);
         setName("");
-      } else {
+      } catch (error) {
         toast({
           title: "เกิดข้อผิดพลาด",
           description: "ไม่สามารถเพิ่มพนักงานได้ กรุณาลองใหม่อีกครั้ง",

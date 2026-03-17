@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { deleteLeave } from "@/lib/actions";
 import type { Leave } from "@/lib/types";
 import { Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "@/components/shared/confirmation-dialog";
+import { useFirebase } from "@/firebase/provider";
+import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 
 interface LeaveEntryProps {
   leave: Leave;
@@ -23,11 +25,14 @@ function formatDate(dateString: string) {
 }
 
 export function LeaveEntry({ leave, onEdit }: LeaveEntryProps) {
+  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isConfirmOpen, setConfirmOpen] = useState(false);
 
   const handleDelete = async () => {
-    await deleteLeave(leave.id);
+    if (!firestore) return;
+    const leaveRef = doc(firestore, "leaves", leave.id);
+    deleteDocumentNonBlocking(leaveRef);
     toast({
       title: "ลบข้อมูลสำเร็จ",
       description: "ข้อมูลการลาถูกลบแล้ว",

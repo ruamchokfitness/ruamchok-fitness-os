@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { updateQuota } from "@/lib/actions";
 import type { Employee, Quota, PublicHoliday, CustomHoliday } from "@/lib/types";
 import { Loader2, Save, X } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
+import { useFirebase } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 
 interface SetQuotaDialogProps {
   open: boolean;
@@ -36,15 +38,30 @@ export function SetQuotaDialog({
   publicHolidays,
   customHolidays
 }: SetQuotaDialogProps) {
+  const { firestore } = useFirebase();
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   const allHolidays = [...publicHolidays, ...customHolidays];
 
-  const handleSubmit = (formData: FormData) => {
-    formData.append("employeeId", employee.id);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firestore) return;
+    
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const permissions = formData.getAll("permissions") as string[];
+
+    const newQuota: Quota = {
+      employeeId: employee.id,
+      vacation: Number(formData.get("vacation")),
+      holiday: Number(formData.get("holiday")),
+      birthday: Number(formData.get("birthday")),
+      holidayPermissions: permissions,
+    };
+
     startTransition(async () => {
-      await updateQuota(formData);
+      const quotaRef = doc(firestore, "quotas", employee.id);
+      setDocumentNonBlocking(quotaRef, newQuota, { merge: true });
       toast({
         title: "บันทึกสำเร็จ",
         description: `อัปเดตสิทธิ์การลาของ ${employee.name} แล้ว`,
@@ -57,7 +74,7 @@ export function SetQuotaDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>กำหนดสิทธิ์การลา: {employee.name}</DialogTitle>
           </DialogHeader>

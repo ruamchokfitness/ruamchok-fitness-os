@@ -14,10 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addCustomHoliday } from "@/lib/actions";
 import { Loader2, Plus, X } from "lucide-react";
+import { useFirebase } from "@/firebase/provider";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 
 export function AddCustomHolidayDialog() {
+  const { firestore } = useFirebase();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -25,7 +28,7 @@ export function AddCustomHolidayDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!name.trim() || !firestore) {
       toast({
         title: "ข้อมูลไม่ครบถ้วน",
         description: "กรุณากรอกชื่อวันหยุด",
@@ -34,22 +37,18 @@ export function AddCustomHolidayDialog() {
       return;
     }
     startTransition(async () => {
-      const result = await addCustomHoliday(name);
-      if (result.success) {
-        toast({
-          title: "เพิ่มวันหยุดสำเร็จ",
-          description: `วันหยุด "${name}" ถูกเพิ่มในระบบแล้ว`,
-          className: "bg-accent text-accent-foreground",
-        });
-        setOpen(false);
-        setName("");
-      } else {
-        toast({
-          title: "เกิดข้อผิดพลาด",
-          description: "ไม่สามารถเพิ่มวันหยุดได้",
-          variant: "destructive",
-        });
-      }
+      const holidayId = `custom${Date.now()}`;
+      const holidayRef = doc(firestore, "customHolidays", holidayId);
+      
+      setDocumentNonBlocking(holidayRef, { id: holidayId, name: name.trim() }, {});
+      
+      toast({
+        title: "เพิ่มวันหยุดสำเร็จ",
+        description: `วันหยุด "${name}" ถูกเพิ่มในระบบแล้ว`,
+        className: "bg-accent text-accent-foreground",
+      });
+      setOpen(false);
+      setName("");
     });
   };
 
