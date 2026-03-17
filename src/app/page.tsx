@@ -28,9 +28,9 @@ export default function Home() {
     {
       title: 'RCF PT Session & Commission Tracker',
       description: 'Track personal training sessions and commissions.',
-      href: '#', // Not implemented yet
+      href: '/pt-tracker',
       icon: <Trophy className="w-8 h-8 text-primary" />,
-      disabled: true,
+      disabled: false,
     },
   ];
 
