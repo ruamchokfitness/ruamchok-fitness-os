@@ -1249,7 +1249,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
         }
 
         let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId);
-        if (period) {
+        if (period && period !== 'all') {
             filteredCommissions = filteredCommissions.filter(c => c.month_reference === period);
         }
         
@@ -1426,7 +1426,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                                 <SelectValue placeholder="All Periods" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Periods</SelectItem>
+                                <SelectItem value="all">All Periods</SelectItem>
                                 {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                             </SelectContent>
                         </Select>
