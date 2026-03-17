@@ -64,11 +64,22 @@ const seedInitialData = async (firestore: any) => {
           { id: 'vt1', years: 'ครบ 1 ปี', days: '6 วัน' },
           { id: 'vt2', years: 'ครบ 3 ปี', days: '8 วัน' },
           { id: 'vt3', years: 'ครบ 5 ปี', days: '10 วัน' },
+          { id: 'vt4', years: 'ครบ 6 ปี', days: '11 วัน' },
+          { id: 'vt5', years: 'ครบ 7 ปี', days: '12 วัน' },
+          { id: 'vt6', years: 'ครบ 8 ปี', days: '13 วัน' },
+          { id: 'vt7', years: 'ครบ 9 ปี', days: '14 วัน' },
+          { id: 'vt8', years: 'ครบ 10 ปีขึ้นไป', days: '15 วัน' },
         ];
         
         const initialPublicHolidays: PublicHoliday[] = [
           { id: 'ph1', name: 'วันมาฆบูชา', date: '3 มีนาคม 2569' },
           { id: 'ph2', name: 'วันแรงงาน', date: '1 พฤษภาคม 2569' },
+          { id: 'ph3', name: 'วันวิสาขบูชา', date: '1 มิถุนายน 2569' },
+          { id: 'ph4', name: 'วันอาสาฬหบูชา', date: '29 มิถุนายน 2569' },
+          { id: 'ph5', name: 'วันแม่', date: '12 สิงหาคม 2569' },
+          { id: 'ph6', name: 'วันคล้ายวันสวรรคต ร.9', date: '13 ตุลาคม 2569' },
+          { id: 'ph7', name: 'วันปิยะมหาราช', date: '23 ตุลาคม 2569' },
+          { id: 'ph8', name: 'วันพ่อ', date: '5 ธันวาคม 2569' },
         ];
 
         initialEmployees.forEach(e => batch.set(doc(collection(firestore, "employees"), e.id), e));
