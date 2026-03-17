@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
@@ -594,10 +595,6 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
       fill: productCategoryColors[entry.name] || '#6b7280',
     }));
     
-    const salespersonColors = [
-        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'
-    ];
-    
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -648,64 +645,51 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                     </CardContent>
                 </Card>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card>
+            <div className="grid grid-cols-1 gap-6">
+                <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg font-bold text-gray-800">Sales by Salesperson</CardTitle>
                         <Button variant="link" className="text-primary" onClick={onSetSalespersonTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
-                        <div className="h-64 mb-4">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={salespersonChartData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" fontSize={12} />
-                                    <YAxis tickFormatter={(value) => `B${Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} fontSize={12} />
-                                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                                    <Bar dataKey="sales">
-                                        {salespersonChartData.map((entry:any, index:number) => (
-                                            <Cell key={`cell-${index}`} fill={salespersonColors[index % salespersonColors.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div id="salesperson-targets-display" className="mt-4 space-y-4">
-                            {Object.keys(salespersonTargets).length > 0 ? (
-                                <div className="max-h-80 overflow-y-auto pr-2">
-                                {Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
-                                    const currentSales = salespersonChartData.find(s => s.name === salespersonName)?.sales || 0;
-                                    
-                                    if(!Object.values(targets).some(t => t && t > 0)) return null;
+                        <div className="space-y-6">
+                            {salespersonChartData.length > 0 ? (
+                                salespersonChartData.map((salesperson) => {
+                                    const currentSales = salesperson.sales || 0;
+                                    const targets = salespersonTargets[salesperson.name] || {};
 
                                     return (
-                                        <div key={salespersonName} className="p-4 bg-gray-50 rounded-lg mb-4">
-                                            <h4 className="font-semibold text-gray-800 mb-2">{salespersonName}</h4>
-                                            <p className="text-sm text-gray-600 mb-3">Current Sales: {formatCurrency(currentSales)}</p>
-                                            {Object.entries(targets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([targetKey, targetValue]) => {
-                                                if (!targetValue || (targetValue as number) <= 0) return null;
-                                                const targetAmount = targetValue as number;
-                                                const progress = Math.min((currentSales / targetAmount) * 100, 100);
-                                                const remaining = Math.max(0, targetAmount - currentSales);
+                                        <div key={salesperson.name} className="p-4 bg-gray-50 rounded-lg">
+                                            <h4 className="font-semibold text-xl text-gray-800 mb-1">{salesperson.name}</h4>
+                                            <p className="text-sm text-gray-600 mb-4">Current Sales: {formatCurrency(currentSales)}</p>
+                                            
+                                            <div className="space-y-3">
+                                                {Object.keys(targets).length > 0 ? (
+                                                    Object.entries(targets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([targetKey, targetValue]) => {
+                                                        if (!targetValue || (targetValue as number) <= 0) return null;
+                                                        const targetAmount = targetValue as number;
+                                                        const progress = Math.min((currentSales / targetAmount) * 100, 100);
+                                                        const remaining = Math.max(0, targetAmount - currentSales);
 
-                                                return (
-                                                    <div key={targetKey} className="mb-2 last:mb-0">
-                                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                                            <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
-                                                            <span>{Math.round(progress)}% ({formatCurrency(remaining)})</span>
-                                                        </div>
-                                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                                            <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                        return (
+                                                            <div key={targetKey}>
+                                                                <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                                                                    <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
+                                                                    <span className="text-xs">{Math.round(progress)}% ({formatCurrency(remaining)})</span>
+                                                                </div>
+                                                                <Progress value={progress} className="h-2" />
+                                                            </div>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <p className="text-sm text-gray-400 italic">No targets set for this salesperson.</p>
+                                                )}
+                                            </div>
                                         </div>
-                                    )
-                                })}
-                                </div>
+                                    );
+                                })
                             ) : (
-                                <div className="text-gray-500 text-sm text-center py-4">No salesperson targets set.</div>
+                                 <div className="text-gray-500 text-sm text-center py-4">No sales data for this period.</div>
                             )}
                         </div>
                     </CardContent>
