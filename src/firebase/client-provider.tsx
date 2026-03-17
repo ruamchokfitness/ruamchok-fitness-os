@@ -13,7 +13,7 @@ interface FirebaseClientProviderProps {
 /**
  * A component that ensures a user is signed in before rendering its children.
  * If no user is signed in, it attempts an anonymous sign-in.
- * Displays a loading indicator while checking auth state.
+ * Displays a loading indicator while checking auth state or waiting for sign-in.
  */
 function AuthGate({ children, auth }: { children: React.ReactNode; auth: Auth }) {
     const { user, isUserLoading } = useUser();
@@ -25,8 +25,9 @@ function AuthGate({ children, auth }: { children: React.ReactNode; auth: Auth })
         }
     }, [user, isUserLoading, auth]);
 
-    // While checking auth state, show a loading screen.
-    if (isUserLoading) {
+    // While the initial user is loading, or if there's no user yet (anonymous sign-in may be in progress),
+    // show a loading screen. This prevents data fetching before authentication is complete.
+    if (isUserLoading || !user) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -34,7 +35,7 @@ function AuthGate({ children, auth }: { children: React.ReactNode; auth: Auth })
         );
     }
 
-    // Once auth state is resolved, render children.
+    // Once a user is available, render the children.
     return <>{children}</>;
 }
 

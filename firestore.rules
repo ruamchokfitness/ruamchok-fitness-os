@@ -3,160 +3,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Core Philosophy: This ruleset implements a basic authentication check.
-     * All access to data is restricted to any authenticated user. For this
-     * prototype, this includes anonymous users. In a production environment,
-     * these rules should be made more restrictive.
-     *
-     * Data Structure: The data is organized into two main categories:
-     * 1. Global Configuration: Top-level collections like `/appSettings` and
-     *    `/customHolidays` that store system-wide data.
-     * 2. Employee-Specific Data: A hierarchical structure under `/employees`
-     *    where each employee has their own document and related subcollections
-     *    for leave, quotas, and permissions.
-     */
-
-    // ======================================================================
-    // Helper Functions
-    // ======================================================================
-
-    /**
-     * Checks if the user is authenticated. This is the primary authorization
-     * check for the entire system for this prototype.
-     */
+    // Helper function to check if a user is signed in.
+    // This includes anonymous users, which are used for this application.
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * In a production system, you would use a more robust function to check for
-     * administrative privileges, like checking a custom claim or a document.
-     * For example:
-     * function isAdmin() {
-     *   return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-     * }
-     */
-
-    /**
-     * Validates that an employee document's internal `id` field matches its
-     * document ID upon creation.
-     */
-    function isEmployeeIdConsistentOnCreate(employeeId) {
-      return request.resource.data.id == employeeId;
-    }
-
-    /**
-     * Validates that the internal `id` field of an employee document is
-     * immutable and cannot be changed during an update.
-     */
-    function isEmployeeIdImmutableOnUpdate() {
-      return request.resource.data.id == resource.data.id;
-    }
-
-    /**
-     * Validates that a subcollection document's internal `employeeId` field
-     * matches the `employeeId` from the URL path upon creation.
-     */
-    function isSubcollectionEmployeeIdConsistentOnCreate(employeeId) {
-      return request.resource.data.employeeId == employeeId;
-    }
-
-    /**
-     * Validates that the internal `employeeId` field of a subcollection document
-     * is immutable and cannot be changed during an update.
-     */
-    function isSubcollectionEmployeeIdImmutableOnUpdate() {
-      return request.resource.data.employeeId == resource.data.employeeId;
-    }
-
-    // ======================================================================
-    // Collection Rules
-    // ======================================================================
-
-    /**
-     * @description Stores the UIDs of users with administrative privileges.
-     * @path /admins/{adminId}
-     * @principle The list of administrators is read-only via rules to prevent tampering. Management should be done via the Firebase Console.
-     */
-    match /admins/{adminId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Master collection for all employees. All operations are restricted to authenticated users.
-     * @path /employees/{employeeId}
-     */
-    match /employees/{employeeId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isEmployeeIdConsistentOnCreate(employeeId);
-      allow update: if isSignedIn() && resource != null && isEmployeeIdImmutableOnUpdate();
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Records individual leave entries for a specific employee.
-     * @path /employees/{employeeId}/leaveEntries/{leaveEntryId}
-     */
-    match /employees/{employeeId}/leaveEntries/{leaveEntryId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
-      allow update: if isSignedIn() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Stores the current leave quotas for a specific employee.
-     * @path /employees/{employeeId}/quotas/{quotaDocId}
-     */
-    match /employees/{employeeId}/quotas/{quotaDocId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
-      allow update: if isSignedIn() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Defines holiday permissions for a specific employee.
-     * @path /employees/{employeeId}/holidayPermissions/{permissionDocId}
-     */
-    match /employees/{employeeId}/holidayPermissions/{permissionDocId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
-      allow update: if isSignedIn() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Stores global definitions for custom, non-standard holidays.
-     * @path /customHolidays/{customHolidayId}
-     */
-    match /customHolidays/{customHolidayId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    /**
-     * @description Stores global application-level settings and configuration values.
-     * @path /appSettings/{appSettingId}
-     */
-    match /appSettings/{appSettingId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+    // Default rule for all collections:
+    // Allow any authenticated user (including anonymous) to read and write.
+    // This is suitable for development and prototyping. For a production
+    // environment with real user accounts, these rules should be replaced
+    // with more restrictive, per-collection rules.
+    match /{document=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }
