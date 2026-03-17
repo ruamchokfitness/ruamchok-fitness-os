@@ -574,7 +574,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             sales: monthlySalesList.filter(s => s.salesperson === emp.name).reduce((sum, s) => sum + s.amount, 0),
         }));
 
-        const productData = [
+        const productChartDataValue = [
             { name: 'Membership', value: monthlySalesList.filter(s => s.product.includes('Annual') || s.product.includes('Month') || s.product.includes('Punch Card')).reduce((sum, s) => sum + s.amount, 0) },
             { name: 'Personal Training', value: monthlySalesList.filter(s => s.product.includes('PT') || s.product.includes('Boxing')).reduce((sum, s) => sum + s.amount, 0) },
             { name: 'Food & Beverage', value: monthlySalesList.filter(s => s.product.includes('Food & Beverage')).reduce((sum, s) => sum + s.amount, 0) },
@@ -582,7 +582,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             { name: 'Daily Pass', value: monthlySalesList.filter(s => s.product.includes('Daily')).reduce((sum, s) => sum + s.amount, 0) },
         ].filter(item => item.value > 0);
 
-        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartData: productData};
+        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartData: productChartDataValue};
     }, [sales, employees]);
     
     const productCategoryColors: {[key: string]: string} = {
@@ -597,6 +597,10 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
       ...entry,
       fill: productCategoryColors[entry.name] || '#6b7280',
     }));
+    
+    const salespersonColors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'
+    ];
     
     return (
          <div className="space-y-6">
@@ -660,13 +664,17 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                 <BarChart data={salespersonChartData}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" fontSize={12} />
-                                    <YAxis tickFormatter={(value) => formatCurrency(value as number)} />
+                                    <YAxis tickFormatter={(value) => `B${Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} fontSize={12} />
                                     <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                                    <Bar dataKey="sales" fill="#3b82f6" />
+                                    <Bar dataKey="sales">
+                                        {salespersonChartData.map((entry:any, index:number) => (
+                                            <Cell key={`cell-${index}`} fill={salespersonColors[index % salespersonColors.length]} />
+                                        ))}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
-                        <div id="salesperson-targets-display" className="mt-4 space-y-4">
+                        <div id="salesperson-targets-display" className="mt-4 space-y-4 max-h-64 overflow-y-auto pr-3">
                             {Object.keys(salespersonTargets).length > 0 ? (
                                 Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
                                     const currentSales = salespersonChartData.find(s => s.name === salespersonName)?.sales || 0;
@@ -709,13 +717,13 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                      <CardContent className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2}>
                                     {pieChartData.map((entry:any, index:number) => (
                                         <Cell key={`cell-${index}`} fill={entry.fill} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                                <Legend />
+                                <Legend iconSize={10} wrapperStyle={{fontSize: "12px"}}/>
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>
