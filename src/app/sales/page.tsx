@@ -543,6 +543,20 @@ export default function SalesPage() {
 
 function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, onSetMonthlyTargets, onSetSalespersonTargets, onNavigate }: any) {
     const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    const [todayDate, setTodayDate] = useState('');
+    const [currentMonth, setCurrentMonth] = useState('');
+
+    useEffect(() => {
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = String(now.getFullYear()).slice(2);
+        setTodayDate(`${day}/${month}/${year}`);
+
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        setCurrentMonth(monthNames[now.getMonth()] + ' ' + now.getFullYear());
+    }, []);
 
     const { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData, productChartData } = useMemo(() => {
         const today = new Date();
@@ -587,24 +601,24 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card>
+                <Card className="hover-lift">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-gray-700">Today's Sales</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold text-blue-600">{formatCurrency(todaySales)}</p>
-                        <p className="text-sm text-gray-500 mt-2">{new Date().toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-500 mt-2">{todayDate}</p>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="hover-lift">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-lg font-semibold text-gray-700">Monthly Sales</CardTitle>
                         <Button variant="link" className="text-blue-600" onClick={onSetMonthlyTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
-                        <p className="text-sm text-gray-500 mt-2">{new Date().toLocaleString('default', { month: 'long' })} {new Date().getFullYear()}</p>
-                         <div className="mt-4 space-y-2">
+                        <p className="text-sm text-gray-500 mt-2">{currentMonth}</p>
+                         <div id="monthly-targets-display" className="mt-4 space-y-2">
                             {Object.entries(monthlyTargets).map(([key, value]) => {
                                 if (!value) return null;
                                 const targetAmount = value as number;
@@ -624,7 +638,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                         </div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="hover-lift">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-gray-700">Total Transactions</CardTitle>
                     </CardHeader>
@@ -637,23 +651,61 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Sales by Salesperson</CardTitle>
+                        <CardTitle className="text-lg font-bold text-gray-800">Sales by Salesperson</CardTitle>
                         <Button variant="link" className="text-blue-600" onClick={onSetSalespersonTargets}>Set Targets</Button>
                     </CardHeader>
-                    <CardContent className="h-80">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={salespersonChartData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" fontSize={12} />
-                                <YAxis tickFormatter={(value) => formatCurrency(value as number)} />
-                                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                                <Bar dataKey="sales" fill="#3b82f6" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <CardContent>
+                        <div className="h-64 mb-4">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={salespersonChartData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" fontSize={12} />
+                                    <YAxis tickFormatter={(value) => formatCurrency(value as number)} />
+                                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                                    <Bar dataKey="sales" fill="#3b82f6" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div id="salesperson-targets-display" className="mt-4 space-y-4">
+                            {Object.keys(salespersonTargets).length > 0 ? (
+                                Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
+                                    const currentSales = salespersonChartData.find(s => s.name === salespersonName)?.sales || 0;
+                                    
+                                    if(!Object.values(targets).some(t => t && t > 0)) return null;
+
+                                    return (
+                                        <div key={salespersonName} className="p-4 bg-gray-50 rounded-lg">
+                                            <h4 className="font-semibold text-gray-800 mb-2">{salespersonName}</h4>
+                                            <p className="text-sm text-gray-600 mb-3">Current Sales: {formatCurrency(currentSales)}</p>
+                                            {Object.entries(targets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([targetKey, targetValue]) => {
+                                                if (!targetValue || (targetValue as number) <= 0) return null;
+                                                const targetAmount = targetValue as number;
+                                                const progress = Math.min((currentSales / targetAmount) * 100, 100);
+                                                const remaining = Math.max(0, targetAmount - currentSales);
+
+                                                return (
+                                                    <div key={targetKey} className="mb-2 last:mb-0">
+                                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                                            <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
+                                                            <span>{Math.round(progress)}% ({formatCurrency(remaining)})</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                                            <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )
+                                })
+                            ) : (
+                                <div className="text-gray-500 text-sm text-center py-4">No salesperson targets set.</div>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle>Product Category Sales</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-lg font-bold text-gray-800">Product Category Sales</CardTitle></CardHeader>
                      <CardContent className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -671,7 +723,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             </div>
              <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Recent Sales</CardTitle>
+                    <CardTitle className="text-lg font-bold text-gray-800">Recent Sales</CardTitle>
                     <Button onClick={() => onNavigate('sales-report')}>View All</Button>
                 </CardHeader>
                 <CardContent>
