@@ -7,9 +7,9 @@ export default function Home() {
     {
       title: 'RCF Sales Dashboard',
       description: 'Dashboard for sales analytics.',
-      href: '#', // Not implemented yet
+      href: '/sales',
       icon: <BarChart className="w-8 h-8 text-primary" />,
-      disabled: true,
+      disabled: false,
     },
     {
       title: 'RCF HRM',

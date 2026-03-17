@@ -56,3 +56,38 @@ export interface MaintenanceReport {
   completed: boolean;
   timestamp: any; // Firestore timestamp
 }
+
+export interface Sale {
+  id: string;
+  date: any; // Firestore timestamp or Date
+  salesperson: string;
+  product: string;
+  amount: number;
+}
+
+export interface SalesEmployee {
+  id: string;
+  name: string;
+  position: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  category: 'Membership' | 'Punch Card' | 'Personal Training' | 'Boxing Training' | 'Daily Pass' | 'Proshop' | 'Food & Beverage';
+  defaultPrice: number;
+}
+
+export interface MonthlyTargets {
+    target1?: number;
+    target2?: number;
+    target3?: number;
+}
+
+export interface SalespersonTargets {
+    [salespersonName: string]: {
+        target1?: number;
+        target2?: number;
+        target3?: number;
+    }
+}
