@@ -68,36 +68,36 @@ function SalesPageContent() {
         
         const initDefaults = async () => {
             const productsCollectionRef = collection(db, "salesdashboard1_products");
-            const productsSnapshot = await getDocs(query(productsCollectionRef, limit(1)));
+            const productsSnapshot = await getDocs(productsCollectionRef);
             if (productsSnapshot.empty) {
-                 const defaultProducts = [
-                    { name: 'Annual Full', category: 'Membership', defaultPrice: 25000 },
-                    { name: 'Annual GO', category: 'Membership', defaultPrice: 15000 },
-                    { name: '6-Month Full', category: 'Membership', defaultPrice: 15000 },
-                    { name: '6-Month GO', category: 'Membership', defaultPrice: 9000 },
-                    { name: '3-Month Full', category: 'Membership', defaultPrice: 9000 },
-                    { name: '3-Month GO', category: 'Membership', defaultPrice: 5400 },
-                    { name: '1-Month Full', category: 'Membership', defaultPrice: 3500 },
-                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2100 },
-                    { name: 'Punch Card 100 Visits', category: 'Punch Card', defaultPrice: 15000 },
-                    { name: 'Punch Card 50 Visits', category: 'Punch Card', defaultPrice: 8500 },
-                    { name: 'Punch Card 30 Visits', category: 'Punch Card', defaultPrice: 5400 },
-                    { name: 'Punch Card 20 Visits', category: 'Punch Card', defaultPrice: 3800 },
-                    { name: 'Punch Card 10 Visits', category: 'Punch Card', defaultPrice: 2000 },
-                    { name: 'PT 100 Sessions', category: 'Personal Training', defaultPrice: 70000 },
-                    { name: 'PT 50 Sessions', category: 'Personal Training', defaultPrice: 37500 },
-                    { name: 'PT 30 Sessions', category: 'Personal Training', defaultPrice: 24000 },
-                    { name: 'PT 20 Sessions', category: 'Personal Training', defaultPrice: 17000 },
-                    { name: 'PT 10 Sessions', category: 'Personal Training', defaultPrice: 9000 },
-                    { name: 'PT 1 Session', category: 'Personal Training', defaultPrice: 1000 },
-                    { name: 'Boxing 100 Sessions', category: 'Boxing Training', defaultPrice: 70000 },
-                    { name: 'Boxing 50 Sessions', category: 'Boxing Training', defaultPrice: 37500 },
-                    { name: 'Boxing 30 Sessions', category: 'Boxing Training', defaultPrice: 24000 },
-                    { name: 'Boxing 20 Sessions', category: 'Boxing Training', defaultPrice: 17000 },
-                    { name: 'Boxing 10 Sessions', category: 'Boxing Training', defaultPrice: 9000 },
-                    { name: 'Boxing 1 Session', category: 'Boxing Training', defaultPrice: 1000 },
-                    { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 400 },
-                    { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 250 },
+                 const defaultProducts: Omit<Product, 'id'>[] = [
+                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000 },
+                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000 },
+                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000 },
+                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200 },
+                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000 },
+                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800 },
+                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500 },
+                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000 },
+                    { name: 'Punch Card 100 Visits', category: 'Punch Card', defaultPrice: 12000 },
+                    { name: 'Punch Card 50 Visits', category: 'Punch Card', defaultPrice: 7000 },
+                    { name: 'Punch Card 30 Visits', category: 'Punch Card', defaultPrice: 4500 },
+                    { name: 'Punch Card 20 Visits', category: 'Punch Card', defaultPrice: 3400 },
+                    { name: 'Punch Card 10 Visits', category: 'Punch Card', defaultPrice: 1800 },
+                    { name: 'PT 100 Sessions', category: 'Personal Training', defaultPrice: 47000 },
+                    { name: 'PT 50 Sessions', category: 'Personal Training', defaultPrice: 25000 },
+                    { name: 'PT 30 Sessions', category: 'Personal Training', defaultPrice: 15900 },
+                    { name: 'PT 20 Sessions', category: 'Personal Training', defaultPrice: 11000 },
+                    { name: 'PT 10 Sessions', category: 'Personal Training', defaultPrice: 6000 },
+                    { name: 'PT 1 Session', category: 'Personal Training', defaultPrice: 700 },
+                    { name: 'Boxing 100 Sessions', category: 'Boxing Training', defaultPrice: 57000 },
+                    { name: 'Boxing 50 Sessions', category: 'Boxing Training', defaultPrice: 30000 },
+                    { name: 'Boxing 30 Sessions', category: 'Boxing Training', defaultPrice: 18900 },
+                    { name: 'Boxing 20 Sessions', category: 'Boxing Training', defaultPrice: 13000 },
+                    { name: 'Boxing 10 Sessions', category: 'Boxing Training', defaultPrice: 7000 },
+                    { name: 'Boxing 1 Session', category: 'Boxing Training', defaultPrice: 700 },
+                    { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 300 },
+                    { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 200 },
                     { name: 'Proshop Item', category: 'Proshop', defaultPrice: 0 },
                     { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0 }
                 ];
@@ -107,13 +107,16 @@ function SalesPageContent() {
             }
 
             const employeesCollectionRef = collection(db, "salesdashboard1_employees");
-            const employeesSnapshot = await getDocs(query(employeesCollectionRef, limit(1)));
+            const employeesSnapshot = await getDocs(employeesCollectionRef);
             if (employeesSnapshot.empty) {
-                 const defaultEmployees = [
-                    { name: 'John Doe', position: 'Sales Manager' },
-                    { name: 'Jane Smith', position: 'Sales Associate' },
-                    { name: 'Mike Johnson', position: 'Fitness Consultant' },
-                    { name: 'John Doe', position: 'Sales Associate' },
+                 const defaultEmployees: Omit<SalesEmployee, 'id'>[] = [
+                    { name: 'Gym', position: 'Manager' },
+                    { name: 'Neen', position: 'Sales' },
+                    { name: 'Dew', position: 'Sales' },
+                    { name: 'Kie', position: 'Trainer Supervisor' },
+                    { name: 'Mos', position: 'Trainer' },
+                    { name: 'Drink', position: 'Trainer' },
+                    { name: 'Nymh', position: 'Trainer' },
                 ];
                 const batch = writeBatch(db);
                 defaultEmployees.forEach(e => batch.set(doc(collection(db, "salesdashboard1_employees")), e));
