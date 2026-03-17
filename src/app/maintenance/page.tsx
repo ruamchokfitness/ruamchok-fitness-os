@@ -1,26 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    onSnapshot, 
-    orderBy, 
-    query, 
-    doc, 
-    updateDoc, 
-    deleteDoc,
-    serverTimestamp,
-    getDocs,
-    writeBatch,
-    where,
-    limit,
-    getDoc,
-} from 'firebase/firestore';
+import { collection, addDoc, orderBy, query, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, writeBatch, where, limit, setDoc } from 'firebase/firestore';
 
-import { firebaseConfig } from '@/firebase/config';
+import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+
 import type { MaintenanceReport, MaintenanceCategory } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
@@ -34,12 +18,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import type { Firestore } from 'firebase/firestore';
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const maintenanceCollectionRef = collection(db, "MaintenanceReport1");
-const categoriesCollectionRef = collection(db, "MaintenanceCategories");
 
 const categoryColors: { [key: string]: { bg: string; text: string; hex: string } } = {
     'cardio': { bg: 'bg-red-100', text: 'text-red-800', hex: '#FEE2E2' },
@@ -50,13 +30,19 @@ const categoryColors: { [key: string]: { bg: string; text: string; hex: string }
     'other': { bg: 'bg-gray-100', text: 'text-gray-800', hex: '#F3F4F6' }
 };
 
-export default function MaintenancePage() {
+function MaintenancePageContent() {
+    const { firestore: db } = useFirebase();
     const { toast } = useToast();
 
     // State
-    const [reports, setReports] = useState<MaintenanceReport[]>([]);
-    const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
-    const [loading, setLoading] = useState(true);
+    const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "MaintenanceCategories"), orderBy('name')) : null, [db]);
+    const { data: categories, isLoading: loadingCategories } = useCollection<MaintenanceCategory>(categoriesQuery);
+
+    const reportsQuery = useMemoFirebase(() => db ? query(collection(db, "MaintenanceReport1"), orderBy('timestamp', 'desc')) : null, [db]);
+    const { data: reports, isLoading: loadingReports } = useCollection<MaintenanceReport>(reportsQuery);
+    
+    const loading = loadingCategories || loadingReports;
+    
     const [filteredReports, setFilteredReports] = useState<MaintenanceReport[]>([]);
     const [currentFilter, setCurrentFilter] = useState('all');
     
@@ -93,58 +79,39 @@ export default function MaintenancePage() {
         setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
         setEndDate(today);
 
+        if(!db || loadingCategories) return;
+
         const initialize = async () => {
-            const categoriesSnapshot = await getDocs(categoriesCollectionRef);
-            if (categoriesSnapshot.empty) {
-                const batch = writeBatch(db);
-                const defaultCategories = [
-                    { id: 'cardio', name: 'อุปกรณ์คาร์ดิโอ' },
-                    { id: 'strength', name: 'อุปกรณ์เวทเทรนนิ่ง' },
-                    { id: 'electrical', name: 'ระบบไฟฟ้า' },
-                    { id: 'plumbing', name: 'ระบบประปา' },
-                    { id: 'aircon', name: 'ระบบปรับอากาศ' },
-                    { id: 'other', name: 'อื่นๆ' }
-                ];
-                defaultCategories.forEach(category => {
-                    const docRef = doc(db, "MaintenanceCategories", category.id);
-                    batch.set(docRef, category);
-                });
-                await batch.commit();
-            }
+            if (categories && categories.length > 0) return;
+
+            const batch = writeBatch(db);
+            const defaultCategories = [
+                { id: 'cardio', name: 'อุปกรณ์คาร์ดิโอ' },
+                { id: 'strength', name: 'อุปกรณ์เวทเทรนนิ่ง' },
+                { id: 'electrical', name: 'ระบบไฟฟ้า' },
+                { id: 'plumbing', name: 'ระบบประปา' },
+                { id: 'aircon', name: 'ระบบปรับอากาศ' },
+                { id: 'other', name: 'อื่นๆ' }
+            ];
+            defaultCategories.forEach(category => {
+                const docRef = doc(db, "MaintenanceCategories", category.id);
+                batch.set(docRef, category);
+            });
+            await batch.commit();
         };
 
-        initialize().then(() => {
-            const qCategories = query(categoriesCollectionRef);
-            onSnapshot(qCategories, (snapshot) => {
-                const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MaintenanceCategory))
-                                                        .sort((a,b) => a.name.localeCompare(b.name));
-                setCategories(fetchedCategories);
-            });
-        });
-
-        const qReports = query(maintenanceCollectionRef, orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(qReports, (snapshot) => {
-            const fetchedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MaintenanceReport));
-            setReports(fetchedReports);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching reports:", error);
-            toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถโหลดข้อมูลรายงานได้", variant: 'destructive' });
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [toast]);
+        initialize();
+    }, [db, categories, loadingCategories]);
 
     // Filtering logic
     useEffect(() => {
         if(isSearching) return;
 
-        let filtered = reports;
+        let filtered = reports || [];
         if (currentFilter === 'completed') {
-            filtered = reports.filter(r => r.completed);
+            filtered = (reports || []).filter(r => r.completed);
         } else if (currentFilter === 'pending') {
-            filtered = reports.filter(r => !r.completed);
+            filtered = (reports || []).filter(r => !r.completed);
         }
         setFilteredReports(filtered);
     }, [reports, currentFilter, isSearching]);
@@ -167,7 +134,7 @@ export default function MaintenancePage() {
         };
 
         try {
-            await addDoc(maintenanceCollectionRef, newReport);
+            await addDoc(collection(db, "MaintenanceReport1"), newReport);
             toast({ title: "บันทึกสำเร็จ", description: "เพิ่มรายการซ่อมบำรุงเรียบร้อย" });
             // Reset form
             setResponsible('');
@@ -219,7 +186,7 @@ export default function MaintenancePage() {
         setIsSearching(true);
         
         let q = query(
-            maintenanceCollectionRef,
+            collection(db, "MaintenanceReport1"),
             where('date', '>=', startDate),
             where('date', '<=', endDate),
             orderBy('date', 'desc')
@@ -247,7 +214,7 @@ export default function MaintenancePage() {
     };
     
     const getCategoryName = (categoryId: string) => {
-        return categories.find(c => c.id === categoryId)?.name || 'ไม่มีหมวดหมู่';
+        return (categories || []).find(c => c.id === categoryId)?.name || 'ไม่มีหมวดหมู่';
     };
 
     return (
@@ -286,7 +253,7 @@ export default function MaintenancePage() {
                                 <Select value={maintenanceCategory} onValueChange={setMaintenanceCategory} required>
                                     <SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger>
                                     <SelectContent>
-                                        {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                                        {(categories || []).map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <Input placeholder="รายการซ่อม" value={maintenanceItem} onChange={e => setMaintenanceItem(e.target.value)} required />
@@ -314,7 +281,7 @@ export default function MaintenancePage() {
                                 <SelectTrigger><SelectValue placeholder="ทุกประเภท" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">ทุกประเภท</SelectItem>
-                                    {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                                    {(categories || []).map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <Button onClick={handleSearch}>ค้นหา</Button>
@@ -398,11 +365,12 @@ export default function MaintenancePage() {
             <ManageCategoriesDialog 
                 open={manageCategoriesModalOpen} 
                 onOpenChange={setManageCategoriesModalOpen}
-                categories={categories}
+                categories={categories || []}
                 onAddClick={() => { setManageCategoriesModalOpen(false); setAddCategoryModalOpen(true); }}
                 onDeleteClick={async (category) => {
                     setCategoryToDelete(category);
                     try {
+                        const maintenanceCollectionRef = collection(db, "MaintenanceReport1");
                         const reportsSnapshot = await getDocs(query(maintenanceCollectionRef, where('category', '==', category.id), limit(1)));
                         setCategoryInUse(!reportsSnapshot.empty);
                     } catch(e) {
@@ -410,12 +378,14 @@ export default function MaintenancePage() {
                     }
                     setDeleteCategoryModalOpen(true);
                 }}
+                db={db}
             />
             
             <AddCategoryDialog 
                 open={addCategoryModalOpen} 
                 onOpenChange={setAddCategoryModalOpen}
-                categories={categories}
+                categories={categories || []}
+                db={db}
             />
 
             <AlertDialog open={deleteCategoryModalOpen} onOpenChange={setDeleteCategoryModalOpen}>
@@ -463,7 +433,7 @@ export default function MaintenancePage() {
     );
 }
 
-function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, onDeleteClick }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], onAddClick: () => void, onDeleteClick: (category: MaintenanceCategory) => void }) {
+function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, onDeleteClick, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], onAddClick: () => void, onDeleteClick: (category: MaintenanceCategory) => void, db: Firestore }) {
     const { toast } = useToast();
     const [editingCategory, setEditingCategory] = useState<MaintenanceCategory | null>(null);
     const [editedName, setEditedName] = useState('');
@@ -524,7 +494,7 @@ function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, on
     )
 }
 
-function AddCategoryDialog({ open, onOpenChange, categories }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[]}) {
+function AddCategoryDialog({ open, onOpenChange, categories, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], db: Firestore}) {
     const { toast } = useToast();
     const [id, setId] = useState('');
     const [name, setName] = useState('');
@@ -540,7 +510,7 @@ function AddCategoryDialog({ open, onOpenChange, categories }: { open: boolean, 
             return;
         }
         try {
-            await updateDoc(doc(db, "MaintenanceCategories", id.trim().toLowerCase()), { id: id.trim().toLowerCase(), name });
+            await setDoc(doc(db, "MaintenanceCategories", id.trim().toLowerCase()), { id: id.trim().toLowerCase(), name });
             toast({ title: "เพิ่มประเภทสำเร็จ" });
             setId('');
             setName('');
@@ -565,4 +535,12 @@ function AddCategoryDialog({ open, onOpenChange, categories }: { open: boolean, 
             </DialogContent>
         </Dialog>
     )
+}
+
+export default function MaintenancePage() {
+  return (
+    <FirebaseClientProvider>
+      <MaintenancePageContent />
+    </FirebaseClientProvider>
+  )
 }

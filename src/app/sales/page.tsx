@@ -1,12 +1,10 @@
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc, limit } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, orderBy, where, setDoc, writeBatch } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 
-
-import { firebaseConfig } from '@/firebase/config';
+import { FirebaseClientProvider, useFirebase, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import type { Sale, SalesEmployee, Product, MonthlyTargets, SalespersonTargets } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,29 +17,36 @@ import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-const salesCollectionRef = collection(db, "salesdashboard1");
-const employeesCollectionRef = collection(db, "salesdashboard1_employees");
-const productsCollectionRef = collection(db, "salesdashboard1_products");
-const settingsCollectionRef = collection(db, "salesdashboard1_settings");
-
-export default function SalesPage() {
+function SalesPageContent() {
+    const { firestore: db } = useFirebase();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
 
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [employees, setEmployees] = useState<SalesEmployee[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [monthlyTargets, setMonthlyTargets] = useState<MonthlyTargets>({});
-    const [salespersonTargets, setSalespersonTargets] = useState<SalespersonTargets>({});
+    const salesQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1"), orderBy('date', 'desc')) : null, [db]);
+    const { data: salesData, isLoading: loadingSales } = useCollection<Sale>(salesQuery);
+    const sales = salesData || [];
+
+    const employeesQuery = useMemoFirebase(() => db ? collection(db, "salesdashboard1_employees") : null, [db]);
+    const { data: employeesData, isLoading: loadingEmployees } = useCollection<SalesEmployee>(employeesQuery);
+    const employees = employeesData || [];
+
+    const productsQuery = useMemoFirebase(() => db ? collection(db, "salesdashboard1_products") : null, [db]);
+    const { data: productsData, isLoading: loadingProducts } = useCollection<Product>(productsQuery);
+    const products = productsData || [];
+
+    const monthlyTargetsDoc = useMemoFirebase(() => db ? doc(db, "salesdashboard1_settings", 'monthly_targets') : null, [db]);
+    const { data: monthlyTargetsData, isLoading: loadingMonthlyTargets } = useDoc<{targets: MonthlyTargets}>(monthlyTargetsDoc);
+    const monthlyTargets = monthlyTargetsData?.targets || {};
+
+    const salespersonTargetsDoc = useMemoFirebase(() => db ? doc(db, "salesdashboard1_settings", 'salesperson_targets') : null, [db]);
+    const { data: salespersonTargetsData, isLoading: loadingSalespersonTargets } = useDoc<{targets: SalespersonTargets}>(salespersonTargetsDoc);
+    const salespersonTargets = salespersonTargetsData?.targets || {};
     
-    const [loading, setLoading] = useState(true);
+    const loading = loadingSales || loadingEmployees || loadingProducts || loadingMonthlyTargets || loadingSalespersonTargets;
 
     // Modals
     const [employeeModal, setEmployeeModal] = useState({ open: false, data: null as SalesEmployee | null });
@@ -58,9 +63,10 @@ export default function SalesPage() {
 
     // Initialize default data
     useEffect(() => {
+        if (loading || !db) return;
+        
         const initDefaults = async () => {
-            const productSnapshot = await getDocs(query(productsCollectionRef, limit(1)));
-            if (productSnapshot.empty) {
+            if (products.length === 0) {
                  const defaultProducts = [
                     { name: 'Annual Full', category: 'Membership', defaultPrice: 25000 },
                     { name: 'Annual GO', category: 'Membership', defaultPrice: 15000 },
@@ -93,52 +99,24 @@ export default function SalesPage() {
                     { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0 }
                 ];
                 const batch = writeBatch(db);
-                defaultProducts.forEach(p => batch.set(doc(productsCollectionRef), p));
+                defaultProducts.forEach(p => batch.set(doc(collection(db, "salesdashboard1_products")), p));
                 await batch.commit();
             }
 
-            const employeeSnapshot = await getDocs(query(employeesCollectionRef, limit(1)));
-            if (employeeSnapshot.empty) {
+            if (employees.length === 0) {
                  const defaultEmployees = [
                     { name: 'John Doe', position: 'Sales Manager' },
                     { name: 'Jane Smith', position: 'Sales Associate' },
                     { name: 'Mike Johnson', position: 'Fitness Consultant' }
                 ];
                 const batch = writeBatch(db);
-                defaultEmployees.forEach(e => batch.set(doc(employeesCollectionRef), e));
+                defaultEmployees.forEach(e => batch.set(doc(collection(db, "salesdashboard1_employees")), e));
                 await batch.commit();
             }
         };
         initDefaults();
-    }, []);
+    }, [loading, db, products, employees]);
 
-    // Data fetching
-    useEffect(() => {
-        const unsubSales = onSnapshot(query(salesCollectionRef, orderBy('date', 'desc')), (snapshot) => {
-            setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-            setLoading(false);
-        });
-        const unsubEmployees = onSnapshot(employeesCollectionRef, (snapshot) => {
-            setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalesEmployee)));
-        });
-        const unsubProducts = onSnapshot(productsCollectionRef, (snapshot) => {
-            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-        });
-        const unsubMonthlyTargets = onSnapshot(doc(settingsCollectionRef, 'monthly_targets'), (doc) => {
-            setMonthlyTargets(doc.data()?.targets || {});
-        });
-        const unsubSalespersonTargets = onSnapshot(doc(settingsCollectionRef, 'salesperson_targets'), (doc) => {
-            setSalespersonTargets(doc.data()?.targets || {});
-        });
-
-        return () => {
-            unsubSales();
-            unsubEmployees();
-            unsubProducts();
-            unsubMonthlyTargets();
-            unsubSalespersonTargets();
-        };
-    }, []);
 
      // Set default filter dates
     useEffect(() => {
@@ -185,10 +163,10 @@ export default function SalesPage() {
 
         try {
             if (id) {
-                await updateDoc(doc(employeesCollectionRef, id), employeeData);
+                await updateDoc(doc(db, "salesdashboard1_employees", id), employeeData);
                 showAndHideToast("Success", "Employee updated.");
             } else {
-                await addDoc(employeesCollectionRef, employeeData);
+                await addDoc(collection(db, "salesdashboard1_employees"), employeeData);
                 showAndHideToast("Success", "Employee added.");
             }
             setEmployeeModal({ open: false, data: null });
@@ -199,7 +177,7 @@ export default function SalesPage() {
      const handleDeleteEmployee = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this employee?", async () => {
              try {
-                await deleteDoc(doc(employeesCollectionRef, id));
+                await deleteDoc(doc(db, "salesdashboard1_employees", id));
                 showAndHideToast("Success", "Employee deleted.");
             } catch (e) {
                 showAndHideToast("Error", "Could not delete employee.", "destructive");
@@ -217,10 +195,10 @@ export default function SalesPage() {
 
         try {
             if (id) {
-                await updateDoc(doc(productsCollectionRef, id), productData);
+                await updateDoc(doc(db, "salesdashboard1_products", id), productData);
                 showAndHideToast("Success", "Product updated.");
             } else {
-                await addDoc(productsCollectionRef, productData);
+                await addDoc(collection(db, "salesdashboard1_products"), productData);
                 showAndHideToast("Success", "Product added.");
             }
             setProductModal({ open: false, data: null });
@@ -231,7 +209,7 @@ export default function SalesPage() {
     const handleDeleteProduct = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this product?", async () => {
              try {
-                await deleteDoc(doc(productsCollectionRef, id));
+                await deleteDoc(doc(db, "salesdashboard1_products", id));
                 showAndHideToast("Success", "Product deleted.");
             } catch (e) {
                 showAndHideToast("Error", "Could not delete product.", "destructive");
@@ -247,7 +225,7 @@ export default function SalesPage() {
             amount: Number(formData.get('amount')),
         };
         try {
-            await addDoc(salesCollectionRef, saleData);
+            await addDoc(collection(db, "salesdashboard1"), saleData);
             showAndHideToast("Success", "Sale recorded.");
         } catch(e) {
             showAndHideToast("Error", "Could not save sale.", "destructive");
@@ -262,7 +240,7 @@ export default function SalesPage() {
             amount: Number(formData.get('amount')),
         };
         try {
-            await updateDoc(doc(salesCollectionRef, id), saleData);
+            await updateDoc(doc(db, "salesdashboard1", id), saleData);
             showAndHideToast("Success", "Sale updated.");
             setEditSaleModal({ open: false, data: null });
         } catch(e) {
@@ -272,7 +250,7 @@ export default function SalesPage() {
     const handleDeleteSale = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this sale?", async () => {
              try {
-                await deleteDoc(doc(salesCollectionRef, id));
+                await deleteDoc(doc(db, "salesdashboard1", id));
                 showAndHideToast("Success", "Sale deleted.");
             } catch (e) {
                 showAndHideToast("Error", "Could not delete sale.", "destructive");
@@ -289,7 +267,7 @@ export default function SalesPage() {
             target3: Number(formData.get('target3')),
         };
         try {
-            await setDoc(doc(settingsCollectionRef, 'monthly_targets'), { targets });
+            await setDoc(doc(db, "salesdashboard1_settings", 'monthly_targets'), { targets });
             showAndHideToast("Success", "Monthly targets saved.");
             setMonthlyTargetsModal(false);
         } catch (e) {
@@ -313,7 +291,7 @@ export default function SalesPage() {
         });
 
         try {
-            await setDoc(doc(settingsCollectionRef, 'salesperson_targets'), { targets: newTargets });
+            await setDoc(doc(db, "salesdashboard1_settings", 'salesperson_targets'), { targets: newTargets });
             showAndHideToast("Success", "Salesperson targets saved.");
             setSalespersonTargetsModal(false);
         } catch (e) {
@@ -512,12 +490,14 @@ export default function SalesPage() {
                 onOpenChange={(open) => setEmployeeModal({ open, data: null })}
                 employee={employeeModal.data}
                 onSave={handleSaveEmployee}
+                db={db}
             />
             <ProductModal 
                 open={productModal.open}
                 onOpenChange={(open) => setProductModal({ open, data: null })}
                 product={productModal.data}
                 onSave={handleSaveProduct}
+                db={db}
             />
              <EditSaleModal
                 open={editSaleModal.open}
@@ -526,12 +506,14 @@ export default function SalesPage() {
                 employees={employees}
                 products={products}
                 onSave={handleUpdateSale}
+                db={db}
             />
              <MonthlyTargetsModal
                 open={monthlyTargetsModal}
                 onOpenChange={setMonthlyTargetsModal}
                 targets={monthlyTargets}
                 onSave={handleSaveMonthlyTargets}
+                db={db}
             />
             <SalespersonTargetsModal
                 open={salespersonTargetsModal}
@@ -539,9 +521,18 @@ export default function SalesPage() {
                 targets={salespersonTargets}
                 employees={employees}
                 onSave={handleSaveSalespersonTargets}
+                db={db}
             />
         </>
     );
+}
+
+export default function SalesPage() {
+    return (
+        <FirebaseClientProvider>
+            <SalesPageContent />
+        </FirebaseClientProvider>
+    )
 }
 
 // Sub-components for better organization
@@ -768,7 +759,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
     )
 }
 
-function EmployeeModal({ open, onOpenChange, employee, onSave }: { open: boolean, onOpenChange: (open: boolean) => void, employee: SalesEmployee | null, onSave: (data: FormData) => void }) {
+function EmployeeModal({ open, onOpenChange, employee, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, employee: SalesEmployee | null, onSave: (data: FormData) => void, db: Firestore }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -795,7 +786,7 @@ function EmployeeModal({ open, onOpenChange, employee, onSave }: { open: boolean
     )
 }
 
-function ProductModal({ open, onOpenChange, product, onSave }: { open: boolean, onOpenChange: (open: boolean) => void, product: Product | null, onSave: (data: FormData) => void }) {
+function ProductModal({ open, onOpenChange, product, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, product: Product | null, onSave: (data: FormData) => void, db: Firestore }) {
     const categories = ['Membership', 'Punch Card', 'Personal Training', 'Boxing Training', 'Daily Pass', 'Proshop', 'Food & Beverage'];
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -832,7 +823,7 @@ function ProductModal({ open, onOpenChange, product, onSave }: { open: boolean, 
     )
 }
 
-function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave }: { open: boolean, onOpenChange: (open: boolean) => void, sale: Sale | null, employees: SalesEmployee[], products: Product[], onSave: (data: FormData) => void }) {
+function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, sale: Sale | null, employees: SalesEmployee[], products: Product[], onSave: (data: FormData) => void, db: Firestore }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -861,7 +852,7 @@ function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave }
     )
 }
 
-function MonthlyTargetsModal({ open, onOpenChange, targets, onSave }: any) {
+function MonthlyTargetsModal({ open, onOpenChange, targets, onSave, db }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -889,7 +880,7 @@ function MonthlyTargetsModal({ open, onOpenChange, targets, onSave }: any) {
     )
 }
 
-function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSave }: any) {
+function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSave, db }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">

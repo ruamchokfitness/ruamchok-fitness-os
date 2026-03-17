@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
 
 import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission } from '@/lib/types';
@@ -20,11 +19,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import type { Firestore } from 'firebase/firestore';
 
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
 const COMMISSION_PLANS: { [key: string]: { name: string; tiers: { maxHours: number; rate: number }[] } } = {
     PLAN_A: {
@@ -43,56 +39,40 @@ const COMMISSION_PLANS: { [key: string]: { name: string; tiers: { maxHours: numb
     }
 };
 
-export default function PTTrackerPage() {
+function PTTrackerPageContent() {
+    const { firestore: db } = useFirebase();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
-    const [loading, setLoading] = useState(true);
 
-    const [clients, setClients] = useState<PTClient[]>([]);
-    const [trainers, setTrainers] = useState<PTTrainer[]>([]);
-    const [packages, setPackages] = useState<PTPackage[]>([]);
-    const [sessions, setSessions] = useState<PTSession[]>([]);
-    const [commissions, setCommissions] = useState<PTCommission[]>([]);
+    const { data: clients, isLoading: l1 } = useCollection<PTClient>(useMemoFirebase(() => db ? collection(db, "pt_clients") : null, [db]));
+    const { data: trainers, isLoading: l2 } = useCollection<PTTrainer>(useMemoFirebase(() => db ? collection(db, "pt_trainers") : null, [db]));
+    const { data: packages, isLoading: l3 } = useCollection<PTPackage>(useMemoFirebase(() => db ? query(collection(db, "pt_packages"), orderBy('purchase_date', 'desc')) : null, [db]));
+    const { data: sessions, isLoading: l4 } = useCollection<PTSession>(useMemoFirebase(() => db ? query(collection(db, "pt_sessions"), orderBy('session_datetime', 'desc')) : null, [db]));
+    const { data: commissions, isLoading: l5 } = useCollection<PTCommission>(useMemoFirebase(() => db ? query(collection(db, "pt_commissions"), orderBy('commission_amount', 'desc')) : null, [db]));
+    
+    const loading = l1 || l2 || l3 || l4 || l5;
     
     // Initial Data Seeding
     useEffect(() => {
+        if (!db || l1) return;
         const seedData = async () => {
-            const clientsSnapshot = await getDocs(collection(db, "pt_clients"));
-            if(clientsSnapshot.empty) {
-                const batch = writeBatch(db);
-                const demoClients = [
-                    { name: 'Alice Johnson', email: 'alice@example.com', phone: '081-234-5678', status: 'active' },
-                    { name: 'Bob Williams', email: 'bob@example.com', phone: '082-345-6789', status: 'active' },
-                ];
-                demoClients.forEach(c => batch.set(doc(collection(db, "pt_clients")), c));
+            if (clients && clients.length > 0) return;
+            const batch = writeBatch(db);
+            const demoClients = [
+                { name: 'Alice Johnson', email: 'alice@example.com', phone: '081-234-5678', status: 'active' },
+                { name: 'Bob Williams', email: 'bob@example.com', phone: '082-345-6789', status: 'active' },
+            ];
+            demoClients.forEach(c => batch.set(doc(collection(db, "pt_clients")), c));
 
-                const demoTrainers = [
-                    { name: 'Chris Evans', email: 'chris@rcf.com', phone: '091-111-2222', commission_plan: 'PLAN_A', status: 'active' },
-                    { name: 'Diana Prince', email: 'diana@rcf.com', phone: '092-222-3333', commission_plan: 'PLAN_B', status: 'active' },
-                ];
-                demoTrainers.forEach(t => batch.set(doc(collection(db, "pt_trainers")), t));
-                await batch.commit();
-            }
+            const demoTrainers = [
+                { name: 'Chris Evans', email: 'chris@rcf.com', phone: '091-111-2222', commission_plan: 'PLAN_A', status: 'active' },
+                { name: 'Diana Prince', email: 'diana@rcf.com', phone: '092-222-3333', commission_plan: 'PLAN_B', status: 'active' },
+            ];
+            demoTrainers.forEach(t => batch.set(doc(collection(db, "pt_trainers")), t));
+            await batch.commit();
         }
         seedData();
-    }, []);
-
-    useEffect(() => {
-        const unsubscribers = [
-            onSnapshot(collection(db, "pt_clients"), (snapshot) => setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTClient)))),
-            onSnapshot(collection(db, "pt_trainers"), (snapshot) => setTrainers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTTrainer)))),
-            onSnapshot(query(collection(db, "pt_packages"), orderBy('purchase_date', 'desc')), (snapshot) => setPackages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage)))),
-            onSnapshot(query(collection(db, "pt_sessions"), orderBy('session_datetime', 'desc')), (snapshot) => setSessions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession)))),
-            onSnapshot(query(collection(db, "pt_commissions"), orderBy('commission_amount', 'desc')), (snapshot) => setCommissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTCommission)))),
-        ];
-        
-        const timer = setTimeout(() => setLoading(false), 1500);
-
-        return () => {
-            clearTimeout(timer);
-            unsubscribers.forEach(unsub => unsub());
-        }
-    }, []);
+    }, [db, clients, l1]);
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -127,27 +107,35 @@ export default function PTTrackerPage() {
 
                 <div className="container mx-auto py-6">
                     <TabsContent value="dashboard">
-                        <DashboardTab clients={clients} trainers={trainers} packages={packages} sessions={sessions} commissions={commissions} />
+                        <DashboardTab clients={clients||[]} trainers={trainers||[]} packages={packages||[]} sessions={sessions||[]} commissions={commissions||[]} />
                     </TabsContent>
                     <TabsContent value="clients">
-                        <ClientsTab clients={clients} packages={packages} />
+                        <ClientsTab clients={clients||[]} packages={packages||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="trainers">
-                        <TrainersTab trainers={trainers} commissions={commissions} />
+                        <TrainersTab trainers={trainers||[]} commissions={commissions||[]} db={db} />
                     </TabsContent>
                      <TabsContent value="packages">
-                        <PackagesTab packages={packages} clients={clients} />
+                        <PackagesTab packages={packages||[]} clients={clients||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="sessions">
-                        <SessionsTab sessions={sessions} clients={clients} trainers={trainers} packages={packages} />
+                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="commissions">
-                        <CommissionsTab commissions={commissions} trainers={trainers} sessions={sessions} />
+                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} />
                     </TabsContent>
                 </div>
             </Tabs>
         </>
     )
+}
+
+export default function PTTrackerPage() {
+    return (
+        <FirebaseClientProvider>
+            <PTTrackerPageContent />
+        </FirebaseClientProvider>
+    );
 }
 
 // Helper Functions
@@ -330,7 +318,7 @@ function TablePlaceholder() {
 }
 
 // Clients Tab
-function ClientsTab({ clients, packages }: { clients: PTClient[], packages: PTPackage[] }) {
+function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore }) {
     const [search, setSearch] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedClient, setSelectedClient] = useState<PTClient | null>(null);
@@ -389,7 +377,7 @@ function ClientsTab({ clients, packages }: { clients: PTClient[], packages: PTPa
                                     <TableCell><Badge variant="outline" className={`badge-${client.status}`}>{client.status}</Badge></TableCell>
                                     <TableCell className="text-right">
                                         <button onClick={() => handleEdit(client)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="client" id={client.id} name={client.name} />
+                                        <DeleteButton type="client" id={client.id} name={client.name} db={db} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -397,12 +385,12 @@ function ClientsTab({ clients, packages }: { clients: PTClient[], packages: PTPa
                     </TableBody>
                 </Table>
             </Card>
-            <ClientModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} />
+            <ClientModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} db={db} />
         </div>
     )
 }
 
-function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commissions: PTCommission[] }) { 
+function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], commissions: PTCommission[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
@@ -480,7 +468,7 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                                     <TableCell><Badge variant="outline" className={`badge-${trainer.status}`}>{trainer.status}</Badge></TableCell>
                                      <TableCell className="text-right">
                                         <button onClick={() => handleEdit(trainer)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="trainer" id={trainer.id} name={trainer.name} />
+                                        <DeleteButton type="trainer" id={trainer.id} name={trainer.name} db={db} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -488,11 +476,11 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                     </TableBody>
                 </Table>
             </Card>
-            <TrainerModal open={modalOpen} onOpenChange={setModalOpen} trainer={selectedTrainer} />
+            <TrainerModal open={modalOpen} onOpenChange={setModalOpen} trainer={selectedTrainer} db={db} />
         </div>
     )
 }
-function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PTClient[] }) { 
+function PackagesTab({ packages, clients, db }: { packages: PTPackage[], clients: PTClient[], db: Firestore }) { 
     const [filter, setFilter] = useState('all');
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
@@ -572,7 +560,7 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                                     <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
                                     <TableCell className="text-right">
                                          <button onClick={() => handleEdit(pkg)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="package" id={pkg.id} name={pkg.package_name} />
+                                        <DeleteButton type="package" id={pkg.id} name={pkg.package_name} db={db} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -580,11 +568,11 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                     </TableBody>
                 </Table>
             </Card>
-            <PackageModal open={modalOpen} onOpenChange={setModalOpen} pkg={selectedPackage} clients={clients} />
+            <PackageModal open={modalOpen} onOpenChange={setModalOpen} pkg={selectedPackage} clients={clients} db={db} />
         </div>
     )
 }
-function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[] }) { 
+function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
     const [trainerFilter, setTrainerFilter] = useState('all');
 
@@ -648,7 +636,7 @@ function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSe
                                                 <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
                                             </>
                                         )}
-                                        <DeleteButton type="session" id={session.id} name={`Session for ${client?.name}`} />
+                                        <DeleteButton type="session" id={session.id} name={`Session for ${client?.name}`} db={db} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -656,7 +644,7 @@ function SessionsTab({ sessions, clients, trainers, packages }: { sessions: PTSe
                     </TableBody>
                 </Table>
             </Card>
-            <SessionModal open={modalOpen} onOpenChange={setModalOpen} clients={clients} trainers={trainers} packages={packages} />
+            <SessionModal open={modalOpen} onOpenChange={setModalOpen} clients={clients} trainers={trainers} packages={packages} db={db} />
         </div>
     )
 }
@@ -771,7 +759,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
 }
 
 // Client Modal
-function ClientModal({ open, onOpenChange, client }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null }) {
+function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -845,7 +833,7 @@ function ClientModal({ open, onOpenChange, client }: { open: boolean, onOpenChan
     )
 }
 
-function TrainerModal({ open, onOpenChange, trainer }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null }) {
+function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -932,7 +920,7 @@ function TrainerModal({ open, onOpenChange, trainer }: { open: boolean, onOpenCh
     )
 }
 
-function PackageModal({ open, onOpenChange, pkg, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, clients: PTClient[] }) {
+function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(pkg?.price_per_hour || 0);
@@ -1065,7 +1053,7 @@ function PackageModal({ open, onOpenChange, pkg, clients }: { open: boolean, onO
     )
 }
 
-function SessionModal({ open, onOpenChange, clients, trainers, packages }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[] }) {
+function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
@@ -1227,7 +1215,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages }: { ope
     )
 }
 
-function DeleteButton({ type, id, name }: { type: string, id: string, name: string }) {
+function DeleteButton({ type, id, name, db }: { type: string, id: string, name: string, db: Firestore }) {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
