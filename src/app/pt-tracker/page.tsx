@@ -106,8 +106,8 @@ export default function PTTrackerPage() {
                         <Trophy className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold">PT Session & Commission Tracker</h1>
-                        <p className="text-slate-300 text-sm md:text-base">Fitness Pro Business Management</p>
+                        <h1 className="text-2xl md:text-3xl font-bold">RCF PT Session & Commission Tracker</h1>
+                        <p className="text-slate-300 text-sm md:text-base">Track personal training sessions and commissions.</p>
                     </div>
                 </div>
             </header>
@@ -196,7 +196,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                         </div>
                     </div>
                 </Card>
-                 <Card className="p-6">
+                 <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-slate-500">Active Trainers</p>
@@ -207,7 +207,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                         </div>
                     </div>
                 </Card>
-                <Card className="p-6">
+                <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-slate-500">Sessions This Month</p>
@@ -219,7 +219,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                         </div>
                     </div>
                 </Card>
-                 <Card className="p-6">
+                 <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-slate-500">Commission This Month</p>
@@ -254,7 +254,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                                                     <span className="text-sm text-slate-500">{pkg.hours_remaining || 0}h left</span>
                                                 </div>
                                                 <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
-                                                     <div className="bg-gradient-to-r from-primary-400 to-primary-600 h-full" style={{width: `${progress}%`}}></div>
+                                                     <div className="bg-gradient-to-r from-sky-400 to-sky-600 h-full" style={{width: `${progress}%`}}></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -283,7 +283,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                                             </div>
                                             <div className="text-right">
                                                 <Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge>
-                                                <p className="text-xs text-slate-400 mt-1">${formatDateTime(session.session_datetime)}</p>
+                                                <p className="text-xs text-slate-400 mt-1">{formatDateTime(session.session_datetime)}</p>
                                             </div>
                                         </div>
                                     )
@@ -300,7 +300,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center p-4 bg-slate-50 rounded-xl">
                         <p className="text-sm text-slate-500">Total Revenue</p>
-                        <p className="text-2xl font-bold text-slate-800 mt-1">${formatCurrency(stats.totalRevenue)}</p>
+                        <p className="text-2xl font-bold text-slate-800 mt-1">{formatCurrency(stats.totalRevenue)}</p>
                         <p className="text-xs text-slate-400">from package sales</p>
                     </div>
                     <div className="text-center p-4 bg-slate-50 rounded-xl">
@@ -322,7 +322,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
 function TablePlaceholder() {
     return (
         <TableRow>
-            <TableCell colSpan={6} className="text-center h-24 text-slate-500">
+            <TableCell colSpan={7} className="text-center h-24 text-slate-500">
                 No data available.
             </TableCell>
         </TableRow>
@@ -463,7 +463,7 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-semibold">
                                                 {trainer.name?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
-                                            <span className="font-medium text-slate-800">${trainer.name}</span>
+                                            <span className="font-medium text-slate-800">{trainer.name}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -475,7 +475,7 @@ function TrainersTab({ trainers, commissions }: { trainers: PTTrainer[], commiss
                                     </TableCell>
                                     <TableCell>
                                         <p className="font-semibold text-slate-800">{monthlyHours} hours</p>
-                                        <p className="text-sm text-green-600">${formatCurrency(monthlyEarnings)}</p>
+                                        <p className="text-sm text-green-600">{formatCurrency(monthlyEarnings)}</p>
                                     </TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${trainer.status}`}>{trainer.status}</Badge></TableCell>
                                      <TableCell className="text-right">
@@ -549,7 +549,7 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                                             <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
                                                 {client?.name?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
-                                            <span className="font-medium text-slate-800">${client?.name || 'Unknown'}</span>
+                                            <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="font-medium text-slate-800">{pkg.package_name}</TableCell>
@@ -560,13 +560,13 @@ function PackagesTab({ packages, clients }: { packages: PTPackage[], clients: PT
                                                 <span className={`font-semibold ${(pkg.hours_remaining || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>{pkg.hours_remaining || 0} left</span>
                                             </div>
                                             <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
-                                                <div className="bg-gradient-to-r from-primary-400 to-primary-600 h-full" style={{width: `${progress}%`}}></div>
+                                                <div className="bg-gradient-to-r from-sky-400 to-sky-600 h-full" style={{width: `${progress}%`}}></div>
                                             </div>
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <p className="font-semibold text-slate-800">${formatCurrency(pkg.price_paid)}</p>
-                                        <p className="text-xs text-slate-500">${formatCurrency(pkg.price_per_hour)}/hr</p>
+                                        <p className="font-semibold text-slate-800">{formatCurrency(pkg.price_paid)}</p>
+                                        <p className="text-xs text-slate-500">{formatCurrency(pkg.price_per_hour)}/hr</p>
                                     </TableCell>
                                     <TableCell>{formatDate(pkg.expiry_date)}</TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
@@ -711,17 +711,17 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                         <Card key={trainer.id} className="p-5">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-lg">
-                                    ${trainer.name?.charAt(0)?.toUpperCase() || '?'}
+                                    {trainer.name?.charAt(0)?.toUpperCase() || '?'}
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-slate-800">${trainer.name}</h4>
+                                    <h4 className="font-semibold text-slate-800">{trainer.name}</h4>
                                     <Badge variant="outline" className={trainer.commission_plan === 'PLAN_A' ? 'bg-primary-100 text-primary-700' : 'bg-green-100 text-green-700'}>{plan?.name || 'No Plan'}</Badge>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Hours (${thisMonthRef})</span>
-                                    <span className="font-semibold text-slate-800">${totalHours}h</span>
+                                    <span className="font-semibold text-slate-800">{totalHours}h</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Current Tier</span>
@@ -729,7 +729,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
                                     <span className="text-slate-500">Total Earnings</span>
-                                    <span className="font-bold text-green-600">${formatCurrency(totalEarnings)}</span>
+                                    <span className="font-bold text-green-600">{formatCurrency(totalEarnings)}</span>
                                 </div>
                             </div>
                         </Card>
@@ -759,7 +759,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
                                     <TableCell>{comm.cumulative_hours_before}h → {comm.cumulative_hours_after}h</TableCell>
-                                    <TableCell className="text-right font-semibold text-green-600">${formatCurrency(comm.commission_amount)}</TableCell>
+                                    <TableCell className="text-right font-semibold text-green-600">{formatCurrency(comm.commission_amount)}</TableCell>
                                 </TableRow>
                             )
                         })}

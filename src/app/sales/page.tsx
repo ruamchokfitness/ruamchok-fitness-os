@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Edit, Settings } from 'lucide-react';
+import { BarChart2, Loader2, Plus, Trash2, Edit, Settings } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -323,15 +323,20 @@ export default function SalesPage() {
 
 
     if (loading) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="h-12 w-12 animate-spin" /></div>;
+        return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
 
     return (
         <>
-            <header className="bg-blue-600 text-white py-4 md:py-6">
-                <div className="container mx-auto px-4 md:px-8">
-                    <h1 className="text-2xl md:text-3xl font-bold">RCF Sales Dashboard</h1>
-                    <p className="text-blue-100 text-sm md:text-base">RuamChok Fitness Sales Management System</p>
+            <header className="bg-slate-900 text-white py-4 md:py-6">
+                <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <BarChart2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold">RCF Sales Dashboard</h1>
+                        <p className="text-slate-300 text-sm md:text-base">Dashboard for sales analytics.</p>
+                    </div>
                 </div>
             </header>
 
@@ -339,11 +344,11 @@ export default function SalesPage() {
                 <div className="sticky top-0 z-30 bg-white shadow-md">
                     <div className="container mx-auto">
                         <TabsList className="bg-transparent p-1 h-auto">
-                            <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Dashboard</TabsTrigger>
-                            <TabsTrigger value="sales-entry" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Sales Entry</TabsTrigger>
-                            <TabsTrigger value="sales-report" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Sales Report</TabsTrigger>
-                            <TabsTrigger value="employee-management" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Employee Mgmt</TabsTrigger>
-                            <TabsTrigger value="product-management" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Product Mgmt</TabsTrigger>
+                            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                            <TabsTrigger value="sales-entry">Sales Entry</TabsTrigger>
+                            <TabsTrigger value="sales-report">Sales Report</TabsTrigger>
+                            <TabsTrigger value="employee-management">Employee Mgmt</TabsTrigger>
+                            <TabsTrigger value="product-management">Product Mgmt</TabsTrigger>
                         </TabsList>
                     </div>
                 </div>
@@ -558,7 +563,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
         setCurrentMonth(monthNames[now.getMonth()] + ' ' + now.getFullYear());
     }, []);
 
-    const { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData, productChartData } = useMemo(() => {
+    const { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData, productChartDataValue } = useMemo(() => {
         const today = new Date();
         today.setHours(0,0,0,0);
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -582,7 +587,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             { name: 'Daily Pass', value: monthlySalesList.filter(s => s.product.includes('Daily')).reduce((sum, s) => sum + s.amount, 0) },
         ].filter(item => item.value > 0);
 
-        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartData: productChartDataValue};
+        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartDataValue};
     }, [sales, employees]);
     
     const productCategoryColors: {[key: string]: string} = {
@@ -593,7 +598,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
         'Daily Pass': '#8b5cf6'
     };
 
-    const pieChartData = productChartData.map((entry: any) => ({
+    const pieChartData = productChartDataValue.map((entry: any) => ({
       ...entry,
       fill: productCategoryColors[entry.name] || '#6b7280',
     }));
@@ -605,19 +610,19 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card className="hover-lift">
+                <Card className="bg-gradient-to-br from-primary-500 to-primary-700 text-white hover-lift">
                     <CardHeader>
-                        <CardTitle className="text-lg font-semibold text-gray-700">Today's Sales</CardTitle>
+                        <CardTitle className="text-lg font-semibold text-white/90">Today's Sales</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold text-blue-600">{formatCurrency(todaySales)}</p>
-                        <p className="text-sm text-gray-500 mt-2">{todayDate}</p>
+                        <p className="text-3xl font-bold">{formatCurrency(todaySales)}</p>
+                        <p className="text-sm text-white/80 mt-2">{todayDate}</p>
                     </CardContent>
                 </Card>
-                <Card className="hover-lift">
+                <Card className="hover-lift bg-white">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-lg font-semibold text-gray-700">Monthly Sales</CardTitle>
-                        <Button variant="link" className="text-blue-600" onClick={onSetMonthlyTargets}>Set Targets</Button>
+                        <Button variant="link" className="text-primary" onClick={onSetMonthlyTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
@@ -642,7 +647,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="hover-lift">
+                <Card className="hover-lift bg-white">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-gray-700">Total Transactions</CardTitle>
                     </CardHeader>
@@ -656,7 +661,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg font-bold text-gray-800">Sales by Salesperson</CardTitle>
-                        <Button variant="link" className="text-blue-600" onClick={onSetSalespersonTargets}>Set Targets</Button>
+                        <Button variant="link" className="text-primary" onClick={onSetSalespersonTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
                         <div className="h-64 mb-4">
@@ -676,13 +681,14 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                         </div>
                         <div id="salesperson-targets-display" className="mt-4 space-y-4">
                             {Object.keys(salespersonTargets).length > 0 ? (
-                                Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
+                                <div className="max-h-80 overflow-y-auto pr-2">
+                                {Object.entries(salespersonTargets).map(([salespersonName, targets]) => {
                                     const currentSales = salespersonChartData.find(s => s.name === salespersonName)?.sales || 0;
                                     
                                     if(!Object.values(targets).some(t => t && t > 0)) return null;
 
                                     return (
-                                        <div key={salespersonName} className="p-4 bg-gray-50 rounded-lg">
+                                        <div key={salespersonName} className="p-4 bg-gray-50 rounded-lg mb-4">
                                             <h4 className="font-semibold text-gray-800 mb-2">{salespersonName}</h4>
                                             <p className="text-sm text-gray-600 mb-3">Current Sales: {formatCurrency(currentSales)}</p>
                                             {Object.entries(targets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([targetKey, targetValue]) => {
@@ -705,7 +711,8 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                             })}
                                         </div>
                                     )
-                                })
+                                })}
+                                </div>
                             ) : (
                                 <div className="text-gray-500 text-sm text-center py-4">No salesperson targets set.</div>
                             )}
@@ -888,8 +895,9 @@ function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSav
             <DialogContent className="max-w-2xl">
                  <DialogHeader><DialogTitle>Set Salesperson Targets</DialogTitle></DialogHeader>
                  <form onSubmit={onSave} className="space-y-4">
+                     <div className="max-h-96 overflow-y-auto pr-2">
                      {employees.map((emp: SalesEmployee) => (
-                         <div key={emp.id} className="p-4 border rounded-lg">
+                         <div key={emp.id} className="p-4 border rounded-lg mb-4">
                              <h4 className="font-semibold mb-2">{emp.name}</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                   <div>
@@ -907,6 +915,7 @@ function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSav
                              </div>
                          </div>
                      ))}
+                     </div>
                       <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Save Targets</Button>

@@ -4,7 +4,7 @@ export default function MaintenanceLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
+    <div className="bg-slate-50 min-h-screen">
       {children}
     </div>
   )

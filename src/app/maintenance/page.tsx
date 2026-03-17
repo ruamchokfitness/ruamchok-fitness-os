@@ -32,7 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 // Initialize Firebase
@@ -71,7 +71,7 @@ export default function MaintenancePage() {
     // Search state
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [searchCategory, setSearchCategory] = useState('');
+    const [searchCategory, setSearchCategory] = useState('all');
     const [isSearching, setIsSearching] = useState(false);
 
     // Modals state
@@ -252,10 +252,15 @@ export default function MaintenancePage() {
 
     return (
         <>
-            <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-6 shadow-lg">
-                <div className="container mx-auto px-4">
-                    <h1 className="text-3xl font-bold text-center">RCF Maintenance Report</h1>
-                    <p className="text-center mt-2 text-indigo-100">ระบบรายงานซ่อมบำรุงอุปกรณ์ฟิตเนส</p>
+            <header className="bg-slate-900 text-white py-4 md:py-6">
+                <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Wrench className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold">RCF Maintenance Log</h1>
+                        <p className="text-slate-300 text-sm md:text-base">Track and manage equipment maintenance.</p>
+                    </div>
                 </div>
             </header>
 

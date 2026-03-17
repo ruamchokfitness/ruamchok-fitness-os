@@ -10,8 +10,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Sarabun', 'sans-serif'],
-        headline: ['Sarabun', 'sans-serif'],
+        body: ['Prompt', 'sans-serif'],
+        headline: ['Prompt', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {

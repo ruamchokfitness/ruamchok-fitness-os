@@ -4,7 +4,7 @@ export default function HrmLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div className="bg-slate-50 min-h-screen">
       {children}
     </div>
   )
