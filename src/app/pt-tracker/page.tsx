@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
 
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Edit, Trophy, User, Package, Briefcase } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const COMMISSION_PLANS = {
+const COMMISSION_PLANS: { [key: string]: { name: string; tiers: { maxHours: number; rate: number }[] } } = {
     PLAN_A: {
         name: 'Plan A',
         tiers: [
@@ -95,14 +95,14 @@ export default function PTTrackerPage() {
     }, []);
 
     if (loading) {
-        return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary-500" /></div>;
+        return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
 
     return (
         <>
             <header className="bg-dark-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                     <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                     <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Trophy className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -233,60 +233,70 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card className="p-6">
-                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Active Packages</h3>
-                    <div className="space-y-4">
-                        {stats.activePackages.length === 0 ? <p className="text-slate-500 text-sm">No active packages</p> : 
-                            stats.activePackages.map(pkg => {
-                                const client = clients.find(c => c.id === pkg.client_id);
-                                const progress = pkg.hours_purchased > 0 ? ((pkg.hours_used || 0) / pkg.hours_purchased * 100) : 0;
-                                return (
-                                    <div key={pkg.id} className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
-                                            {client?.name?.charAt(0) || '?'}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
-                                                <span className="text-sm text-slate-500">{pkg.hours_remaining || 0}h left</span>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Active Packages</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {stats.activePackages.length === 0 ? <p className="text-slate-500 text-sm">No active packages</p> : 
+                                stats.activePackages.map(pkg => {
+                                    const client = clients.find(c => c.id === pkg.client_id);
+                                    const progress = pkg.hours_purchased > 0 ? ((pkg.hours_used || 0) / pkg.hours_purchased * 100) : 0;
+                                    return (
+                                        <div key={pkg.id} className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
+                                                {client?.name?.charAt(0) || '?'}
                                             </div>
-                                            <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
-                                                 <div className="bg-gradient-to-r from-primary-400 to-primary-600 h-full" style={{width: `${progress}%`}}></div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
+                                                    <span className="text-sm text-slate-500">{pkg.hours_remaining || 0}h left</span>
+                                                </div>
+                                                <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                                                     <div className="bg-gradient-to-r from-primary-400 to-primary-600 h-full" style={{width: `${progress}%`}}></div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )
-                            })
-                        }
+                                    )
+                                })
+                            }
+                        </div>
                     </CardContent>
                 </Card>
 
-                <Card className="p-6">
-                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Sessions</h3>
-                    <div className="space-y-1">
-                         {stats.recentSessions.length === 0 ? <p className="text-slate-500 text-sm">No sessions recorded</p> : 
-                            stats.recentSessions.map(session => {
-                                const client = clients.find(c => c.id === session.client_id);
-                                const trainer = trainers.find(t => t.id === session.trainer_id);
-                                return (
-                                    <div key={session.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                                        <div>
-                                            <p className="font-medium text-slate-800">{client?.name || 'Unknown'}</p>
-                                            <p className="text-sm text-slate-500">with {trainer?.name || 'Unknown'}</p>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Recent Sessions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-1">
+                             {stats.recentSessions.length === 0 ? <p className="text-slate-500 text-sm">No sessions recorded</p> : 
+                                stats.recentSessions.map(session => {
+                                    const client = clients.find(c => c.id === session.client_id);
+                                    const trainer = trainers.find(t => t.id === session.trainer_id);
+                                    return (
+                                        <div key={session.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                                            <div>
+                                                <p className="font-medium text-slate-800">{client?.name || 'Unknown'}</p>
+                                                <p className="text-sm text-slate-500">with {trainer?.name || 'Unknown'}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge>
+                                                <p className="text-xs text-slate-400 mt-1">{formatDateTime(session.session_datetime)}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge>
-                                            <p className="text-xs text-slate-400 mt-1">{formatDateTime(session.session_datetime)}</p>
-                                        </div>
-                                    </div>
-                                )
-                            })
-                        }
-                    </div>
+                                    )
+                                })
+                            }
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
-             <Card className="p-6">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">Financial Summary</h3>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Financial Summary</CardTitle>
+                </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center p-4 bg-slate-50 rounded-xl">
                         <p className="text-sm text-slate-500">Total Revenue</p>
@@ -704,14 +714,14 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                                     {trainer.name?.charAt(0)?.toUpperCase() || '?'}
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-slate-800">{trainer.name}</h4>
+                                    <h4 className="font-semibold text-slate-800">${trainer.name}</h4>
                                     <Badge variant="outline" className={trainer.commission_plan === 'PLAN_A' ? 'bg-primary-100 text-primary-700' : 'bg-green-100 text-green-700'}>{plan?.name || 'No Plan'}</Badge>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Hours ({thisMonthRef})</span>
-                                    <span className="font-semibold text-slate-800">{totalHours}h</span>
+                                    <span className="text-slate-500">Hours (${thisMonthRef})</span>
+                                    <span className="font-semibold text-slate-800">${totalHours}h</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Current Tier</span>
@@ -719,7 +729,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
                                     <span className="text-slate-500">Total Earnings</span>
-                                    <span className="font-bold text-green-600">{formatCurrency(totalEarnings)}</span>
+                                    <span className="font-bold text-green-600">${formatCurrency(totalEarnings)}</span>
                                 </div>
                             </div>
                         </Card>
@@ -749,7 +759,7 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
                                     <TableCell>{comm.cumulative_hours_before}h → {comm.cumulative_hours_after}h</TableCell>
-                                    <TableCell className="text-right font-semibold text-green-600">{formatCurrency(comm.commission_amount)}</TableCell>
+                                    <TableCell className="text-right font-semibold text-green-600">${formatCurrency(comm.commission_amount)}</TableCell>
                                 </TableRow>
                             )
                         })}
@@ -930,8 +940,8 @@ function PackageModal({ open, onOpenChange, pkg, clients }: { open: boolean, onO
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
         if (!form) return;
-        const hours = parseFloat(form.elements.namedItem('hours_purchased') as HTMLInputElement.value) || 0;
-        const price = parseFloat(form.elements.namedItem('price_paid') as HTMLInputElement.value) || 0;
+        const hours = parseFloat((form.elements.namedItem('hours_purchased') as HTMLInputElement).value) || 0;
+        const price = parseFloat((form.elements.namedItem('price_paid') as HTMLInputElement).value) || 0;
         setPricePerHour(hours > 0 ? price / hours : 0);
     }
 
@@ -1061,7 +1071,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages }: { ope
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
     
     const handleClientChange = (clientId: string) => {
-        const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && p.hours_remaining > 0);
+        const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
     }
 
@@ -1076,7 +1086,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages }: { ope
         const pkg = packages.find(p => p.id === packageId);
         const trainer = trainers.find(t => t.id === trainerId);
 
-        if (!pkg || pkg.hours_remaining < duration) {
+        if (!pkg || (pkg.hours_remaining ?? 0) < duration) {
             toast({ title: "Insufficient hours", variant: "destructive"});
             return;
         }
