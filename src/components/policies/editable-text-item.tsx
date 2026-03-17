@@ -13,7 +13,6 @@ interface EditableTextItemProps {
   itemKey: string;
   initialValue: string;
   label: string;
-  action: (key: string, value: string, collectionName: string) => Promise<void>;
   collectionName: string;
   className?: string;
   inputClassName?: string;
@@ -25,7 +24,6 @@ export function EditableTextItem({
   itemKey,
   initialValue,
   label,
-  action,
   collectionName,
   className,
   inputClassName,
