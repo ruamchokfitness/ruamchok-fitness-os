@@ -54,7 +54,7 @@ export default function SalesPage() {
     // Filters for sales report
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
-    const [filterSalesperson, setFilterSalesperson] = useState('');
+    const [filterSalesperson, setFilterSalesperson] = useState('all');
 
     // Initialize default data
     useEffect(() => {
@@ -159,7 +159,7 @@ export default function SalesPage() {
             
             if(start && saleDate < start) return false;
             if(end && saleDate > end) return false;
-            if(filterSalesperson && sale.salesperson !== filterSalesperson) return false;
+            if(filterSalesperson && filterSalesperson !== 'all' && sale.salesperson !== filterSalesperson) return false;
 
             return true;
         })
@@ -864,7 +864,7 @@ function SalespersonSelect({ employees, value, onValueChange, includeAll = false
             <Select name={name} value={value} onValueChange={onValueChange} defaultValue={defaultValue}>
                 <SelectTrigger id={name}><SelectValue placeholder={includeAll ? "All Salespersons" : "Select Salesperson"} /></SelectTrigger>
                 <SelectContent>
-                    {includeAll && <SelectItem value="">All Salespersons</SelectItem>}
+                    {includeAll && <SelectItem value="all">All Salespersons</SelectItem>}
                     {employees.map(emp => <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>)}
                 </SelectContent>
             </Select>
@@ -930,4 +930,3 @@ function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm 
         </AlertDialog>
     );
 }
-
