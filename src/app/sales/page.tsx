@@ -561,7 +561,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             { name: 'Daily Pass', value: monthlySalesList.filter(s => s.product.includes('Daily')).reduce((sum, s) => sum + s.amount, 0) },
         ].filter(item => item.value > 0);
 
-        return { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData: salespersonData, productChartData};
+        return { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData: salespersonData, productChartData: productCategoryData};
     }, [sales, employees]);
     
     return (
