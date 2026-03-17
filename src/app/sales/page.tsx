@@ -567,6 +567,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
         const recentSalesData = sales.slice(0, 5);
 
         const salespersonData = employees.map((emp: SalesEmployee) => ({
+            id: emp.id,
             name: emp.name,
             sales: monthlySalesList.filter(s => s.salesperson === emp.name).reduce((sum, s) => sum + s.amount, 0),
         }));
@@ -659,7 +660,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                     const targets = salespersonTargets[salesperson.name] || {};
 
                                     return (
-                                        <div key={salesperson.name} className="p-4 bg-gray-50 rounded-lg">
+                                        <div key={salesperson.id} className="p-4 bg-gray-50 rounded-lg">
                                             <h4 className="font-semibold text-xl text-gray-800 mb-1">{salesperson.name}</h4>
                                             <p className="text-sm text-gray-600 mb-4">Current Sales: {formatCurrency(currentSales)}</p>
                                             
