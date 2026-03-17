@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc, limit } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 
@@ -59,7 +59,7 @@ export default function SalesPage() {
     // Initialize default data
     useEffect(() => {
         const initDefaults = async () => {
-            const productSnapshot = await getDocs(productsCollectionRef);
+            const productSnapshot = await getDocs(query(productsCollectionRef, limit(1)));
             if (productSnapshot.empty) {
                  const defaultProducts = [
                     { name: 'Annual Full', category: 'Membership', defaultPrice: 25000 },
@@ -97,7 +97,7 @@ export default function SalesPage() {
                 await batch.commit();
             }
 
-            const employeeSnapshot = await getDocs(employeesCollectionRef);
+            const employeeSnapshot = await getDocs(query(employeesCollectionRef, limit(1)));
             if (employeeSnapshot.empty) {
                  const defaultEmployees = [
                     { name: 'John Doe', position: 'Sales Manager' },
@@ -330,7 +330,7 @@ export default function SalesPage() {
         <>
             <header className="bg-slate-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
                         <BarChart2 className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -610,7 +610,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card className="bg-gradient-to-br from-primary-500 to-primary-700 text-white hover-lift">
+                <Card className="bg-gradient-to-br from-primary to-blue-700 text-white hover-lift">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-white/90">Today's Sales</CardTitle>
                     </CardHeader>
@@ -958,13 +958,17 @@ function ProductSelect({ products, name = "product", defaultValue = "" } : { pro
         return indexA - indexB;
     });
 
+    const uniqueProducts = sortedProducts.filter(
+        (product, index, self) => index === self.findIndex((p) => p.name === product.name)
+    );
+
     return (
         <div>
             <Label htmlFor={name}>Product</Label>
              <Select name={name} defaultValue={defaultValue}>
                 <SelectTrigger id={name}><SelectValue placeholder="Select Product" /></SelectTrigger>
                 <SelectContent>
-                    {sortedProducts.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                    {uniqueProducts.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
                 </SelectContent>
             </Select>
         </div>
