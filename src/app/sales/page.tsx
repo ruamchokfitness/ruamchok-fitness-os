@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
-import { Bar, BarChart, Doughnut, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 
 
@@ -328,162 +328,169 @@ export default function SalesPage() {
 
     return (
         <>
-            <header className="bg-blue-600 text-white py-4 md:py-6 w-full">
+            <header className="bg-blue-600 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8">
                     <h1 className="text-2xl md:text-3xl font-bold">RCF Sales Dashboard</h1>
                     <p className="text-blue-100 text-sm md:text-base">RuamChok Fitness Sales Management System</p>
                 </div>
             </header>
 
-             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full container mx-auto py-4">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
-                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                    <TabsTrigger value="sales-entry">Sales Entry</TabsTrigger>
-                    <TabsTrigger value="sales-report">Sales Report</TabsTrigger>
-                    <TabsTrigger value="employee-management">Employee Mgmt</TabsTrigger>
-                    <TabsTrigger value="product-management">Product Mgmt</TabsTrigger>
-                </TabsList>
-                <TabsContent value="dashboard" className="mt-4">
-                    <DashboardTab sales={sales} employees={employees} monthlyTargets={monthlyTargets} salespersonTargets={salespersonTargets} onSetMonthlyTargets={() => setMonthlyTargetsModal(true)} onSetSalespersonTargets={() => setSalespersonTargetsModal(true)} onNavigate={setActiveTab} />
-                </TabsContent>
-                 <TabsContent value="sales-entry">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>New Sale Entry</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                             <form action={handleSaveSale} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <Label htmlFor="sale-date">Date</Label>
-                                    <Input type="date" id="sale-date" name="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <div className="sticky top-0 z-30 bg-white shadow-md">
+                    <div className="container mx-auto">
+                        <TabsList className="bg-transparent p-1 h-auto">
+                            <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Dashboard</TabsTrigger>
+                            <TabsTrigger value="sales-entry" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Sales Entry</TabsTrigger>
+                            <TabsTrigger value="sales-report" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Sales Report</TabsTrigger>
+                            <TabsTrigger value="employee-management" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Employee Mgmt</TabsTrigger>
+                            <TabsTrigger value="product-management" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg">Product Mgmt</TabsTrigger>
+                        </TabsList>
+                    </div>
+                </div>
+
+                <div className="container mx-auto py-6">
+                    <TabsContent value="dashboard">
+                        <DashboardTab sales={sales} employees={employees} monthlyTargets={monthlyTargets} salespersonTargets={salespersonTargets} onSetMonthlyTargets={() => setMonthlyTargetsModal(true)} onSetSalespersonTargets={() => setSalespersonTargetsModal(true)} onNavigate={setActiveTab} />
+                    </TabsContent>
+                    <TabsContent value="sales-entry">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>New Sale Entry</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <form action={handleSaveSale} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label htmlFor="sale-date">Date</Label>
+                                        <Input type="date" id="sale-date" name="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+                                    </div>
+                                    <SalespersonSelect employees={employees} name="salesperson" />
+                                    <ProductSelect products={products} name="product"/>
+                                    <div>
+                                        <Label htmlFor="sale-amount">Sale Amount (฿)</Label>
+                                        <Input type="number" id="sale-amount" name="amount" placeholder="0.00" min="0" step="0.01" required />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Button type="submit" className="w-full bg-green-500 hover:bg-green-600">Save Sale</Button>
+                                    </div>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="sales-report">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Sales Report</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <div>
+                                        <Label htmlFor="filter-start-date">Start Date</Label>
+                                        <Input type="date" id="filter-start-date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="filter-end-date">End Date</Label>
+                                        <Input type="date" id="filter-end-date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
+                                    </div>
+                                    <SalespersonSelect employees={employees} value={filterSalesperson} onValueChange={setFilterSalesperson} includeAll/>
                                 </div>
-                                <SalespersonSelect employees={employees} name="salesperson" />
-                                <ProductSelect products={products} name="product"/>
-                                <div>
-                                    <Label htmlFor="sale-amount">Sale Amount (฿)</Label>
-                                    <Input type="number" id="sale-amount" name="amount" placeholder="0.00" min="0" step="0.01" required />
+                                <div className="text-right font-bold mb-4">
+                                    Total: {formatCurrency(filteredSales.reduce((sum, s) => sum + s.amount, 0))}
                                 </div>
-                                <div className="md:col-span-2">
-                                    <Button type="submit" className="w-full">Save Sale</Button>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Salesperson</TableHead>
+                                                <TableHead>Product</TableHead>
+                                                <TableHead>Amount</TableHead>
+                                                <TableHead>Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredSales.map(sale => (
+                                                <TableRow key={sale.id}>
+                                                    <TableCell>{sale.date?.toDate ? sale.date.toDate().toLocaleDateString() : new Date(sale.date).toLocaleDateString()}</TableCell>
+                                                    <TableCell>{sale.salesperson}</TableCell>
+                                                    <TableCell>{sale.product}</TableCell>
+                                                    <TableCell>{formatCurrency(sale.amount)}</TableCell>
+                                                    <TableCell className="flex gap-2">
+                                                        <Button variant="outline" size="sm" onClick={() => setEditSaleModal({open: true, data: sale})}><Edit className="w-4 h-4"/></Button>
+                                                        <Button variant="destructive" size="sm" onClick={() => handleDeleteSale(sale.id)}><Trash2 className="w-4 h-4"/></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
                                 </div>
-                            </form>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="sales-report">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Sales Report</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div>
-                                    <Label htmlFor="filter-start-date">Start Date</Label>
-                                    <Input type="date" id="filter-start-date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
-                                </div>
-                                <div>
-                                    <Label htmlFor="filter-end-date">End Date</Label>
-                                    <Input type="date" id="filter-end-date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
-                                </div>
-                                <SalespersonSelect employees={employees} value={filterSalesperson} onValueChange={setFilterSalesperson} includeAll/>
-                            </div>
-                            <div className="text-right font-bold mb-4">
-                                Total: {formatCurrency(filteredSales.reduce((sum, s) => sum + s.amount, 0))}
-                            </div>
-                             <div className="overflow-x-auto">
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="employee-management">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle>Employee Management</CardTitle>
+                                <Button onClick={() => setEmployeeModal({ open: true, data: null })}>Add New Employee</Button>
+                            </CardHeader>
+                            <CardContent>
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Salesperson</TableHead>
-                                            <TableHead>Product</TableHead>
-                                            <TableHead>Amount</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Position</TableHead>
                                             <TableHead>Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredSales.map(sale => (
-                                            <TableRow key={sale.id}>
-                                                <TableCell>{sale.date?.toDate ? sale.date.toDate().toLocaleDateString() : new Date(sale.date).toLocaleDateString()}</TableCell>
-                                                <TableCell>{sale.salesperson}</TableCell>
-                                                <TableCell>{sale.product}</TableCell>
-                                                <TableCell>{formatCurrency(sale.amount)}</TableCell>
+                                        {employees.map(emp => (
+                                            <TableRow key={emp.id}>
+                                                <TableCell>{emp.name}</TableCell>
+                                                <TableCell>{emp.position}</TableCell>
                                                 <TableCell className="flex gap-2">
-                                                    <Button variant="outline" size="sm" onClick={() => setEditSaleModal({open: true, data: sale})}><Edit className="w-4 h-4"/></Button>
-                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteSale(sale.id)}><Trash2 className="w-4 h-4"/></Button>
+                                                    <Button variant="outline" size="sm" onClick={() => setEmployeeModal({ open: true, data: emp })}><Edit className="w-4 h-4"/></Button>
+                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteEmployee(emp.id)}><Trash2 className="w-4 h-4"/></Button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="employee-management">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Employee Management</CardTitle>
-                            <Button onClick={() => setEmployeeModal({ open: true, data: null })}>Add New Employee</Button>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Position</TableHead>
-                                        <TableHead>Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {employees.map(emp => (
-                                        <TableRow key={emp.id}>
-                                            <TableCell>{emp.name}</TableCell>
-                                            <TableCell>{emp.position}</TableCell>
-                                            <TableCell className="flex gap-2">
-                                                <Button variant="outline" size="sm" onClick={() => setEmployeeModal({ open: true, data: emp })}><Edit className="w-4 h-4"/></Button>
-                                                <Button variant="destructive" size="sm" onClick={() => handleDeleteEmployee(emp.id)}><Trash2 className="w-4 h-4"/></Button>
-                                            </TableCell>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="product-management">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle>Product Management</CardTitle>
+                                <Button onClick={() => setProductModal({ open: true, data: null })}>Add New Product</Button>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Product Name</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead>Default Price</TableHead>
+                                            <TableHead>Actions</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="product-management">
-                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Product Management</CardTitle>
-                            <Button onClick={() => setProductModal({ open: true, data: null })}>Add New Product</Button>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Product Name</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead>Default Price</TableHead>
-                                        <TableHead>Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {products.map(prod => (
-                                        <TableRow key={prod.id}>
-                                            <TableCell>{prod.name}</TableCell>
-                                            <TableCell>{prod.category}</TableCell>
-                                            <TableCell>{formatCurrency(prod.defaultPrice)}</TableCell>
-                                            <TableCell className="flex gap-2">
-                                                <Button variant="outline" size="sm" onClick={() => setProductModal({ open: true, data: prod })}><Edit className="w-4 h-4"/></Button>
-                                                <Button variant="destructive" size="sm" onClick={() => handleDeleteProduct(prod.id)}><Trash2 className="w-4 h-4"/></Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {products.map(prod => (
+                                            <TableRow key={prod.id}>
+                                                <TableCell>{prod.name}</TableCell>
+                                                <TableCell>{prod.category}</TableCell>
+                                                <TableCell>{formatCurrency(prod.defaultPrice)}</TableCell>
+                                                <TableCell className="flex gap-2">
+                                                    <Button variant="outline" size="sm" onClick={() => setProductModal({ open: true, data: prod })}><Edit className="w-4 h-4"/></Button>
+                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteProduct(prod.id)}><Trash2 className="w-4 h-4"/></Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </div>
             </Tabs>
 
             {/* Modals */}
@@ -542,18 +549,18 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
         today.setHours(0,0,0,0);
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-        const todaySales = sales.filter((s: Sale) => s.date?.toDate ? s.date.toDate() >= today : new Date(s.date) >= today).reduce((sum: number, s: Sale) => sum + s.amount, 0);
+        const todaySalesValue = sales.filter((s: Sale) => s.date?.toDate ? s.date.toDate() >= today : new Date(s.date) >= today).reduce((sum: number, s: Sale) => sum + s.amount, 0);
         const monthlySalesList = sales.filter((s: Sale) => s.date?.toDate ? s.date.toDate() >= firstDayOfMonth : new Date(s.date) >= firstDayOfMonth);
-        const monthlySales = monthlySalesList.reduce((sum: number, s: Sale) => sum + s.amount, 0);
-        const totalTransactions = monthlySalesList.length;
-        const recentSales = sales.slice(0, 5);
+        const monthlySalesValue = monthlySalesList.reduce((sum: number, s: Sale) => sum + s.amount, 0);
+        const totalTransactionsValue = monthlySalesList.length;
+        const recentSalesData = sales.slice(0, 5);
 
         const salespersonData = employees.map((emp: SalesEmployee) => ({
             name: emp.name,
             sales: monthlySalesList.filter(s => s.salesperson === emp.name).reduce((sum, s) => sum + s.amount, 0),
         }));
 
-        const productCategoryData = [
+        const productData = [
             { name: 'Membership', value: monthlySalesList.filter(s => s.product.includes('Annual') || s.product.includes('Month') || s.product.includes('Punch Card')).reduce((sum, s) => sum + s.amount, 0) },
             { name: 'Personal Training', value: monthlySalesList.filter(s => s.product.includes('PT') || s.product.includes('Boxing')).reduce((sum, s) => sum + s.amount, 0) },
             { name: 'Food & Beverage', value: monthlySalesList.filter(s => s.product.includes('Food & Beverage')).reduce((sum, s) => sum + s.amount, 0) },
@@ -561,43 +568,69 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             { name: 'Daily Pass', value: monthlySalesList.filter(s => s.product.includes('Daily')).reduce((sum, s) => sum + s.amount, 0) },
         ].filter(item => item.value > 0);
 
-        return { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData: salespersonData, productChartData: productCategoryData};
+        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartData: productData};
     }, [sales, employees]);
+    
+    const productCategoryColors: {[key: string]: string} = {
+        'Membership': '#3b82f6',
+        'Personal Training': '#10b981',
+        'Food & Beverage': '#f59e0b',
+        'Proshop': '#ef4444',
+        'Daily Pass': '#8b5cf6'
+    };
+
+    const pieChartData = productChartData.map((entry: any) => ({
+      ...entry,
+      fill: productCategoryColors[entry.name] || '#6b7280',
+    }));
     
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Today's Sales</CardTitle>
+                        <CardTitle className="text-lg font-semibold text-gray-700">Today's Sales</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold">{formatCurrency(todaySales)}</p>
-                        <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString()}</p>
+                        <p className="text-3xl font-bold text-blue-600">{formatCurrency(todaySales)}</p>
+                        <p className="text-sm text-gray-500 mt-2">{new Date().toLocaleDateString()}</p>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Monthly Sales</CardTitle>
-                        <Button variant="link" onClick={onSetMonthlyTargets}>Set Targets</Button>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-lg font-semibold text-gray-700">Monthly Sales</CardTitle>
+                        <Button variant="link" className="text-blue-600" onClick={onSetMonthlyTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold">{formatCurrency(monthlySales)}</p>
-                        {Object.entries(monthlyTargets).map(([key, value]) => (
-                            <div key={key} className="mt-2">
-                                <Label>Target {key.replace('target', '')}: {formatCurrency(value as number)}</Label>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.min((monthlySales / (value as number)) * 100, 100)}%` }}></div>
+                        <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
+                        <p className="text-sm text-gray-500 mt-2">{new Date().toLocaleString('default', { month: 'long' })} {new Date().getFullYear()}</p>
+                         <div className="mt-4 space-y-2">
+                            {Object.entries(monthlyTargets).map(([key, value]) => {
+                                if (!value) return null;
+                                const targetAmount = value as number;
+                                const progress = Math.min((monthlySales / targetAmount) * 100, 100);
+                                const progressColor = progress >= 100 ? 'bg-green-500' : progress >= 75 ? 'bg-yellow-500' : 'bg-red-500';
+                                return (
+                                <div key={key}>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Target {key.replace('target', '')}: {formatCurrency(targetAmount)}</span>
+                                        <span>{Math.round(progress)}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                        <div className={`${progressColor} h-2 rounded-full`} style={{ width: `${progress}%` }}></div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )})}
+                        </div>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle>Total Transactions</CardTitle></CardHeader>
+                    <CardHeader>
+                        <CardTitle className="text-lg font-semibold text-gray-700">Total Transactions</CardTitle>
+                    </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold">{totalTransactions}</p>
-                        <p className="text-sm text-muted-foreground">This month</p>
+                        <p className="text-3xl font-bold text-purple-600">{totalTransactions}</p>
+                        <p className="text-sm text-gray-500 mt-2">This month</p>
                     </CardContent>
                 </Card>
             </div>
@@ -605,13 +638,13 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Sales by Salesperson</CardTitle>
-                        <Button variant="link" onClick={onSetSalespersonTargets}>Set Targets</Button>
+                        <Button variant="link" className="text-blue-600" onClick={onSetSalespersonTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent className="h-80">
                          <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={salespersonChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" />
+                                <XAxis dataKey="name" fontSize={12} />
                                 <YAxis tickFormatter={(value) => formatCurrency(value as number)} />
                                 <Tooltip formatter={(value) => formatCurrency(value as number)} />
                                 <Bar dataKey="sales" fill="#3b82f6" />
@@ -624,7 +657,11 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                      <CardContent className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={productChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label />
+                                <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                    {pieChartData.map((entry:any, index:number) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    ))}
+                                </Pie>
                                 <Tooltip formatter={(value) => formatCurrency(value as number)} />
                                 <Legend />
                             </PieChart>
@@ -644,7 +681,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                 <TableHead>Date</TableHead>
                                 <TableHead>Salesperson</TableHead>
                                 <TableHead>Product</TableHead>
-                                <TableHead>Amount</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -653,7 +690,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                                     <TableCell>{sale.date?.toDate ? sale.date.toDate().toLocaleDateString() : new Date(sale.date).toLocaleDateString()}</TableCell>
                                     <TableCell>{sale.salesperson}</TableCell>
                                     <TableCell>{sale.product}</TableCell>
-                                    <TableCell>{formatCurrency(sale.amount)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(sale.amount)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
