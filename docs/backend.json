@@ -1,0 +1,295 @@
+{
+  "entities": {
+    "Employee": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Employee",
+      "type": "object",
+      "description": "Represents a single employee in the RuamChok Fitness HRM system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Employee entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the employee."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "LeaveEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaveEntry",
+      "type": "object",
+      "description": "Records an instance of an employee taking leave.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LeaveEntry entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee who took the leave. (Relationship: Employee 1:N LeaveEntry)"
+        },
+        "leaveDate": {
+          "type": "string",
+          "description": "The specific date on which the leave was taken.",
+          "format": "date"
+        },
+        "leaveType": {
+          "type": "string",
+          "description": "The category or type of leave taken (e.g., 'พักร้อน' (Vacation), 'วันมาฆบูชา' (Makha Bucha Day), 'วันเกิด' (Birthday Leave), or a custom holiday name)."
+        },
+        "durationDays": {
+          "type": "number",
+          "description": "The duration of the leave in days, allowing for half-day increments (e.g., 0.5, 1, 1.5)."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "leaveDate",
+        "leaveType",
+        "durationDays"
+      ]
+    },
+    "EmployeeQuota": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EmployeeQuota",
+      "type": "object",
+      "description": "Defines the leave quotas allocated to a specific employee for different leave types.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the EmployeeQuota entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee for whom these quotas are set. (Relationship: Employee 1:1 EmployeeQuota)"
+        },
+        "vacationQuotaDays": {
+          "type": "number",
+          "description": "The total number of vacation days allocated to the employee for the current period."
+        },
+        "holidayQuotaDays": {
+          "type": "number",
+          "description": "The total number of public holiday days allocated to the employee for the current period, covering standard and custom holidays."
+        },
+        "birthdayQuotaDays": {
+          "type": "number",
+          "description": "The total number of birthday leave days allocated to the employee for the current period."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "vacationQuotaDays",
+        "holidayQuotaDays",
+        "birthdayQuotaDays"
+      ]
+    },
+    "EmployeeHolidayPermission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EmployeeHolidayPermission",
+      "type": "object",
+      "description": "Specifies which public and custom holidays an individual employee is permitted to take.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the EmployeeHolidayPermission entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee to whom these holiday permissions apply. (Relationship: Employee 1:1 EmployeeHolidayPermission)"
+        },
+        "allowedHolidayNames": {
+          "type": "array",
+          "description": "An array of strings, where each string is the name of a standard or custom holiday that the employee is permitted to take.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "allowedHolidayNames"
+      ]
+    },
+    "CustomHoliday": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomHoliday",
+      "type": "object",
+      "description": "Defines a custom, non-standard holiday that can be created and managed by administrators.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CustomHoliday entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The descriptive name of the custom holiday (e.g., 'วันศุกร์ที่ 13')."
+        },
+        "defaultDays": {
+          "type": "number",
+          "description": "The default number of days allocated for this custom holiday (e.g., 0.5, 1)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "defaultDays"
+      ]
+    },
+    "AppSetting": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AppSetting",
+      "type": "object",
+      "description": "Stores global application-level settings and policy texts that can be configured by administrators.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the application setting (e.g., 'systemTitle', 'vacationPolicyText', 'makhaBuchaDate', 'vacationDaysForYear_1')."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value of the configuration setting, which can be text, dates, or other stringified data."
+        }
+      },
+      "required": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/admins/{adminId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores the Unique IDs (UIDs) of users who possess administrative privileges within the system. Used for role-based access control.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "The Firebase Authentication UID of the administrator."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}",
+        "definition": {
+          "entityName": "Employee",
+          "schema": {
+            "$ref": "#/backend/entities/Employee"
+          },
+          "description": "Master collection for all employees in the HRM system. Each document represents a single employee.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The unique identifier for an employee, used as the document ID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/leaveEntries/{leaveEntryId}",
+        "definition": {
+          "entityName": "LeaveEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaveEntry"
+          },
+          "description": "Records individual instances of leave taken by a specific employee. The 'employeeId' in the path ensures authorization independence by linking directly to the parent employee.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The unique identifier of the parent employee."
+            },
+            {
+              "name": "leaveEntryId",
+              "description": "The unique identifier for this specific leave entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/quotas/current",
+        "definition": {
+          "entityName": "EmployeeQuota",
+          "schema": {
+            "$ref": "#/backend/entities/EmployeeQuota"
+          },
+          "description": "Stores the current leave quotas (vacation, holiday, birthday) allocated to a specific employee. Uses a fixed document ID 'current' for this 1:1 relationship. Includes denormalized 'employeeId' for authorization independence.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The unique identifier of the parent employee."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/holidayPermissions/current",
+        "definition": {
+          "entityName": "EmployeeHolidayPermission",
+          "schema": {
+            "$ref": "#/backend/entities/EmployeeHolidayPermission"
+          },
+          "description": "Defines the specific standard and custom holidays an individual employee is permitted to take. Uses a fixed document ID 'current' for this 1:1 relationship. Includes denormalized 'employeeId' for authorization independence.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The unique identifier of the parent employee."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/customHolidays/{customHolidayId}",
+        "definition": {
+          "entityName": "CustomHoliday",
+          "schema": {
+            "$ref": "#/backend/entities/CustomHoliday"
+          },
+          "description": "Defines custom, non-standard holidays that can be added and managed by administrators.",
+          "params": [
+            {
+              "name": "customHolidayId",
+              "description": "The unique identifier for a custom holiday."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/appSettings/{appSettingId}",
+        "definition": {
+          "entityName": "AppSetting",
+          "schema": {
+            "$ref": "#/backend/entities/AppSetting"
+          },
+          "description": "Stores global application-level settings, policies, and configuration texts, managed by administrators.",
+          "params": [
+            {
+              "name": "appSettingId",
+              "description": "The unique identifier (key) for a specific application setting."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure for the RuamChok Fitness HRM system prioritizes security, scalability, and debuggability by strictly adhering to the core design principles. The design segregates data into distinct collections based on their security posture and logical relationships, moving away from a single 'data' collection with a 'data_type' field as hinted in the client-side code, which is an anti-pattern for Firestore security and query efficiency.\n\n**Authorization Independence (CRITICAL):**\nThis design achieves authorization independence by ensuring that all necessary authorization context is either embedded within the document itself or derivable directly from its path, thus eliminating the need for `get()` calls in security rules. For employee-specific data (leave entries, quotas, holiday permissions), the `employeeId` is part of the document's path. While the current UI implies a single 'admin' user, this path-based structure inherently supports multi-user scenarios where employees might access their own data without needing to fetch parent employee details. For administrator authorization, a dedicated top-level `/admins/{adminId}` collection allows for a simple and atomic `exists()` check to determine admin status, ensuring the `isAdmin()` rule function does not create any hierarchical dependencies on business data.\n\n**QAPs (Rules are not Filters):**\nThis structure strongly supports QAPs by employing **Structural Segregation**. Each collection is designed to hold documents that share the same security requirements. For instance, all documents in `/employees/{employeeId}/leaveEntries` have the same access policy (admin-managed). When an administrator performs a `list` query (e.g., `db.collection('employees').get()`), the security rules can evaluate access for the entire collection. If the user is an admin, they get all relevant documents; if not, the query fails. This eliminates the need for complex, inefficient, and often error-prone `where` clauses within security rules to filter results, ensuring that security is enforced at the access layer rather than attempting to filter unauthorized data from query results. Global settings (`/customHolidays`, `/appSettings`) are also top-level collections with clear, uniform access policies.\n\n**Key Structural Decisions:**\n*   **Admin Role:** A dedicated `/admins/{adminId}` collection is introduced to store the `uid` of authorized administrators. This allows for a clean `isAdmin()` rule function using an `exists()` check, crucial for DBAC.\n*   **Hierarchical Paths for Employee Data:** Employee-specific data like `LeaveEntry`, `EmployeeQuota`, and `EmployeeHolidayPermission` are organized as subcollections under individual `/employees/{employeeId}` documents. This establishes clear ownership and context (`/employees/{employeeId}/leaveEntries/{leaveEntryId}`), making authorization rules for employee-specific operations straightforward.\n*   **Fixed Document IDs for 1:1 Relationships:** For entities like `EmployeeQuota` and `EmployeeHolidayPermission`, which have a 1:1 relationship with an `Employee`, fixed document IDs (e.g., `current`) are used within their subcollections (`/employees/{employeeId}/quotas/current`, `/employees/{employeeId}/holidayPermissions/current`). This simplifies access patterns for these unique child records.\n*   **Top-Level Collections for Global Data:** `CustomHoliday` and `AppSetting` are global configurations applicable to the entire system. They reside in dedicated top-level collections (`/customHolidays`, `/appSettings`) to clearly separate them from employee-specific data. This ensures their security rules are simple and only rely on the `isAdmin()` check.\n*   **Denormalization:** All subcollection documents (e.g., `LeaveEntry`, `EmployeeQuota`, `EmployeeHolidayPermission`) inherently include `employeeId`, which is denormalized from the parent `Employee` document's ID, thereby facilitating authorization independence for operations on these sub-entities."
+  }
+}

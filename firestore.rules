@@ -1,0 +1,198 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * Core Philosophy: This ruleset implements a strict Role-Based Access
+     * Control (RBAC) model. All access to data is restricted to authenticated
+     * users who are designated as administrators.
+     *
+     * Data Structure: The data is organized into two main categories:
+     * 1. Global Configuration: Top-level collections like `/appSettings` and
+     *    `/customHolidays` that store system-wide data.
+     * 2. Employee-Specific Data: A hierarchical structure under `/employees`
+     *    where each employee has their own document and related subcollections
+     *    for leave, quotas, and permissions.
+     *
+     * Key Security Decisions:
+     * - Admin-Only System: All read and write operations across the entire
+     *   database are restricted to users whose UID is present in the `/admins`
+     *   collection. There is no concept of a non-admin or public user.
+     * - Immutable Admin List: The `/admins` collection itself is made read-only
+     *   by these rules to prevent a compromised admin account from escalating
+     *   privileges or locking out other admins. Admin management must be done
+     *   out-of-band (e.g., via the Firebase Console).
+     * - Relational Integrity: On creation, documents within a user-specific
+     *   path (e.g., a leave entry) must contain a denormalized `employeeId`
+     *   field that matches the ID in the path, ensuring data consistency.
+     *   These relational IDs are immutable and cannot be changed on update.
+     */
+
+    // ======================================================================
+    // Helper Functions
+    // ======================================================================
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the authenticated user is a designated administrator.
+     * This is the primary authorization check for the entire system.
+     * It performs a fast, efficient check for the user's UID in the
+     * top-level /admins collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    /**
+     * Validates that an employee document's internal `id` field matches its
+     * document ID upon creation.
+     * @principle Enforces data integrity between the document path and its content.
+     */
+    function isEmployeeIdConsistentOnCreate(employeeId) {
+      return request.resource.data.id == employeeId;
+    }
+
+    /**
+     * Validates that the internal `id` field of an employee document is
+     * immutable and cannot be changed during an update.
+     * @principle Prevents re-assigning a document to a different entity.
+     */
+    function isEmployeeIdImmutableOnUpdate() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates that a subcollection document's internal `employeeId` field
+     * matches the `employeeId` from the URL path upon creation.
+     * @principle Enforces relational integrity between a child document and its parent.
+     */
+    function isSubcollectionEmployeeIdConsistentOnCreate(employeeId) {
+      return request.resource.data.employeeId == employeeId;
+    }
+
+    /**
+     * Validates that the internal `employeeId` field of a subcollection document
+     * is immutable and cannot be changed during an update.
+     * @principle Prevents re-assigning a subcollection document to a different parent.
+     */
+    function isSubcollectionEmployeeIdImmutableOnUpdate() {
+      return request.resource.data.employeeId == resource.data.employeeId;
+    }
+
+    // ======================================================================
+    // Collection Rules
+    // ======================================================================
+
+    /**
+     * @description Stores the UIDs of users with administrative privileges.
+     * @path /admins/{adminId}
+     * @allow (get) An admin reading the list of other admins: `auth.uid` is in `/admins`.
+     * @deny (create) An admin trying to add a new admin: All writes are disabled.
+     * @principle The list of administrators is read-only via rules to prevent tampering. Management should be done via the Firebase Console.
+     */
+    match /admins/{adminId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Master collection for all employees. All operations are restricted to administrators.
+     * @path /employees/{employeeId}
+     * @allow (create) An admin creating a new employee document: `isAdmin()` is true and the document's internal `id` matches `employeeId`.
+     * @deny (update) A non-admin trying to modify an employee record: `isAdmin()` is false.
+     * @principle Restricts all data access and manipulation to verified administrators and validates relational integrity.
+     */
+    match /employees/{employeeId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isEmployeeIdConsistentOnCreate(employeeId);
+      allow update: if isAdmin() && resource != null && isEmployeeIdImmutableOnUpdate();
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Records individual leave entries for a specific employee.
+     * @path /employees/{employeeId}/leaveEntries/{leaveEntryId}
+     * @allow (create) An admin adding a leave entry for employee 'E123': `isAdmin()` is true and the new data contains `employeeId: "E123"`.
+     * @deny (get) A non-admin trying to read a leave entry: `isAdmin()` is false.
+     * @principle Inherits admin-only access from its parent and enforces relational integrity to the parent employee document.
+     */
+    match /employees/{employeeId}/leaveEntries/{leaveEntryId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
+      allow update: if isAdmin() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Stores the current leave quotas for a specific employee. Uses a fixed document ID 'current'.
+     * @path /employees/{employeeId}/quotas/{quotaDocId}
+     * @allow (create) An admin setting the quotas for employee 'E123': `isAdmin()` is true and the new data contains `employeeId: "E123"`.
+     * @deny (update) An admin trying to change the `employeeId` field on an existing quota document: The `employeeId` field is immutable.
+     * @principle Inherits admin-only access and ensures the quota record is permanently linked to the correct parent employee.
+     */
+    match /employees/{employeeId}/quotas/{quotaDocId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
+      allow update: if isAdmin() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Defines holiday permissions for a specific employee. Uses a fixed document ID 'current'.
+     * @path /employees/{employeeId}/holidayPermissions/{permissionDocId}
+     * @allow (get) An admin reading holiday permissions for employee 'E123': `isAdmin()` is true.
+     * @deny (delete) A non-admin trying to delete permissions: `isAdmin()` is false.
+     * @principle Inherits admin-only access and ensures the permission record is permanently linked to the correct parent employee.
+     */
+    match /employees/{employeeId}/holidayPermissions/{permissionDocId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isSubcollectionEmployeeIdConsistentOnCreate(employeeId);
+      allow update: if isAdmin() && resource != null && isSubcollectionEmployeeIdImmutableOnUpdate();
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Stores global definitions for custom, non-standard holidays.
+     * @path /customHolidays/{customHolidayId}
+     * @allow (create) An admin defining a new company-wide holiday: `isAdmin()` is true.
+     * @deny (list) A non-admin trying to list all custom holidays: `isAdmin()` is false.
+     * @principle Restricts management of global configuration data to verified administrators.
+     */
+    match /customHolidays/{customHolidayId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Stores global application-level settings and configuration values.
+     * @path /appSettings/{appSettingId}
+     * @allow (update) An admin changing the system title: `isAdmin()` is true and the document exists.
+     * @deny (create) A non-admin trying to add a new setting: `isAdmin()` is false.
+     * @principle Restricts management of critical application settings to verified administrators.
+     */
+    match /appSettings/{appSettingId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+  }
+}
