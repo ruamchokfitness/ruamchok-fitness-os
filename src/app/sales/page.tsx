@@ -35,7 +35,7 @@ function SalesPageContent() {
     const { data: employeesData, isLoading: loadingEmployees } = useCollection<SalesEmployee>(employeesQuery);
     const employees = employeesData || [];
 
-    const productsQuery = useMemoFirebase(() => db ? collection(db, "salesdashboard1_products") : null, [db]);
+    const productsQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1_products"), orderBy('name')) : null, [db]);
     const { data: productsData, isLoading: loadingProducts } = useCollection<Product>(productsQuery);
     const products = productsData || [];
 
@@ -67,7 +67,9 @@ function SalesPageContent() {
         if (loading || !db) return;
         
         const initDefaults = async () => {
-            if (products.length === 0) {
+            const productsCollectionRef = collection(db, "salesdashboard1_products");
+            const productsSnapshot = await getDocs(query(productsCollectionRef, limit(1)));
+            if (productsSnapshot.empty) {
                  const defaultProducts = [
                     { name: 'Annual Full', category: 'Membership', defaultPrice: 25000 },
                     { name: 'Annual GO', category: 'Membership', defaultPrice: 15000 },
@@ -104,11 +106,14 @@ function SalesPageContent() {
                 await batch.commit();
             }
 
-            if (employees.length === 0) {
+            const employeesCollectionRef = collection(db, "salesdashboard1_employees");
+            const employeesSnapshot = await getDocs(query(employeesCollectionRef, limit(1)));
+            if (employeesSnapshot.empty) {
                  const defaultEmployees = [
                     { name: 'John Doe', position: 'Sales Manager' },
                     { name: 'Jane Smith', position: 'Sales Associate' },
-                    { name: 'Mike Johnson', position: 'Fitness Consultant' }
+                    { name: 'Mike Johnson', position: 'Fitness Consultant' },
+                    { name: 'John Doe', position: 'Sales Associate' },
                 ];
                 const batch = writeBatch(db);
                 defaultEmployees.forEach(e => batch.set(doc(collection(db, "salesdashboard1_employees")), e));
@@ -116,7 +121,7 @@ function SalesPageContent() {
             }
         };
         initDefaults();
-    }, [loading, db, products, employees]);
+    }, [loading, db]);
 
 
      // Set default filter dates
@@ -655,7 +660,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                     <CardContent>
                         <div className="space-y-6">
                             {salespersonChartData.length > 0 ? (
-                                salespersonChartData.map((salesperson) => {
+                                salespersonChartData.map((salesperson: any) => {
                                     const currentSales = salesperson.sales || 0;
                                     const targets = salespersonTargets[salesperson.name] || {};
 
@@ -903,6 +908,10 @@ function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSav
 }
 
 function SalespersonSelect({ employees, value, onValueChange, includeAll = false, name = "salesperson", defaultValue = "" }: { employees: SalesEmployee[], value?: string, onValueChange?: (value: string) => void, includeAll?: boolean, name?: string, defaultValue?: string }) {
+    const uniqueEmployees = employees.filter(
+        (employee, index, self) => index === self.findIndex((e) => e.name === employee.name)
+    );
+    
     return (
         <div>
             <Label htmlFor={name}>Salesperson</Label>
@@ -910,7 +919,7 @@ function SalespersonSelect({ employees, value, onValueChange, includeAll = false
                 <SelectTrigger id={name}><SelectValue placeholder={includeAll ? "All Salespersons" : "Select Salesperson"} /></SelectTrigger>
                 <SelectContent>
                     {includeAll && <SelectItem value="all">All Salespersons</SelectItem>}
-                    {employees.map(emp => <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>)}
+                    {uniqueEmployees.map(emp => <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>)}
                 </SelectContent>
             </Select>
         </div>
@@ -918,23 +927,7 @@ function SalespersonSelect({ employees, value, onValueChange, includeAll = false
 }
 
 function ProductSelect({ products, name = "product", defaultValue = "" } : { products: Product[], name?: string, defaultValue?: string }) {
-      const productOrder = [
-        'Annual Full', 'Annual GO', '6-Month Full', '6-Month GO', '3-Month Full', '3-Month GO', '1-Month Full', '1-Month GO',
-        'Punch Card 100 Visits', 'Punch Card 50 Visits', 'Punch Card 30 Visits', 'Punch Card 20 Visits', 'Punch Card 10 Visits',
-        'PT 100 Sessions', 'PT 50 Sessions', 'PT 30 Sessions', 'PT 20 Sessions', 'PT 10 Sessions', 'PT 1 Session',
-        'Boxing 100 Sessions', 'Boxing 50 Sessions', 'Boxing 30 Sessions', 'Boxing 20 Sessions', 'Boxing 10 Sessions', 'Boxing 1 Session',
-        'Daily Full', 'Daily GO', 'Proshop Item', 'Food & Beverage'
-    ];
-    const sortedProducts = [...products].sort((a, b) => {
-        const indexA = productOrder.indexOf(a.name);
-        const indexB = productOrder.indexOf(b.name);
-        if (indexA === -1 && indexB === -1) return a.name.localeCompare(b.name);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
-    });
-
-    const uniqueProducts = sortedProducts.filter(
+    const uniqueProducts = products.filter(
         (product, index, self) => index === self.findIndex((p) => p.name === product.name)
     );
 
