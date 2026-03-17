@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -122,7 +122,7 @@ function PTTrackerPageContent() {
                         <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="commissions">
-                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} />
+                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} />
                     </TabsContent>
                 </div>
             </Tabs>
@@ -649,9 +649,10 @@ function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: 
     )
 }
 
-function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[] }) { 
+function CommissionsTab({ commissions, trainers, sessions, clients }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState('all');
+    const [pdfModalOpen, setPdfModalOpen] = useState(false);
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
@@ -685,6 +686,10 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                         </SelectContent>
                     </Select>
                 </div>
+                 <Button onClick={() => setPdfModalOpen(true)}>
+                    <Info className="mr-2 h-4 w-4" />
+                    Generate PDF
+                </Button>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {trainers.filter(t=> t.status === 'active').map(trainer => {
@@ -754,6 +759,14 @@ function CommissionsTab({ commissions, trainers, sessions }: { commissions: PTCo
                     </TableBody>
                 </Table>
             </Card>
+             <PDFExportModal
+                open={pdfModalOpen}
+                onOpenChange={setPdfModalOpen}
+                trainers={trainers}
+                commissions={commissions}
+                sessions={sessions}
+                clients={clients}
+            />
         </div>
     )
 }
@@ -1213,6 +1226,221 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             </DialogContent>
         </Dialog>
     )
+}
+
+function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[] }) {
+    const { toast } = useToast();
+
+    const generatePayoutsPDF = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const trainerId = formData.get('trainerId') as string;
+        const period = formData.get('period') as string;
+
+        if (!trainerId) {
+            toast({ title: "Please select a trainer", variant: "destructive" });
+            return;
+        }
+
+        const trainer = trainers.find(t => t.id === trainerId);
+        if (!trainer) {
+            toast({ title: "Trainer not found", variant: "destructive" });
+            return;
+        }
+
+        let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId);
+        if (period) {
+            filteredCommissions = filteredCommissions.filter(c => c.month_reference === period);
+        }
+        
+        filteredCommissions.sort((a,b) => (a.cumulative_hours_after || 0) - (b.cumulative_hours_after || 0));
+
+        const totalHours = filteredCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
+        const totalEarned = filteredCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+
+        let htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Training Report - ${trainer.name}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+                    .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+                    .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+                    .header-info { font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+                    .info-row { display: flex; justify-content: space-between; font-size: 12px; }
+                    .info-label { font-weight: bold; width: 35%; }
+                    .info-value { text-align: right; width: 65%; }
+                    h2 { font-size: 14px; font-weight: bold; margin-top: 18px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th { background: #f0f0f0; color: #000; padding: 6px 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
+                    td { padding: 5px 8px; border: 1px solid #ccc; font-size: 11px; }
+                    tr:nth-child(even) { background: #fafafa; }
+                    .amount { text-align: right; font-weight: bold; }
+                    .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
+                    .summary-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+                    .summary-card { border: 1px solid #999; padding: 10px; text-align: center; }
+                    .summary-card .label { font-size: 10px; font-weight: bold; margin-bottom: 6px; }
+                    .summary-card .value { font-size: 16px; font-weight: bold; }
+                    .no-data { text-align: center; padding: 20px; color: #666; background: #f5f5f5; border: 1px solid #ccc; }
+                    .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    @media print {
+                        body { margin: 0; padding: 0; }
+                        .container { padding: 15px; }
+                        .header { page-break-after: avoid; }
+                        h2 { page-break-after: avoid; }
+                        table { page-break-inside: auto; }
+                        tr { page-break-inside: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>TRAINING REPORT</h1>
+                        <div class="header-info">
+                            <div><strong>Trainer:</strong> ${trainer.name}</div>
+                            <div><strong>Plan:</strong> ${trainer.commission_plan || 'N/A'}</div>
+                        </div>
+                    </div>
+                    <div class="summary-cards">
+                        <div class="summary-card">
+                            <div class="label">Hours Delivered</div>
+                            <div class="value">${totalHours}h</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">Total Earned</div>
+                            <div class="value">${formatCurrency(totalEarned)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">Period</div>
+                            <div class="value">${period || 'All'}</div>
+                        </div>
+                    </div>
+        `;
+
+        if (filteredCommissions.length > 0) {
+            htmlContent += `
+                <h2>COMMISSION SUMMARY</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Client</th>
+                            <th>Hours</th>
+                            <th>Rate/Hour</th>
+                            <th>Cumulative</th>
+                            <th style="text-align: right;">Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filteredCommissions.forEach(comm => {
+                const session = sessions.find(s => s.id === comm.session_id);
+                const client = clients.find(c => c.id === session?.client_id);
+                const dateStr = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+                
+                htmlContent += `
+                    <tr>
+                        <td>${dateStr}</td>
+                        <td>${client?.name || '-'}</td>
+                        <td>${comm.duration_hours || 0}h</td>
+                        <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
+                        <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
+                        <td class="amount">${formatCurrency(comm.commission_amount || 0)}</td>
+                    </tr>
+                `;
+            });
+
+            htmlContent += `
+                    <tr class="total-row">
+                        <td colspan="5" style="text-align: right;">TOTAL:</td>
+                        <td class="amount">${formatCurrency(totalEarned)}</td>
+                    </tr>
+                </tbody>
+                </table>
+            `;
+        } else {
+            htmlContent += `<h2>COMMISSION SUMMARY</h2><div class="no-data">No commission records found for the selected period.</div>`;
+        }
+
+        htmlContent += `
+                    <div class="footer">
+                        <p>Generated on ${new Date().toLocaleString('th-TH')}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '', 'width=1000,height=800');
+        if (!printWindow) {
+            toast({ title: 'Please allow pop-ups to download PDF', variant: 'destructive' });
+            return;
+        }
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.onafterprint = function() {
+                printWindow.close();
+            };
+        }, 300);
+
+        onOpenChange(false);
+        toast({ title: 'PDF ready!', description: 'Click "Save as PDF" in the print dialog to download.' });
+    };
+
+    const months = [...new Set(commissions.map(c => c.month_reference))].sort().reverse();
+    const activeTrainers = trainers.filter(t => t.status === 'active');
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Generate Payouts Report</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={generatePayoutsPDF} className="space-y-4">
+                    <div>
+                        <Label htmlFor="pdf-trainer">Select Trainer *</Label>
+                        <Select name="trainerId" required>
+                            <SelectTrigger id="pdf-trainer">
+                                <SelectValue placeholder="Select a trainer to export" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {activeTrainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500 mt-1">Select specific trainer to generate report</p>
+                    </div>
+                    <div>
+                        <Label htmlFor="pdf-period">Filter by Period (Optional)</Label>
+                        <Select name="period">
+                            <SelectTrigger id="pdf-period">
+                                <SelectValue placeholder="All Periods" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">All Periods</SelectItem>
+                                {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button type="submit">Generate PDF</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function DeleteButton({ type, id, name, db }: { type: string, id: string, name: string, db: Firestore }) {
