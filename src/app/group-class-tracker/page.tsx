@@ -230,7 +230,7 @@ function GroupClassTrackerPageContent() {
 
 function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClassAttendance[], classes: GroupClass[], onDelete: (collection: string, id: string) => void }) {
     const [monthFilter, setMonthFilter] = useState('');
-    const [classFilter, setClassFilter] = useState('');
+    const [classFilter, setClassFilter] = useState('all');
 
     useEffect(() => {
         setMonthFilter(new Date().toISOString().slice(0, 7));
@@ -242,7 +242,7 @@ function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClas
             const targetMonthYear = monthFilter ? `${month}/${year}` : '';
 
             const monthMatch = !targetMonthYear || r.month_year === targetMonthYear;
-            const classMatch = !classFilter || r.class_name === classFilter;
+            const classMatch = classFilter === 'all' || r.class_name === classFilter;
             return monthMatch && classMatch;
         });
     }, [attendances, monthFilter, classFilter]);
@@ -260,7 +260,7 @@ function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClas
                         <Select value={classFilter} onValueChange={setClassFilter}>
                             <SelectTrigger className="w-[180px]"><SelectValue placeholder="ทุกคลาส" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">ทุกคลาส</SelectItem>
+                                <SelectItem value="all">ทุกคลาส</SelectItem>
                                 {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
