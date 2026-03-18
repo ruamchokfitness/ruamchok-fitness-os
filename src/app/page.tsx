@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2 } from 'lucide-react';
 
 export default function Home() {
   const menuItems = [
@@ -30,6 +30,13 @@ export default function Home() {
       description: 'Track personal training sessions and commissions.',
       href: '/pt-tracker',
       icon: <Trophy className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+     {
+      title: 'RCF Group Class Attendance Tracker',
+      description: 'Track and analyze group class attendance.',
+      href: '/group-class-tracker',
+      icon: <Users2 className="w-8 h-8 text-primary" />,
       disabled: false,
     },
   ];

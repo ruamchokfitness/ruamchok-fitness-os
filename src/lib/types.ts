@@ -148,3 +148,32 @@ export interface PTCommission {
   commission_plan: 'PLAN_A' | 'PLAN_B';
   month_reference: string; // YYYY-MM
 }
+
+// RCF Group Class Attendance Tracker
+export interface GroupClass {
+  id: string;
+  name: string;
+}
+
+export interface GroupClassInstructor {
+  id: string;
+  name: string;
+}
+
+export interface GroupClassTime {
+  id: string;
+  name: string; // e.g., "09:00"
+}
+
+export interface GroupClassAttendance {
+  id: string;
+  type: 'attendance';
+  date: string; // "DD/MM/YYYY"
+  month_year: string; // "MM/YYYY"
+  day_of_week: string;
+  time: string;
+  class_name: string;
+  instructor: string;
+  attendance: number;
+  created_at: any; // Firestore Timestamp
+}
