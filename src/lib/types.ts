@@ -1,3 +1,4 @@
+
 export type Employee = {
   id: string;
   name: string;
@@ -146,6 +147,7 @@ export interface PTCommission {
   cumulative_hours_before: number;
   cumulative_hours_after: number;
   commission_plan: 'PLAN_A' | 'PLAN_B';
+  commission_type: 'PLAN_A' | 'PLAN_B' | 'BOXING';
   month_reference: string; // YYYY-MM
 }
 

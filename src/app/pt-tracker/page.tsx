@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,7 @@ import { Progress } from '@/components/ui/progress';
 import type { Firestore } from 'firebase/firestore';
 
 
-const COMMISSION_PLANS: { [key: string]: { name: string; tiers: { maxHours: number; rate: number }[] } } = {
+const COMMISSION_PLANS: { [key: string]: { name: string; tiers?: { maxHours: number; rate: number }[], rate?: number } } = {
     PLAN_A: {
         name: 'Plan A',
         tiers: [
@@ -36,6 +37,10 @@ const COMMISSION_PLANS: { [key: string]: { name: string; tiers: { maxHours: numb
             { maxHours: 70, rate: 180 },
             { maxHours: Infinity, rate: 200 }
         ]
+    },
+    BOXING: {
+        name: 'Boxing Package',
+        rate: 220,
     }
 };
 
@@ -56,18 +61,19 @@ function PTTrackerPageContent() {
     useEffect(() => {
         if (!db || l1) return;
         const seedData = async () => {
-            if (clients && clients.length > 0) return;
-            const batch = writeBatch(db);
-            const demoClients: any[] = [
-            ];
-            demoClients.forEach(c => batch.set(doc(collection(db, "pt_clients")), c));
+            const clientsCollection = collection(db, "pt_clients");
+            const snapshot = await getDocs(query(clientsCollection, where("name", "!=", "")));
+            if (snapshot.empty) {
+                 const batch = writeBatch(db);
+                 const demoClients: any[] = [];
+                 demoClients.forEach(c => batch.set(doc(collection(db, "pt_clients")), c));
 
-            const demoTrainers: any[] = [
-            ];
-            demoTrainers.forEach(t => batch.set(doc(collection(db, "pt_trainers")), t));
+                 const demoTrainers: any[] = [];
+                 demoTrainers.forEach(t => batch.set(doc(collection(db, "pt_trainers")), t));
             
-            if (demoClients.length > 0 || demoTrainers.length > 0) {
-              await batch.commit();
+                 if (demoClients.length > 0 || demoTrainers.length > 0) {
+                    await batch.commit();
+                 }
             }
         }
         seedData();
@@ -409,19 +415,26 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                  <h3 className="text-lg font-semibold text-slate-800">Commission Plans</h3>
                 <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Trainer</Button>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="p-4 border-2 border-primary-200">
                     <h4 className="font-semibold text-primary-700 mb-2">Plan A</h4>
                     <div className="text-sm text-slate-600 space-y-1">
-                        <p>Hours 1-70: <span className="font-semibold">150 THB/hour</span></p>
-                        <p>Hours 71+: <span className="font-semibold">180 THB/hour</span></p>
+                        <p>Hours 1-70: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_A.tiers![0].rate)}/hour</span></p>
+                        <p>Hours 71+: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_A.tiers![1].rate)}/hour</span></p>
                     </div>
                 </Card>
                 <Card className="p-4 border-2 border-green-200">
                     <h4 className="font-semibold text-green-700 mb-2">Plan B</h4>
                     <div className="text-sm text-slate-600 space-y-1">
-                        <p>Hours 1-70: <span className="font-semibold">180 THB/hour</span></p>
-                        <p>Hours 71+: <span className="font-semibold">200 THB/hour</span></p>
+                         <p>Hours 1-70: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![0].rate)}/hour</span></p>
+                        <p>Hours 71+: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![1].rate)}/hour</span></p>
+                    </div>
+                </Card>
+                 <Card className="p-4 border-2 border-red-200">
+                    <h4 className="font-semibold text-red-700 mb-2">Boxing Package</h4>
+                    <div className="text-sm text-slate-600 space-y-1">
+                         <p>Fixed Rate: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.BOXING.rate!)}/hour</span></p>
+                         <p className="text-xs text-slate-500 italic">Hours still count towards monthly total.</p>
                     </div>
                 </Card>
             </div>
@@ -697,7 +710,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                     const totalHours = monthCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
                     const totalEarnings = monthCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
                     const plan = COMMISSION_PLANS[trainer.commission_plan];
-                    const tier = totalHours > 70 ? 'Tier 2' : 'Tier 1';
+                    const tier = (plan?.tiers && totalHours > plan.tiers[0].maxHours) ? 'Tier 2' : 'Tier 1';
 
                      return (
                         <Card key={trainer.id} className="p-5">
@@ -717,7 +730,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-500">Current Tier</span>
-                                    <span className={`font-semibold ${totalHours > 70 ? 'text-green-600' : 'text-slate-800'}`}>{tier}</span>
+                                    <span className={`font-semibold ${(plan?.tiers && totalHours > plan.tiers[0].maxHours) ? 'text-green-600' : 'text-slate-800'}`}>{tier}</span>
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
                                     <span className="text-slate-500">Total Earnings</span>
@@ -734,6 +747,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                          <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Trainer</TableHead>
+                            <TableHead>Plan</TableHead>
                             <TableHead>Hours</TableHead>
                             <TableHead>Rate</TableHead>
                             <TableHead>Cumulative</TableHead>
@@ -744,10 +758,12 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                         {filteredCommissions.length === 0 ? <TablePlaceholder/> : filteredCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
+                            const planName = comm.commission_type === 'BOXING' ? 'Boxing' : COMMISSION_PLANS[comm.commission_plan]?.name;
                             return (
                                 <TableRow key={comm.id}>
                                     <TableCell>{formatDateTime(session?.session_datetime)}</TableCell>
                                     <TableCell>{trainer?.name || 'Unknown'}</TableCell>
+                                    <TableCell><Badge variant="outline" className={comm.commission_type === 'BOXING' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{planName}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
                                     <TableCell>{comm.cumulative_hours_before}h → {comm.cumulative_hours_after}h</TableCell>
@@ -1120,29 +1136,42 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
             // Calculate and create commission
             const monthRef = getMonthReference(sessionDateTime);
-            const commissions = (await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef)))).docs.map(d=>d.data() as PTCommission);
+            const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef)));
+            const commissions = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
             const cumulativeHoursBefore = commissions.reduce((sum, c) => sum + c.duration_hours, 0);
-            
-            const plan = COMMISSION_PLANS[trainer.commission_plan];
-            let rate = 0; let commission = 0;
-            if (plan) {
-                 const tier1Max = plan.tiers[0].maxHours;
-                 const tier1Rate = plan.tiers[0].rate;
-                 const tier2Rate = plan.tiers[1].rate;
 
-                 if (cumulativeHoursBefore >= tier1Max) {
-                    rate = tier2Rate;
-                    commission = duration * tier2Rate;
-                 } else if ((cumulativeHoursBefore + duration) <= tier1Max) {
-                    rate = tier1Rate;
-                    commission = duration * tier1Rate;
-                 } else {
-                    const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
-                    const hoursAtTier2 = duration - hoursAtTier1;
-                    commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
-                    rate = commission / duration; // blended rate
-                 }
+            const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
+            let rate = 0;
+            let commission = 0;
+            let commissionType: 'BOXING' | 'PLAN_A' | 'PLAN_B' = 'PLAN_A';
+
+            if (isBoxingPackage) {
+                rate = COMMISSION_PLANS.BOXING.rate!;
+                commission = duration * rate;
+                commissionType = 'BOXING';
+            } else {
+                const plan = COMMISSION_PLANS[trainer.commission_plan];
+                commissionType = trainer.commission_plan;
+                if (plan && plan.tiers) {
+                    const tier1Max = plan.tiers[0].maxHours;
+                    const tier1Rate = plan.tiers[0].rate;
+                    const tier2Rate = plan.tiers[1].rate;
+
+                    if (cumulativeHoursBefore >= tier1Max) {
+                        rate = tier2Rate;
+                        commission = duration * tier2Rate;
+                    } else if ((cumulativeHoursBefore + duration) <= tier1Max) {
+                        rate = tier1Rate;
+                        commission = duration * tier1Rate;
+                    } else {
+                        const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
+                        const hoursAtTier2 = duration - hoursAtTier1;
+                        commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                        rate = commission / duration; // blended rate
+                    }
+                }
             }
+            
              const commissionData = {
                 entity_type: 'commission',
                 trainer_id: trainerId,
@@ -1153,6 +1182,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                 cumulative_hours_before: cumulativeHoursBefore,
                 cumulative_hours_after: cumulativeHoursBefore + duration,
                 commission_plan: trainer.commission_plan,
+                commission_type: commissionType,
                 month_reference: monthRef
             };
 
@@ -1184,7 +1214,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                         <Select name="purchase_id" required>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
                             <SelectContent>
-                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} (${p.hours_remaining}h left)</SelectItem>)}
+                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}h left)</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -1329,6 +1359,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <tr>
                             <th>Date</th>
                             <th>Client</th>
+                            <th>Plan Type</th>
                             <th>Hours</th>
                             <th>Rate/Hour</th>
                             <th>Cumulative</th>
@@ -1342,11 +1373,13 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                 const session = sessions.find(s => s.id === comm.session_id);
                 const client = clients.find(c => c.id === session?.client_id);
                 const dateStr = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+                const planName = comm.commission_type === 'BOXING' ? 'Boxing' : COMMISSION_PLANS[comm.commission_plan]?.name;
                 
                 htmlContent += `
                     <tr>
                         <td>${dateStr}</td>
                         <td>${client?.name || '-'}</td>
+                        <td>${planName}</td>
                         <td>${comm.duration_hours || 0}h</td>
                         <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
                         <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
@@ -1357,7 +1390,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
 
             htmlContent += `
                     <tr class="total-row">
-                        <td colspan="5" style="text-align: right;">TOTAL:</td>
+                        <td colspan="6" style="text-align: right;">TOTAL:</td>
                         <td class="amount">${formatCurrency(totalEarned)}</td>
                     </tr>
                 </tbody>
