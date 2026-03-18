@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Settings, Trash2, CalendarCheck, BarChart3, TrendingUp, BarChart, X, Info } from 'lucide-react';
+import { Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 function GroupClassTrackerPageContent() {
@@ -23,7 +23,6 @@ function GroupClassTrackerPageContent() {
 
     const [activeTab, setActiveTab] = useState("record");
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [settingsTab, setSettingsTab] = useState("classes");
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ collection: string, id: string } | null>(null);
 
@@ -31,8 +30,6 @@ function GroupClassTrackerPageContent() {
     const { data: instructors, isLoading: l2 } = useCollection<GroupClassInstructor>(useMemoFirebase(() => db ? query(collection(db, "groupClassInstructors"), orderBy('name')) : null, [db]));
     const { data: times, isLoading: l3 } = useCollection<GroupClassTime>(useMemoFirebase(() => db ? query(collection(db, "groupClassTimes"), orderBy('name')) : null, [db]));
     const { data: attendances, isLoading: l4 } = useCollection<GroupClassAttendance>(useMemoFirebase(() => db ? query(collection(db, "groupClassAttendances"), orderBy('created_at', 'desc')) : null, [db]));
-
-    const loading = l1 || l2 || l3 || l4;
 
     const [date, setDate] = useState('');
     useEffect(() => {
@@ -104,42 +101,43 @@ function GroupClassTrackerPageContent() {
     };
 
     return (
-        <div className="h-full flex flex-col overflow-hidden">
-            <header className="bg-gradient-to-r from-emerald-600 to-green-500 text-white p-4 shadow-lg flex-shrink-0">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                                <CalendarCheck className="w-7 h-7"/>
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-bold">Group Class Attendance Tracker</h1>
-                                <p className="text-emerald-100 text-sm">ระบบบันทึกผู้เข้าใช้คลาสฟิตเนส</p>
-                            </div>
+        <>
+            <header className="bg-slate-900 text-white py-4 md:py-6">
+                <div className="container mx-auto px-4 md:px-8 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <Users2 className="w-6 h-6 text-white" />
                         </div>
-                        <Button onClick={() => setSettingsOpen(true)} variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                            <Settings className="w-6 h-6" />
-                        </Button>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold">RCF Group Class Attendance Tracker</h1>
+                            <p className="text-slate-300 text-sm md:text-base">Track and analyze group class attendance.</p>
+                        </div>
                     </div>
+                    <Button onClick={() => setSettingsOpen(true)} variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                        <Settings className="w-5 h-5" />
+                    </Button>
                 </div>
             </header>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="bg-white border-b shadow-sm rounded-none">
-                    <TabsTrigger value="record">📝 บันทึกข้อมูล</TabsTrigger>
-                    <TabsTrigger value="history">📋 ประวัติ</TabsTrigger>
-                    <TabsTrigger value="monthly">📊 สถิติรายเดือน</TabsTrigger>
-                    <TabsTrigger value="yearly">📈 สถิติรายปี</TabsTrigger>
-                    <TabsTrigger value="analysis">💡 วิเคราะห์</TabsTrigger>
-                </TabsList>
+                <div className="sticky top-0 z-30 bg-white shadow-md">
+                    <div className="container mx-auto">
+                        <TabsList className="grid w-full grid-cols-5">
+                            <TabsTrigger value="record">บันทึกข้อมูล</TabsTrigger>
+                            <TabsTrigger value="history">ประวัติ</TabsTrigger>
+                            <TabsTrigger value="monthly">สถิติรายเดือน</TabsTrigger>
+                            <TabsTrigger value="yearly">สถิติรายปี</TabsTrigger>
+                            <TabsTrigger value="analysis">วิเคราะห์</TabsTrigger>
+                        </TabsList>
+                    </div>
+                </div>
                 
-                <main className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                    <div className="max-w-7xl mx-auto">
+                <main className="container mx-auto py-8">
                         <TabsContent value="record">
-                             <Card className="shadow-lg">
+                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                        <span className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">📝</span>
+                                        <FilePenLine className="w-6 h-6 text-primary" />
                                         บันทึกข้อมูลการเข้าใช้คลาส
                                     </CardTitle>
                                 </CardHeader>
@@ -184,8 +182,9 @@ function GroupClassTrackerPageContent() {
                                             <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนผู้เข้าใช้ (คน)</label>
                                             <Input type="number" name="attendance" min="0" placeholder="0" required />
                                         </div>
-                                        <Button type="submit" disabled={isPending} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white">
-                                            {isPending ? <Loader2 className="animate-spin" /> : '💾 บันทึกข้อมูล'}
+                                        <Button type="submit" disabled={isPending} className="w-full">
+                                            {isPending ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                            บันทึกข้อมูล
                                         </Button>
                                     </form>
                                 </CardContent>
@@ -203,7 +202,6 @@ function GroupClassTrackerPageContent() {
                          <TabsContent value="analysis">
                             <AnalysisTab attendances={attendances || []} />
                         </TabsContent>
-                    </div>
                 </main>
             </Tabs>
             
@@ -223,7 +221,7 @@ function GroupClassTrackerPageContent() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </>
     );
 }
 
@@ -248,11 +246,11 @@ function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClas
     }, [attendances, monthFilter, classFilter]);
     
     return (
-        <Card className="shadow-lg">
+        <Card>
             <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <CardTitle className="flex items-center gap-2">
-                        <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">📋</span>
+                        <History className="w-6 h-6 text-primary"/>
                         ประวัติการบันทึก
                     </CardTitle>
                     <div className="flex gap-2">
@@ -337,11 +335,11 @@ function MonthlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] 
 
     return (
         <div className="space-y-6">
-            <Card className="shadow-lg">
+            <Card>
                 <CardHeader>
                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <CardTitle className="flex items-center gap-2">
-                             <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600"><BarChart3 /></span>
+                             <BarChart3 className="w-6 h-6 text-primary" />
                             สถิติรายเดือน
                         </CardTitle>
                         <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-full sm:w-auto" />
@@ -370,10 +368,10 @@ function MonthlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] 
                     </div>
                 </CardContent>
             </Card>
-            <Card className="shadow-lg">
+            <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-md">
-                        <span className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center text-sm">👨‍🏫</span>
+                        <UserSquare className="w-5 h-5 text-indigo-600"/>
                         เปรียบเทียบครูผู้สอน
                     </CardTitle>
                 </CardHeader>
@@ -411,7 +409,6 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
         const records = attendances.filter(r => r.month_year.endsWith(`/${year}`));
         const total = records.reduce((sum, r) => sum + r.attendance, 0);
         
-        // Trend
         const monthlyTotals = records.reduce((acc, r) => {
             const month = r.month_year.split('/')[0];
             acc[month] = (acc[month] || 0) + r.attendance;
@@ -428,7 +425,6 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
             else trend = '➡️ คงที่';
         }
 
-        // Rankings
         const classStats = records.reduce((acc, r) => {
             if (!acc[r.class_name]) acc[r.class_name] = { total: 0, count: 0 };
             acc[r.class_name].total += r.attendance;
@@ -438,7 +434,6 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
 
         const rankings = Object.entries(classStats).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.total - a.total);
         
-        // Top Instructors
         const instructorStats = records.reduce((acc, r) => {
             if (!acc[r.instructor]) acc[r.instructor] = { total: 0, count: 0 };
             acc[r.instructor].total += r.attendance;
@@ -456,11 +451,11 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
     }, [attendances, year]);
     
     return (
-        <Card className="shadow-lg">
+        <Card>
             <CardHeader>
                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <CardTitle className="flex items-center gap-2">
-                        <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600"><TrendingUp /></span>
+                        <TrendingUp className="w-6 h-6 text-primary" />
                         สถิติรายปี
                     </CardTitle>
                     <Select value={year} onValueChange={setYear}>
@@ -479,7 +474,7 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
                 </div>
                 <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                        <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">🏆 Top 5 คลาสยอดนิยม</h3>
+                        <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /> Top 5 คลาสยอดนิยม</h3>
                         <div className="space-y-2">
                             {stats.top5.length ? stats.top5.map((r, i) => (
                                 <div key={r.name} className="flex items-center justify-between p-2 bg-emerald-50 rounded-lg">
@@ -490,7 +485,7 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
                         </div>
                     </div>
                     <div>
-                        <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">📉 Bottom 5 คลาสผู้ใช้น้อย</h3>
+                        <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><TrendingDown className="w-5 h-5 text-rose-500" /> Bottom 5 คลาสผู้ใช้น้อย</h3>
                         <div className="space-y-2">
                              {stats.bottom5.length ? stats.bottom5.map(r => (
                                 <div key={r.name} className="flex items-center justify-between p-2 bg-rose-50 rounded-lg">
@@ -502,7 +497,7 @@ function YearlyStatsTab({ attendances }: { attendances: GroupClassAttendance[] }
                     </div>
                 </div>
                  <div className="mt-6">
-                    <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">⭐ ครูผู้สอนค่าเฉลี่ยสูงสุด</h3>
+                    <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> ครูผู้สอนค่าเฉลี่ยสูงสุด</h3>
                     <div className="space-y-2">
                         {stats.topInstructors.length ? stats.topInstructors.map(i => (
                              <div key={i.name} className="flex items-center justify-between p-2 bg-amber-50 rounded-lg">
@@ -521,6 +516,7 @@ function AnalysisTab({ attendances }: { attendances: GroupClassAttendance[] }) {
     const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
     const [threshold, setThreshold] = useState(5);
     const [results, setResults] = useState<any>(null);
+    const { toast } = useToast();
 
     const runAnalysis = () => {
         if (!month) {
@@ -535,7 +531,6 @@ function AnalysisTab({ attendances }: { attendances: GroupClassAttendance[] }) {
             setResults({ empty: true });
             return;
         }
-        // This is a simplified analysis, a more robust version would be needed for production
         const classStats = records.reduce((acc, r) => {
             if (!acc[r.class_name]) acc[r.class_name] = { total: 0, count: 0, instructors: {}, times: {} };
             acc[r.class_name].total += r.attendance;
@@ -557,11 +552,11 @@ function AnalysisTab({ attendances }: { attendances: GroupClassAttendance[] }) {
     };
 
     return (
-        <Card className="shadow-lg">
+        <Card>
             <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <CardTitle className="flex items-center gap-2">
-                        <span className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center text-rose-600"><Info /></span>
+                        <Lightbulb className="w-6 h-6 text-primary" />
                         วิเคราะห์และข้อเสนอแนะ
                     </CardTitle>
                     <div className="flex gap-2 items-center">
@@ -577,7 +572,7 @@ function AnalysisTab({ attendances }: { attendances: GroupClassAttendance[] }) {
                     <div className="space-y-4">
                         <div className="text-sm text-gray-600">📊 วิเคราะห์ข้อมูลเดือน {results.month} • เกณฑ์ขั้นต่ำ: {results.threshold} คน/ครั้ง</div>
                         <div className="p-4 bg-red-50 rounded-xl">
-                            <h3 className="font-semibold text-red-800 mb-3">🚫 คลาสที่ควรพิจารณา (เฉลี่ยต่ำกว่าเกณฑ์)</h3>
+                            <h3 className="font-semibold text-red-800 mb-3 flex items-center gap-2"><Ban className="w-5 h-5" /> คลาสที่ควรพิจารณา (เฉลี่ยต่ำกว่าเกณฑ์)</h3>
                              {results.recommendations.length ? results.recommendations.map((r: any) => (
                                  <div key={r.name} className="p-3 bg-white rounded-lg border-l-4 border-red-400 mb-2">
                                      <div className="flex justify-between items-center">
@@ -639,13 +634,13 @@ function SettingsDialog({ open, onOpenChange, classes, instructors, times, onDel
          <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>⚙️ ตั้งค่าระบบ</DialogTitle>
+                    <DialogTitle className="flex items-center"><Settings className="w-5 h-5 mr-2"/> ตั้งค่าระบบ</DialogTitle>
                 </DialogHeader>
                  <Tabs value={tab} onValueChange={setTab} className="w-full">
-                    <TabsList>
-                        <TabsTrigger value="classes">🏋️ คลาส</TabsTrigger>
-                        <TabsTrigger value="instructors">👨‍🏫 ครูผู้สอน</TabsTrigger>
-                        <TabsTrigger value="times">🕐 เวลา</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="classes"><Dumbbell className="w-4 h-4 mr-2" />คลาส</TabsTrigger>
+                        <TabsTrigger value="instructors"><UserSquare className="w-4 h-4 mr-2" />ครูผู้สอน</TabsTrigger>
+                        <TabsTrigger value="times"><Clock className="w-4 h-4 mr-2" />เวลา</TabsTrigger>
                     </TabsList>
                     <TabsContent value="classes">
                         <SettingsList title="คลาส" items={classes} onAdd={() => handleAddItem('class', 'new-class', 'groupClasses')} onDelete={(id) => onDelete('groupClasses', id)} inputId="new-class" placeholder="ชื่อคลาสใหม่" />

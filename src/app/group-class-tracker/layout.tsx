@@ -4,7 +4,7 @@ export default function GroupClassTrackerLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-slate-50 min-h-screen">
       {children}
     </div>
   )
