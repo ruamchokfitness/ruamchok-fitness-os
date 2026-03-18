@@ -58,18 +58,17 @@ function PTTrackerPageContent() {
         const seedData = async () => {
             if (clients && clients.length > 0) return;
             const batch = writeBatch(db);
-            const demoClients = [
-                { name: 'Alice Johnson', email: 'alice@example.com', phone: '081-234-5678', status: 'active' },
-                { name: 'Bob Williams', email: 'bob@example.com', phone: '082-345-6789', status: 'active' },
+            const demoClients: any[] = [
             ];
             demoClients.forEach(c => batch.set(doc(collection(db, "pt_clients")), c));
 
-            const demoTrainers = [
-                { name: 'Chris Evans', email: 'chris@rcf.com', phone: '091-111-2222', commission_plan: 'PLAN_A', status: 'active' },
-                { name: 'Diana Prince', email: 'diana@rcf.com', phone: '092-222-3333', commission_plan: 'PLAN_B', status: 'active' },
+            const demoTrainers: any[] = [
             ];
             demoTrainers.forEach(t => batch.set(doc(collection(db, "pt_trainers")), t));
-            await batch.commit();
+            
+            if (demoClients.length > 0 || demoTrainers.length > 0) {
+              await batch.commit();
+            }
         }
         seedData();
     }, [db, clients, l1]);
@@ -1421,7 +1420,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     </div>
                     <div>
                         <Label htmlFor="pdf-period">Filter by Period (Optional)</Label>
-                        <Select name="period">
+                        <Select name="period" defaultValue="all">
                             <SelectTrigger id="pdf-period">
                                 <SelectValue placeholder="All Periods" />
                             </SelectTrigger>
