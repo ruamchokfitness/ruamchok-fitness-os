@@ -1022,7 +1022,13 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
                         </div>
                         <div>
                             <Label htmlFor="package-name">Package Name *</Label>
-                            <Input id="package-name" name="package_name" defaultValue={pkg?.package_name} required />
+                            <Select name="package_name" defaultValue={pkg?.package_name} required>
+                                <SelectTrigger id="package-name"><SelectValue placeholder="Select a package type"/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
+                                    <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
