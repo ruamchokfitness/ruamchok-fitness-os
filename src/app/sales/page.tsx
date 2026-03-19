@@ -192,7 +192,11 @@ function SalesPageContent() {
         const saleData = {
             date: new Date(formData.get('date') as string),
             salesperson: formData.get('salesperson') as string,
+            memberId: formData.get('memberId') as string,
+            memberName: formData.get('memberName') as string,
             product: formData.get('product') as string,
+            revenueType: formData.get('revenueType') as string,
+            paymentType: formData.get('paymentType') as string,
             amount: Number(formData.get('amount')),
         };
         try {
@@ -207,7 +211,11 @@ function SalesPageContent() {
          const saleData = {
             date: new Date(formData.get('date') as string),
             salesperson: formData.get('salesperson') as string,
+            memberId: formData.get('memberId') as string,
+            memberName: formData.get('memberName') as string,
             product: formData.get('product') as string,
+            revenueType: formData.get('revenueType') as string,
+            paymentType: formData.get('paymentType') as string,
             amount: Number(formData.get('amount')),
         };
         try {
@@ -217,7 +225,7 @@ function SalesPageContent() {
         } catch(e) {
             showAndHideToast("Error", "Could not update sale.", "destructive");
         }
-    }
+    };
     const handleDeleteSale = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this sale?", async () => {
              try {
@@ -297,7 +305,7 @@ function SalesPageContent() {
                             <TabsTrigger value="sales-entry">Sales Entry</TabsTrigger>
                             <TabsTrigger value="sales-report">Sales Report</TabsTrigger>
                             <TabsTrigger value="employee-management">Employee Mgmt</TabsTrigger>
-                            <TabsTrigger value="product-management">Product Mgmt</TabsTrigger>
+                            <TabsTrigger value="product-management">Package Mgmt</TabsTrigger>
                         </TabsList>
                     </div>
                 </div>
@@ -317,12 +325,48 @@ function SalesPageContent() {
                                         <Label htmlFor="sale-date">Date</Label>
                                         <Input type="date" id="sale-date" name="date" defaultValue={new Date().toISOString().split('T')[0]} required />
                                     </div>
-                                    <SalespersonSelect employees={employees} name="salesperson" />
+                                    <div>
+                                        <Label htmlFor="member-id">Member ID</Label>
+                                        <Input id="member-id" name="memberId" placeholder="e.g. A001" required />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label htmlFor="member-name">Member Name</Label>
+                                        <Input id="member-name" name="memberName" placeholder="e.g. John Doe" required />
+                                    </div>
+                                    
                                     <ProductSelect products={products} name="product"/>
+                                    
+                                    <div>
+                                      <Label htmlFor="revenue-type">Revenue Type</Label>
+                                      <Select name="revenueType" required>
+                                        <SelectTrigger id="revenue-type"><SelectValue placeholder="Select revenue type" /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="New New">New New</SelectItem>
+                                          <SelectItem value="Renew">Renew</SelectItem>
+                                          <SelectItem value="Upgrade">Upgrade</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div>
+                                      <Label htmlFor="payment-type">Payment Type</Label>
+                                      <Select name="paymentType" required>
+                                        <SelectTrigger id="payment-type"><SelectValue placeholder="Select payment type" /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Cash">Cash</SelectItem>
+                                          <SelectItem value="Transfer">Transfer</SelectItem>
+                                          <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
                                     <div>
                                         <Label htmlFor="sale-amount">Sale Amount (฿)</Label>
                                         <Input type="number" id="sale-amount" name="amount" placeholder="0.00" min="0" step="0.01" required />
                                     </div>
+
+                                    <SalespersonSelect employees={employees} name="salesperson" />
+
                                     <div className="md:col-span-2">
                                         <Button type="submit" className="w-full bg-green-500 hover:bg-green-600">Save Sale</Button>
                                     </div>
@@ -355,8 +399,12 @@ function SalesPageContent() {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Date</TableHead>
+                                                <TableHead>Member ID</TableHead>
+                                                <TableHead>Member Name</TableHead>
                                                 <TableHead>Salesperson</TableHead>
-                                                <TableHead>Product</TableHead>
+                                                <TableHead>Package</TableHead>
+                                                <TableHead>Revenue Type</TableHead>
+                                                <TableHead>Payment Type</TableHead>
                                                 <TableHead>Amount</TableHead>
                                                 <TableHead>Actions</TableHead>
                                             </TableRow>
@@ -365,8 +413,12 @@ function SalesPageContent() {
                                             {filteredSales.map(sale => (
                                                 <TableRow key={sale.id}>
                                                     <TableCell>{sale.date?.toDate ? sale.date.toDate().toLocaleDateString() : new Date(sale.date).toLocaleDateString()}</TableCell>
+                                                    <TableCell>{sale.memberId}</TableCell>
+                                                    <TableCell>{sale.memberName}</TableCell>
                                                     <TableCell>{sale.salesperson}</TableCell>
                                                     <TableCell>{sale.product}</TableCell>
+                                                    <TableCell>{sale.revenueType}</TableCell>
+                                                    <TableCell>{sale.paymentType}</TableCell>
                                                     <TableCell>{formatCurrency(sale.amount)}</TableCell>
                                                     <TableCell className="flex gap-2">
                                                         <Button variant="outline" size="sm" onClick={() => setEditSaleModal({open: true, data: sale})}><Edit className="w-4 h-4"/></Button>
@@ -414,14 +466,14 @@ function SalesPageContent() {
                     <TabsContent value="product-management">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle>Product Management</CardTitle>
-                                <Button onClick={() => setProductModal({ open: true, data: null })}>Add New Product</Button>
+                                <CardTitle>Package Management</CardTitle>
+                                <Button onClick={() => setProductModal({ open: true, data: null })}>Add New Package</Button>
                             </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Product Name</TableHead>
+                                            <TableHead>Package Name</TableHead>
                                             <TableHead>Category</TableHead>
                                             <TableHead>Default Price</TableHead>
                                             <TableHead>Actions</TableHead>
@@ -693,7 +745,7 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Salesperson</TableHead>
-                                <TableHead>Product</TableHead>
+                                <TableHead>Package</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -747,12 +799,12 @@ function ProductModal({ open, onOpenChange, product, onSave, db }: { open: boole
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{product ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+                    <DialogTitle>{product ? 'Edit Package' : 'Add New Package'}</DialogTitle>
                 </DialogHeader>
                 <form action={onSave} className="space-y-4">
                     <input type="hidden" name="id" value={product?.id || ''} />
                     <div>
-                        <Label htmlFor="product-name">Product Name</Label>
+                        <Label htmlFor="product-name">Package Name</Label>
                         <Input id="product-name" name="name" defaultValue={product?.name} required />
                     </div>
                     <div>
@@ -792,7 +844,41 @@ function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave, 
                         <Input type="date" id="edit-sale-date" name="date" defaultValue={sale?.date?.toDate ? sale.date.toDate().toISOString().split('T')[0] : ''} required />
                     </div>
                     <SalespersonSelect employees={employees} name="salesperson" defaultValue={sale?.salesperson} />
+
+                    <div>
+                        <Label htmlFor="edit-member-id">Member ID</Label>
+                        <Input id="edit-member-id" name="memberId" defaultValue={sale?.memberId} required />
+                    </div>
+                    <div>
+                        <Label htmlFor="edit-member-name">Member Name</Label>
+                        <Input id="edit-member-name" name="memberName" defaultValue={sale?.memberName} required />
+                    </div>
+                    
                     <ProductSelect products={products} name="product" defaultValue={sale?.product}/>
+
+                    <div>
+                        <Label htmlFor="edit-revenue-type">Revenue Type</Label>
+                        <Select name="revenueType" defaultValue={sale?.revenueType} required>
+                            <SelectTrigger id="edit-revenue-type"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="New New">New New</SelectItem>
+                                <SelectItem value="Renew">Renew</SelectItem>
+                                <SelectItem value="Upgrade">Upgrade</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div>
+                        <Label htmlFor="edit-payment-type">Payment Type</Label>
+                        <Select name="paymentType" defaultValue={sale?.paymentType} required>
+                            <SelectTrigger id="edit-payment-type"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Cash">Cash</SelectItem>
+                                <SelectItem value="Transfer">Transfer</SelectItem>
+                                <SelectItem value="Credit Card">Credit Card</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div>
                         <Label htmlFor="edit-sale-amount">Sale Amount (฿)</Label>
                         <Input type="number" id="edit-sale-amount" name="amount" defaultValue={sale?.amount} min="0" step="0.01" required />
@@ -898,9 +984,9 @@ function ProductSelect({ products, name = "product", defaultValue = "" } : { pro
 
     return (
         <div>
-            <Label htmlFor={name}>Product</Label>
+            <Label htmlFor={name}>Package</Label>
              <Select name={name} defaultValue={defaultValue}>
-                <SelectTrigger id={name}><SelectValue placeholder="Select Product" /></SelectTrigger>
+                <SelectTrigger id={name}><SelectValue placeholder="Select Package" /></SelectTrigger>
                 <SelectContent>
                     {uniqueProducts.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
                 </SelectContent>

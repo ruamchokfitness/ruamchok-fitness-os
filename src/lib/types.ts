@@ -61,9 +61,13 @@ export interface MaintenanceReport {
 export interface Sale {
   id: string;
   date: any; // Firestore timestamp or Date
-  salesperson: string;
+  memberId: string;
+  memberName: string;
   product: string;
+  revenueType: string;
+  paymentType: string;
   amount: number;
+  salesperson: string;
 }
 
 export interface SalesEmployee {
