@@ -1199,7 +1199,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
                         The report will be generated for the date range currently selected on the report page: 
-                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
+                        <strong>{startDate}</strong> to <strong>{endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
