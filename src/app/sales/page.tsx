@@ -98,7 +98,7 @@ function SalesPageContent() {
                     { name: 'Boxing 30 Sessions', category: 'Personal Training', defaultPrice: 18900 },
                     { name: 'Boxing 20 Sessions', category: 'Personal Training', defaultPrice: 13000 },
                     { name: 'Boxing 10 Sessions', category: 'Personal Training', defaultPrice: 7000 },
-                    { name: 'Boxing 1 Session', category: 'Personal Training', defaultPrice: 700 },
+                    { name: 'Boxing 1 Session', category: 'Personal Training', defaultPrice: 800 },
                     { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 300 },
                     { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 200 },
                     { name: 'Proshop Item', category: 'Proshop', defaultPrice: 0 },
