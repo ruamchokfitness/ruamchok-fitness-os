@@ -81,6 +81,7 @@ export interface Product {
   name: string;
   category: 'Membership' | 'Personal Training' | 'Daily Pass' | 'Proshop' | 'Food & Beverage';
   defaultPrice: number;
+  order?: number;
 }
 
 export interface MonthlyTargets {

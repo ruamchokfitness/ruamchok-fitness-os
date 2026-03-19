@@ -37,7 +37,7 @@ function SalesPageContent() {
     const { data: employeesData, isLoading: loadingEmployees } = useCollection<SalesEmployee>(employeesQuery);
     const employees = employeesData || [];
 
-    const productsQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1_products"), orderBy('name')) : null, [db]);
+    const productsQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1_products"), orderBy('order')) : null, [db]);
     const { data: productsData, isLoading: loadingProducts } = useCollection<Product>(productsQuery);
     const products = productsData || [];
 
@@ -74,35 +74,35 @@ function SalesPageContent() {
             const productsSnapshot = await getDocs(productsCollectionRef);
             if (productsSnapshot.empty) {
                  const defaultProducts: Omit<Product, 'id'>[] = [
-                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000 },
-                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000 },
-                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000 },
-                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200 },
-                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000 },
-                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800 },
-                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500 },
-                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000 },
-                    { name: 'Punch Card 100 Visits', category: 'Membership', defaultPrice: 12000 },
-                    { name: 'Punch Card 50 Visits', category: 'Membership', defaultPrice: 7000 },
-                    { name: 'Punch Card 30 Visits', category: 'Membership', defaultPrice: 4500 },
-                    { name: 'Punch Card 20 Visits', category: 'Membership', defaultPrice: 3400 },
-                    { name: 'Punch Card 10 Visits', category: 'Membership', defaultPrice: 1800 },
-                    { name: 'PT 100 Sessions', category: 'Personal Training', defaultPrice: 47000 },
-                    { name: 'PT 50 Sessions', category: 'Personal Training', defaultPrice: 25000 },
-                    { name: 'PT 30 Sessions', category: 'Personal Training', defaultPrice: 15900 },
-                    { name: 'PT 20 Sessions', category: 'Personal Training', defaultPrice: 11000 },
-                    { name: 'PT 10 Sessions', category: 'Personal Training', defaultPrice: 6000 },
-                    { name: 'PT 1 Session', category: 'Personal Training', defaultPrice: 700 },
-                    { name: 'Boxing 100 Sessions', category: 'Personal Training', defaultPrice: 57000 },
-                    { name: 'Boxing 50 Sessions', category: 'Personal Training', defaultPrice: 30000 },
-                    { name: 'Boxing 30 Sessions', category: 'Personal Training', defaultPrice: 18900 },
-                    { name: 'Boxing 20 Sessions', category: 'Personal Training', defaultPrice: 13000 },
-                    { name: 'Boxing 10 Sessions', category: 'Personal Training', defaultPrice: 7000 },
-                    { name: 'Boxing 1 Session', category: 'Personal Training', defaultPrice: 800 },
-                    { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 300 },
-                    { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 200 },
-                    { name: 'Proshop Item', category: 'Proshop', defaultPrice: 0 },
-                    { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0 },
+                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500, order: 1 },
+                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000, order: 2 },
+                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000, order: 3 },
+                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800, order: 4 },
+                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000, order: 5 },
+                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200, order: 6 },
+                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000, order: 7 },
+                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000, order: 8 },
+                    { name: 'Punch Card 100 Visits', category: 'Membership', defaultPrice: 12000, order: 9 },
+                    { name: 'Punch Card 50 Visits', category: 'Membership', defaultPrice: 7000, order: 10 },
+                    { name: 'Punch Card 30 Visits', category: 'Membership', defaultPrice: 4500, order: 11 },
+                    { name: 'Punch Card 20 Visits', category: 'Membership', defaultPrice: 3400, order: 12 },
+                    { name: 'Punch Card 10 Visits', category: 'Membership', defaultPrice: 1800, order: 13 },
+                    { name: 'PT 100 Sessions', category: 'Personal Training', defaultPrice: 47000, order: 14 },
+                    { name: 'PT 50 Sessions', category: 'Personal Training', defaultPrice: 25000, order: 15 },
+                    { name: 'PT 30 Sessions', category: 'Personal Training', defaultPrice: 15900, order: 16 },
+                    { name: 'PT 20 Sessions', category: 'Personal Training', defaultPrice: 11000, order: 17 },
+                    { name: 'PT 10 Sessions', category: 'Personal Training', defaultPrice: 6000, order: 18 },
+                    { name: 'PT 1 Session', category: 'Personal Training', defaultPrice: 700, order: 19 },
+                    { name: 'Boxing 100 Sessions', category: 'Personal Training', defaultPrice: 57000, order: 20 },
+                    { name: 'Boxing 50 Sessions', category: 'Personal Training', defaultPrice: 30000, order: 21 },
+                    { name: 'Boxing 30 Sessions', category: 'Personal Training', defaultPrice: 18900, order: 22 },
+                    { name: 'Boxing 20 Sessions', category: 'Personal Training', defaultPrice: 13000, order: 23 },
+                    { name: 'Boxing 10 Sessions', category: 'Personal Training', defaultPrice: 7000, order: 24 },
+                    { name: 'Boxing 1 Session', category: 'Personal Training', defaultPrice: 700, order: 25 },
+                    { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 300, order: 26 },
+                    { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 200, order: 27 },
+                    { name: 'Proshop Item', category: 'Proshop', defaultPrice: 0, order: 28 },
+                    { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0, order: 29 },
                  ];
                 const batch = writeBatch(db);
                 defaultProducts.forEach(p => batch.set(doc(collection(db, "salesdashboard1_products")), p));
