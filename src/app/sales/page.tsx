@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -33,7 +33,7 @@ function SalesPageContent() {
     const { data: salesData, isLoading: loadingSales } = useCollection<Sale>(salesQuery);
     const sales = salesData || [];
 
-    const employeesQuery = useMemoFirebase(() => db ? collection(db, "salesdashboard1_employees") : null, [db]);
+    const employeesQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1_employees")) : null, [db]);
     const { data: employeesData, isLoading: loadingEmployees } = useCollection<SalesEmployee>(employeesQuery);
     const employees = employeesData || [];
 
