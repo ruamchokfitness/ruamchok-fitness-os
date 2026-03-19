@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -74,14 +74,14 @@ function SalesPageContent() {
             const productsSnapshot = await getDocs(productsCollectionRef);
             if (productsSnapshot.empty) {
                  const defaultProducts: Omit<Product, 'id'>[] = [
-                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500, order: 1 },
-                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000, order: 2 },
-                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000, order: 3 },
-                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800, order: 4 },
-                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000, order: 5 },
-                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200, order: 6 },
-                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000, order: 7 },
-                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000, order: 8 },
+                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000, order: 1 },
+                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000, order: 2 },
+                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000, order: 3 },
+                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200, order: 4 },
+                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000, order: 5 },
+                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800, order: 6 },
+                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500, order: 7 },
+                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000, order: 8 },
                     { name: 'Punch Card 100 Visits', category: 'Membership', defaultPrice: 12000, order: 9 },
                     { name: 'Punch Card 50 Visits', category: 'Membership', defaultPrice: 7000, order: 10 },
                     { name: 'Punch Card 30 Visits', category: 'Membership', defaultPrice: 4500, order: 11 },
@@ -197,10 +197,18 @@ function SalesPageContent() {
 
         try {
             if (id) {
-                await updateDoc(doc(db, "salesdashboard1_products", id), productData);
+                const existingProduct = products.find(p => p.id === id);
+                await updateDoc(doc(db, "salesdashboard1_products", id), {
+                    ...productData,
+                    order: existingProduct?.order
+                });
                 showAndHideToast("Success", "Product updated.");
             } else {
-                await addDoc(collection(db, "salesdashboard1_products"), productData);
+                const newOrder = (products?.length || 0) + 1;
+                await addDoc(collection(db, "salesdashboard1_products"), { 
+                    ...productData, 
+                    order: newOrder 
+                });
                 showAndHideToast("Success", "Product added.");
             }
             setProductModal({ open: false, data: null });
@@ -667,7 +675,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
         'Daily Pass': '#8b5cf6'
     };
 
-    const pieChartData = productChartDataValue.map((entry: any) => ({
+    const pieChartData = productChartDataValue.map((entry:any) => ({
       ...entry,
       fill: productCategoryColors[entry.name] || '#6b7280',
     }));
