@@ -79,7 +79,7 @@ export interface SalesEmployee {
 export interface Product {
   id: string;
   name: string;
-  category: 'Membership' | 'Punch Card' | 'Personal Training' | 'Boxing Training' | 'Daily Pass' | 'Proshop' | 'Food & Beverage';
+  category: 'Membership' | 'Personal Training' | 'Daily Pass' | 'Proshop' | 'Food & Beverage';
   defaultPrice: number;
 }
 

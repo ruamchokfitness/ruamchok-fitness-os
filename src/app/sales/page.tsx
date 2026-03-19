@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -313,7 +313,7 @@ function SalesPageContent() {
 
                 <div className="container mx-auto py-6">
                     <TabsContent value="dashboard">
-                        <DashboardTab sales={sales} employees={employees} monthlyTargets={monthlyTargets} salespersonTargets={salespersonTargets} onSetMonthlyTargets={() => setMonthlyTargetsModal(true)} onSetSalespersonTargets={() => setSalespersonTargetsModal(true)} onNavigate={setActiveTab} />
+                        <DashboardTab sales={sales} employees={employees} products={products} monthlyTargets={monthlyTargets} salespersonTargets={salespersonTargets} onSetMonthlyTargets={() => setMonthlyTargetsModal(true)} onSetSalespersonTargets={() => setSalespersonTargetsModal(true)} onNavigate={setActiveTab} />
                     </TabsContent>
                     <TabsContent value="sales-entry">
                         <Card>
@@ -576,7 +576,7 @@ export default function SalesPage() {
 
 // Sub-components for better organization
 
-function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, onSetMonthlyTargets, onSetSalespersonTargets, onNavigate }: any) {
+function DashboardTab({ sales, employees, products, monthlyTargets, salespersonTargets, onSetMonthlyTargets, onSetSalespersonTargets, onNavigate }: any) {
     
     const [todayDate, setTodayDate] = useState('');
     const [currentMonth, setCurrentMonth] = useState('');
@@ -609,16 +609,25 @@ function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, on
             sales: monthlySalesList.filter(s => s.salesperson === emp.name).reduce((sum, s) => sum + s.amount, 0),
         }));
 
-        const productChartDataValue = [
-            { name: 'Membership', value: monthlySalesList.filter(s => s.product.includes('Annual') || s.product.includes('Month') || s.product.includes('Punch Card')).reduce((sum, s) => sum + s.amount, 0) },
-            { name: 'Personal Training', value: monthlySalesList.filter(s => s.product.includes('PT') || s.product.includes('Boxing')).reduce((sum, s) => sum + s.amount, 0) },
-            { name: 'Food & Beverage', value: monthlySalesList.filter(s => s.product.includes('Food & Beverage')).reduce((sum, s) => sum + s.amount, 0) },
-            { name: 'Proshop', value: monthlySalesList.filter(s => s.product.includes('Proshop')).reduce((sum, s) => sum + s.amount, 0) },
-            { name: 'Daily Pass', value: monthlySalesList.filter(s => s.product.includes('Daily')).reduce((sum, s) => sum + s.amount, 0) },
-        ].filter(item => item.value > 0);
+        const productCategoryMap = new Map(products.map((p: Product) => [p.name, p.category]));
+
+        const salesByCategory = monthlySalesList.reduce((acc, sale) => {
+            const category = productCategoryMap.get(sale.product) || 'Other';
+            if (!acc[category]) {
+                acc[category] = 0;
+            }
+            acc[category] += sale.amount;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const productChartDataValue = Object.entries(salesByCategory).map(([name, value]) => ({
+            name,
+            value,
+        })).filter(item => item.value > 0);
+
 
         return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartDataValue};
-    }, [sales, employees]);
+    }, [sales, employees, products]);
     
     const productCategoryColors: {[key: string]: string} = {
         'Membership': '#3b82f6',
@@ -809,7 +818,7 @@ function EmployeeModal({ open, onOpenChange, employee, onSave, db }: { open: boo
 }
 
 function ProductModal({ open, onOpenChange, product, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, product: Product | null, onSave: (data: FormData) => void, db: Firestore }) {
-    const categories = ['Membership', 'Punch Card', 'Personal Training', 'Boxing Training', 'Daily Pass', 'Proshop', 'Food & Beverage'];
+    const categories = ['Membership', 'Personal Training', 'Daily Pass', 'Proshop', 'Food & Beverage'];
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
