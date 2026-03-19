@@ -380,7 +380,7 @@ function SalesPageContent() {
                                       <Select name="revenueType" required>
                                         <SelectTrigger id="revenue-type"><SelectValue placeholder="Select revenue type" /></SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="New New">New New</SelectItem>
+                                          <SelectItem value="New">New</SelectItem>
                                           <SelectItem value="Renew">Renew</SelectItem>
                                           <SelectItem value="Upgrade">Upgrade</SelectItem>
                                         </SelectContent>
@@ -923,7 +923,7 @@ function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave, 
                         <Select name="revenueType" defaultValue={sale?.revenueType} required>
                             <SelectTrigger id="edit-revenue-type"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="New New">New New</SelectItem>
+                                <SelectItem value="New">New</SelectItem>
                                 <SelectItem value="Renew">Renew</SelectItem>
                                 <SelectItem value="Upgrade">Upgrade</SelectItem>
                             </SelectContent>
@@ -1246,7 +1246,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
                         The report will be generated for the date range currently selected on the report page: 
-                        <strong> {startDate}</strong> to <strong>{endDate}</strong>.
+                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
