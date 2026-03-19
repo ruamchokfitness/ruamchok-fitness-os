@@ -14,13 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart2, Loader2, Plus, Trash2, Edit, Settings } from 'lucide-react';
+import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
+
+const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function SalesPageContent() {
     const { firestore: db } = useFirebase();
@@ -56,6 +58,7 @@ function SalesPageContent() {
     const [monthlyTargetsModal, setMonthlyTargetsModal] = useState(false);
     const [salespersonTargetsModal, setSalespersonTargetsModal] = useState(false);
     const [confirmDialog, setConfirmDialog] = useState<{ open: boolean, message: string, onConfirm: () => void }>({ open: false, message: '', onConfirm: () => {} });
+    const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
     // Filters for sales report
     const [filterStartDate, setFilterStartDate] = useState('');
@@ -113,8 +116,6 @@ function SalesPageContent() {
             return true;
         })
     }, [sales, filterStartDate, filterEndDate, filterSalesperson]);
-
-    const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const showAndHideToast = (title: string, description: string, variant: "default" | "destructive" = "default") => {
         toast({ title, description, variant });
@@ -377,7 +378,13 @@ function SalesPageContent() {
                     <TabsContent value="sales-report">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Sales Report</CardTitle>
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                                    <CardTitle className="mb-3 md:mb-0">Sales Report</CardTitle>
+                                    <Button onClick={() => setPdfModalOpen(true)}>
+                                        <FileText className="mr-2 h-4 w-4"/>
+                                        Generate PDF
+                                    </Button>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -546,6 +553,15 @@ function SalesPageContent() {
                 onSave={handleSaveSalespersonTargets}
                 db={db}
             />
+            <PDFExportModal
+                open={pdfModalOpen}
+                onOpenChange={setPdfModalOpen}
+                employees={employees}
+                sales={sales}
+                defaultSalesperson={filterSalesperson}
+                startDate={filterStartDate}
+                endDate={filterEndDate}
+            />
         </>
     );
 }
@@ -561,7 +577,6 @@ export default function SalesPage() {
 // Sub-components for better organization
 
 function DashboardTab({ sales, employees, monthlyTargets, salespersonTargets, onSetMonthlyTargets, onSetSalespersonTargets, onNavigate }: any) {
-    const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     const [todayDate, setTodayDate] = useState('');
     const [currentMonth, setCurrentMonth] = useState('');
@@ -1021,5 +1036,184 @@ function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm 
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+    );
+}
+
+function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalesperson, startDate, endDate }: { open: boolean, onOpenChange: (open: boolean) => void, employees: SalesEmployee[], sales: Sale[], defaultSalesperson: string, startDate: string, endDate: string }) {
+    const { toast } = useToast();
+
+    const generateSalesReportPDF = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const selectedSalesperson = formData.get('salesperson') as string;
+        
+        const salespersonName = selectedSalesperson === 'all' ? 'All Salespersons' : selectedSalesperson;
+
+        const filtered = sales.filter(sale => {
+            const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+            const start = startDate ? new Date(startDate) : null;
+            const end = endDate ? new Date(endDate) : null;
+            if (start) start.setHours(0,0,0,0);
+            if (end) end.setHours(23,59,59,999);
+            
+            if(start && saleDate < start) return false;
+            if(end && saleDate > end) return false;
+            if(selectedSalesperson && selectedSalesperson !== 'all' && sale.salesperson !== selectedSalesperson) return false;
+            return true;
+        }).sort((a, b) => {
+            const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+            return dateA.getTime() - dateB.getTime();
+        });
+
+        if (filtered.length === 0) {
+            toast({ title: "No data", description: "No sales data found for the selected criteria.", variant: "destructive" });
+            return;
+        }
+
+        const totalAmount = filtered.reduce((sum, s) => sum + s.amount, 0);
+
+        let htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Sales Report - ${salespersonName}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+                    .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+                    .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+                    .header-info { font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+                    .info-row { display: flex; justify-content: space-between; font-size: 12px; }
+                    .info-label { font-weight: bold; width: 35%; }
+                    .info-value { text-align: right; width: 65%; }
+                    h2 { font-size: 14px; font-weight: bold; margin-top: 18px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th { background: #f0f0f0; color: #000; padding: 6px 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
+                    td { padding: 5px 8px; border: 1px solid #ccc; font-size: 11px; }
+                    tr:nth-child(even) { background: #fafafa; }
+                    .amount { text-align: right; font-weight: bold; }
+                    .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
+                    .summary-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+                    .summary-card { border: 1px solid #999; padding: 10px; text-align: center; }
+                    .summary-card .label { font-size: 10px; font-weight: bold; margin-bottom: 6px; }
+                    .summary-card .value { font-size: 16px; font-weight: bold; }
+                    .no-data { text-align: center; padding: 20px; color: #666; background: #f5f5f5; border: 1px solid #ccc; }
+                    .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    @media print {
+                        body { margin: 0; padding: 0; }
+                        .container { padding: 15px; }
+                        .header { page-break-after: avoid; }
+                        h2 { page-break-after: avoid; }
+                        table { page-break-inside: auto; }
+                        tr { page-break-inside: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>SALES REPORT</h1>
+                        <div class="header-info">
+                            <div><strong>Salesperson:</strong> ${salespersonName}</div>
+                            <div><strong>Period:</strong> ${new Date(startDate).toLocaleDateString('en-GB')} to ${new Date(endDate).toLocaleDateString('en-GB')}</div>
+                        </div>
+                    </div>
+
+                    <div class="summary-cards">
+                         <div class="summary-card">
+                            <div class="label">Total Transactions</div>
+                            <div class="value">${filtered.length}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">Total Sales</div>
+                            <div class="value">${formatCurrency(totalAmount)}</div>
+                        </div>
+                    </div>
+                    
+                    <h2>SALES DETAILS</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Member ID</th>
+                                <th>Member Name</th>
+                                <th>Package</th>
+                                <th>Revenue Type</th>
+                                <th>Payment Type</th>
+                                <th style="text-align: right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.map(sale => `
+                                <tr>
+                                    <td>${sale.date?.toDate ? sale.date.toDate().toLocaleDateString('en-GB') : new Date(sale.date).toLocaleDateString('en-GB')}</td>
+                                    <td>${sale.memberId || '-'}</td>
+                                    <td>${sale.memberName || '-'}</td>
+                                    <td>${sale.product || '-'}</td>
+                                    <td>${sale.revenueType || '-'}</td>
+                                    <td>${sale.paymentType || '-'}</td>
+                                    <td class="amount">${formatCurrency(sale.amount)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr class="total-row">
+                                <td colspan="6" style="text-align: right;">TOTAL:</td>
+                                <td class="amount">${formatCurrency(totalAmount)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                     <div class="footer">
+                        <p>Generated on ${new Date().toLocaleString('en-GB')}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '', 'width=1000,height=800');
+        if (!printWindow) {
+            toast({ title: 'Please allow pop-ups to download PDF', variant: 'destructive' });
+            return;
+        }
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.onafterprint = function() {
+                printWindow.close();
+            };
+        }, 300);
+
+        onOpenChange(false);
+        toast({ title: 'PDF ready!', description: 'Click "Save as PDF" in the print dialog to download.' });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Generate Sales Report</DialogTitle>
+                    <DialogDescription>
+                        The report will be generated for the date range currently selected on the report page: 
+                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
+                    <SalespersonSelect 
+                        employees={employees} 
+                        includeAll 
+                        defaultValue={defaultSalesperson}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit">Generate PDF</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
