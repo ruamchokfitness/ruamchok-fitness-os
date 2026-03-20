@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
+import { useState, useEffect, useMemo, useTransition as useTransitionReact, useRef } from 'react';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, orderBy, where, setDoc, writeBatch } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,8 @@ function SalesPageContent() {
     const { firestore: db } = useFirebase();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
+    const [isSaving, startTransition] = useTransitionReact();
+    const newSaleFormRef = useRef<HTMLFormElement>(null);
 
     const salesQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1"), orderBy('date', 'desc')) : null, [db]);
     const { data: salesData, isLoading: loadingSales } = useCollection<Sale>(salesQuery);
@@ -105,7 +107,10 @@ function SalesPageContent() {
                     { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0, order: 29 },
                  ];
                 const batch = writeBatch(db);
-                defaultProducts.forEach(p => batch.set(doc(collection(db, "salesdashboard1_products")), p));
+                defaultProducts.forEach(p => {
+                    const docRef = doc(collection(db, "salesdashboard1_products"));
+                    batch.set(docRef, p);
+                });
                 await batch.commit();
             }
 
@@ -114,7 +119,10 @@ function SalesPageContent() {
             if (employeesSnapshot.empty) {
                  const defaultEmployees: Omit<SalesEmployee, 'id'>[] = [];
                 const batch = writeBatch(db);
-                defaultEmployees.forEach(e => batch.set(doc(collection(db, "salesdashboard1_employees")), e));
+                defaultEmployees.forEach(e => {
+                    const docRef = doc(collection(db, "salesdashboard1_employees"));
+                    batch.set(docRef, e);
+                });
                 await batch.commit();
             }
         };
@@ -227,9 +235,14 @@ function SalesPageContent() {
         });
     };
 
-    const handleSaveSale = async (formData: FormData) => {
+    const handleSaveSale = async (formData: FormData): Promise<boolean> => {
+        const dateStr = formData.get('date') as string;
+        // This ensures the date is interpreted in the local timezone, not UTC.
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const saleDate = new Date(year, month - 1, day);
+
         const saleData = {
-            date: new Date(formData.get('date') as string),
+            date: saleDate,
             salesperson: formData.get('salesperson') as string,
             memberId: formData.get('memberId') as string,
             memberName: formData.get('memberName') as string,
@@ -241,14 +254,30 @@ function SalesPageContent() {
         try {
             await addDoc(collection(db, "salesdashboard1"), saleData);
             showAndHideToast("Success", "Sale recorded.");
+            return true;
         } catch(e) {
             showAndHideToast("Error", "Could not save sale.", "destructive");
+            return false;
         }
     }
+    
+    const handleNewSaleAction = (formData: FormData) => {
+        startTransition(async () => {
+            const success = await handleSaveSale(formData);
+            if (success) {
+                newSaleFormRef.current?.reset();
+            }
+        });
+    };
+    
     const handleUpdateSale = async (formData: FormData) => {
         const id = formData.get('id') as string;
+        const dateStr = formData.get('date') as string;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const saleDate = new Date(year, month - 1, day);
+
          const saleData = {
-            date: new Date(formData.get('date') as string),
+            date: saleDate,
             salesperson: formData.get('salesperson') as string,
             memberId: formData.get('memberId') as string,
             memberName: formData.get('memberName') as string,
@@ -359,7 +388,7 @@ function SalesPageContent() {
                                 <CardTitle>New Sale Entry</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <form action={handleSaveSale} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <form ref={newSaleFormRef} action={handleNewSaleAction} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <Label htmlFor="sale-date">Date</Label>
                                         <Input type="date" id="sale-date" name="date" defaultValue={new Date().toISOString().split('T')[0]} required />
@@ -407,7 +436,10 @@ function SalesPageContent() {
                                     <SalespersonSelect employees={employees} name="salesperson" />
 
                                     <div className="md:col-span-2">
-                                        <Button type="submit" className="w-full bg-green-500 hover:bg-green-600">Save Sale</Button>
+                                        <Button type="submit" disabled={isSaving} className="w-full bg-green-500 hover:bg-green-600">
+                                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Save Sale
+                                        </Button>
                                     </div>
                                 </form>
                             </CardContent>
@@ -1246,7 +1278,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
                         The report will be generated for the date range currently selected on the report page: 
-                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
+                        <strong> {startDate}</strong> to <strong>{endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
