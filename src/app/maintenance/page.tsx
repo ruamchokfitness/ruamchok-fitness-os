@@ -72,7 +72,7 @@ function MaintenancePageContent() {
     const [reportToFollowUp, setReportToFollowUp] = useState<MaintenanceReport | null>(null);
 
 
-    // Initial load
+    // Set default dates on initial load
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
         setDate(today);
@@ -81,12 +81,22 @@ function MaintenancePageContent() {
         thirtyDaysAgo.setDate(new Date().getDate() - 30);
         setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
         setEndDate(today);
+    }, []);
 
-        if(!db || loadingCategories) return;
+    // Seed initial categories if they don't exist
+    useEffect(() => {
+        if (!db) return;
 
-        const initialize = async () => {
-            if (categories && categories.length > 0) return;
+        const initializeCategories = async () => {
+            const categoriesRef = collection(db, "MaintenanceCategories");
+            const q = query(categoriesRef, limit(1));
+            const snapshot = await getDocs(q);
 
+            if (!snapshot.empty) {
+                return; // Data exists, do not seed.
+            }
+
+            console.log("Seeding default maintenance categories...");
             const batch = writeBatch(db);
             const defaultCategories = [
                 { id: 'cardio', name: 'อุปกรณ์คาร์ดิโอ' },
@@ -103,8 +113,9 @@ function MaintenancePageContent() {
             await batch.commit();
         };
 
-        initialize();
-    }, [db, categories, loadingCategories]);
+        initializeCategories();
+    }, [db]);
+
 
     // Filtering logic
     useEffect(() => {
@@ -121,6 +132,7 @@ function MaintenancePageContent() {
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!db) return;
         if (!date || !responsible || !maintenanceCategory || !maintenanceItem) {
             toast({ title: "ข้อมูลไม่ครบถ้วน", description: "กรุณากรอกข้อมูลที่จำเป็นให้ครบ", variant: 'destructive' });
             return;
@@ -161,6 +173,7 @@ function MaintenancePageContent() {
     };
 
     const handleStatusChange = async (id: string, newStatus: boolean) => {
+        if (!db) return;
         try {
             const reportDoc = doc(db, "MaintenanceReport1", id);
             await updateDoc(reportDoc, { completed: newStatus });
@@ -177,7 +190,7 @@ function MaintenancePageContent() {
     };
 
     const handleDeleteReport = async () => {
-        if (!reportToDelete) return;
+        if (!reportToDelete || !db) return;
         try {
             await deleteDoc(doc(db, "MaintenanceReport1", reportToDelete));
             toast({ title: "ลบรายการสำเร็จ" });
@@ -190,6 +203,7 @@ function MaintenancePageContent() {
     };
     
     const handleSearch = async () => {
+        if (!db) return;
         if (!startDate || !endDate) {
             toast({ title: "ข้อมูลไม่ครบถ้วน", description: "กรุณาระบุวันที่เริ่มต้นและสิ้นสุด", variant: "destructive" });
             return;
@@ -238,7 +252,7 @@ function MaintenancePageContent() {
         <>
             <header className="bg-slate-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Wrench className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -407,6 +421,7 @@ function MaintenancePageContent() {
                 categories={categories || []}
                 onAddClick={() => { setManageCategoriesModalOpen(false); setAddCategoryModalOpen(true); }}
                 onDeleteClick={async (category) => {
+                    if (!db) return;
                     setCategoryToDelete(category);
                     try {
                         const maintenanceCollectionRef = collection(db, "MaintenanceReport1");
@@ -461,7 +476,7 @@ function MaintenancePageContent() {
                         <AlertDialogAction
                             className="bg-destructive hover:bg-destructive/90"
                             onClick={async () => {
-                                if (!categoryToDelete) return;
+                                if (!categoryToDelete || !db) return;
                                 try {
                                     await deleteDoc(doc(db, "MaintenanceCategories", categoryToDelete.id));
                                     toast({ title: "ลบประเภทสำเร็จ" });
@@ -479,7 +494,7 @@ function MaintenancePageContent() {
     );
 }
 
-function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, onDeleteClick, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], onAddClick: () => void, onDeleteClick: (category: MaintenanceCategory) => void, db: Firestore }) {
+function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, onDeleteClick, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], onAddClick: () => void, onDeleteClick: (category: MaintenanceCategory) => void, db: Firestore | null }) {
     const { toast } = useToast();
     const [editingCategory, setEditingCategory] = useState<MaintenanceCategory | null>(null);
     const [editedName, setEditedName] = useState('');
@@ -490,7 +505,7 @@ function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, on
     }
 
     const handleSave = async () => {
-        if(!editingCategory || !editedName.trim()) return;
+        if(!editingCategory || !editedName.trim() || !db) return;
         try {
             await updateDoc(doc(db, "MaintenanceCategories", editingCategory.id), { name: editedName });
             toast({ title: "อัปเดตประเภทสำเร็จ" });
@@ -540,13 +555,14 @@ function ManageCategoriesDialog({ open, onOpenChange, categories, onAddClick, on
     )
 }
 
-function AddCategoryDialog({ open, onOpenChange, categories, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], db: Firestore}) {
+function AddCategoryDialog({ open, onOpenChange, categories, db }: { open: boolean, onOpenChange: (open: boolean) => void, categories: MaintenanceCategory[], db: Firestore | null}) {
     const { toast } = useToast();
     const [id, setId] = useState('');
     const [name, setName] = useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!db) return;
         if (!id.trim() || !name.trim()) {
             toast({ title: "ข้อมูลไม่ครบถ้วน", variant: "destructive" });
             return;
@@ -583,7 +599,7 @@ function AddCategoryDialog({ open, onOpenChange, categories, db }: { open: boole
     )
 }
 
-function FollowUpDialog({ open, onOpenChange, report, db }: { open: boolean, onOpenChange: (open: boolean) => void, report: MaintenanceReport | null, db: Firestore }) {
+function FollowUpDialog({ open, onOpenChange, report, db }: { open: boolean, onOpenChange: (open: boolean) => void, report: MaintenanceReport | null, db: Firestore | null }) {
     const { toast } = useToast();
     const [note, setNote] = useState('');
     const [author, setAuthor] = useState('');
@@ -597,7 +613,7 @@ function FollowUpDialog({ open, onOpenChange, report, db }: { open: boolean, onO
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!report || !note.trim() || !author.trim()) {
+        if (!db || !report || !note.trim() || !author.trim()) {
             toast({ title: "ข้อมูลไม่ครบถ้วน", variant: "destructive" });
             return;
         }
