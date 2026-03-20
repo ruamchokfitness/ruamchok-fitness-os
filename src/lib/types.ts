@@ -1,4 +1,5 @@
 
+
 export type Employee = {
   id: string;
   name: string;
@@ -42,6 +43,12 @@ export type CustomHoliday = {
   name: string;
 };
 
+export interface MaintenanceFollowUp {
+  date: string;
+  note: string;
+  author: string;
+}
+
 export interface MaintenanceCategory {
   id: string;
   name: string;
@@ -53,9 +60,9 @@ export interface MaintenanceReport {
   responsible: string;
   category: string;
   maintenanceItem: string;
-  notes: string;
   completed: boolean;
   timestamp: any; // Firestore timestamp
+  followUps: MaintenanceFollowUp[];
 }
 
 export interface Sale {

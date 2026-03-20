@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, addDoc, orderBy, query, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, writeBatch, where, limit, setDoc } from 'firebase/firestore';
+import { collection, addDoc, orderBy, query, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, writeBatch, where, limit, setDoc, arrayUnion } from 'firebase/firestore';
 
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 
-import type { MaintenanceReport, MaintenanceCategory } from '@/lib/types';
+import type { MaintenanceReport, MaintenanceCategory, MaintenanceFollowUp } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench, MessageSquarePlus, History as HistoryIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Firestore } from 'firebase/firestore';
 
@@ -68,6 +68,9 @@ function MaintenancePageContent() {
     const [deleteCategoryModalOpen, setDeleteCategoryModalOpen] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<MaintenanceCategory | null>(null);
     const [categoryInUse, setCategoryInUse] = useState(false);
+    const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+    const [reportToFollowUp, setReportToFollowUp] = useState<MaintenanceReport | null>(null);
+
 
     // Initial load
     useEffect(() => {
@@ -123,14 +126,23 @@ function MaintenancePageContent() {
             return;
         }
 
+        const initialFollowUp: MaintenanceFollowUp[] = [];
+        if(notes.trim()){
+            initialFollowUp.push({
+                date: new Date().toISOString(),
+                note: notes,
+                author: responsible
+            })
+        }
+
         const newReport = {
             date,
             responsible,
             category: maintenanceCategory,
             maintenanceItem,
-            notes,
             completed,
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            followUps: initialFollowUp
         };
 
         try {
@@ -217,6 +229,11 @@ function MaintenancePageContent() {
         return (categories || []).find(c => c.id === categoryId)?.name || 'ไม่มีหมวดหมู่';
     };
 
+    const openFollowUpDialog = (report: MaintenanceReport) => {
+        setReportToFollowUp(report);
+        setFollowUpModalOpen(true);
+    }
+
     return (
         <>
             <header className="bg-slate-900 text-white py-4 md:py-6">
@@ -258,7 +275,7 @@ function MaintenancePageContent() {
                                 </Select>
                                 <Input placeholder="รายการซ่อม" value={maintenanceItem} onChange={e => setMaintenanceItem(e.target.value)} required />
                             </div>
-                            <Textarea placeholder="หมายเหตุ (ถ้ามี)" value={notes} onChange={e => setNotes(e.target.value)} />
+                            <Textarea placeholder="หมายเหตุเริ่มต้น (ถ้ามี)" value={notes} onChange={e => setNotes(e.target.value)} />
                             <div className="flex items-center space-x-2">
                                 <Checkbox id="completed" checked={completed} onCheckedChange={checked => setCompleted(!!checked)} />
                                 <label htmlFor="completed">เสร็จสิ้นการซ่อมบำรุง</label>
@@ -321,10 +338,32 @@ function MaintenancePageContent() {
                                                         <Badge variant={report.completed ? 'default' : 'destructive'} className={report.completed ? 'bg-green-600' : 'bg-orange-500'}>{report.completed ? 'เสร็จสิ้น' : 'รอดำเนินการ'}</Badge>
                                                     </div>
                                                     <h3 className="text-lg font-semibold">{report.maintenanceItem}</h3>
-                                                    <p className="text-sm text-gray-600 mt-1">ผู้รับผิดชอบ: {report.responsible}</p>
-                                                    {report.notes && <p className="text-sm text-gray-500 mt-2 italic">"{report.notes}"</p>}
+                                                    <p className="text-sm text-gray-600 mt-1">ผู้รับผิดชอบหลัก: {report.responsible}</p>
+                                                    
+                                                    <div className="mt-4 space-y-3">
+                                                        <h4 className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-2"><HistoryIcon className="w-3 h-3" /> ประวัติการติดตาม</h4>
+                                                        {report.followUps && report.followUps.length > 0 ? (
+                                                            <div className="space-y-2 max-h-40 overflow-y-auto pr-2 border-l-2 border-gray-200 pl-3">
+                                                                {report.followUps.slice().reverse().map((followUp, index) => (
+                                                                    <div key={index} className="text-xs p-2 bg-gray-100 rounded-md">
+                                                                        <p className="font-semibold text-gray-800">{followUp.note}</p>
+                                                                        <p className="text-gray-500 mt-1">
+                                                                            โดย: {followUp.author} - {new Date(followUp.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                        </p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-gray-500 italic">ยังไม่มีการติดตาม</p>
+                                                        )}
+                                                    </div>
+
                                                 </div>
                                                 <div className="mt-4 md:mt-0 flex items-center space-x-2">
+                                                    <Button variant="outline" size="sm" onClick={() => openFollowUpDialog(report)}>
+                                                        <MessageSquarePlus className="h-4 w-4 mr-2" />
+                                                        ติดตามงาน
+                                                    </Button>
                                                     <div className="flex items-center space-x-2">
                                                         <Checkbox id={`status-${report.id}`} checked={report.completed} onCheckedChange={(checked) => handleStatusChange(report.id, !!checked)} />
                                                         <label htmlFor={`status-${report.id}`} className="text-sm">เสร็จสิ้น</label>
@@ -385,6 +424,13 @@ function MaintenancePageContent() {
                 open={addCategoryModalOpen} 
                 onOpenChange={setAddCategoryModalOpen}
                 categories={categories || []}
+                db={db}
+            />
+
+             <FollowUpDialog 
+                open={followUpModalOpen}
+                onOpenChange={setFollowUpModalOpen}
+                report={reportToFollowUp}
                 db={db}
             />
 
@@ -527,6 +573,62 @@ function AddCategoryDialog({ open, onOpenChange, categories, db }: { open: boole
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <Input placeholder="รหัสประเภท (ภาษาอังกฤษ, e.g. electrical)" value={id} onChange={(e) => setId(e.target.value)} required />
                     <Input placeholder="ชื่อประเภท (ภาษาไทย, e.g. ระบบไฟฟ้า)" value={name} onChange={(e) => setName(e.target.value)} required />
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">ยกเลิก</Button></DialogClose>
+                        <Button type="submit">บันทึก</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function FollowUpDialog({ open, onOpenChange, report, db }: { open: boolean, onOpenChange: (open: boolean) => void, report: MaintenanceReport | null, db: Firestore }) {
+    const { toast } = useToast();
+    const [note, setNote] = useState('');
+    const [author, setAuthor] = useState('');
+    
+    useEffect(() => {
+        if (!open) {
+            setNote('');
+            setAuthor('');
+        }
+    }, [open]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!report || !note.trim() || !author.trim()) {
+            toast({ title: "ข้อมูลไม่ครบถ้วน", variant: "destructive" });
+            return;
+        }
+
+        const followUpData: MaintenanceFollowUp = {
+            date: new Date().toISOString(),
+            note,
+            author,
+        };
+
+        try {
+            const reportRef = doc(db, "MaintenanceReport1", report.id);
+            await updateDoc(reportRef, {
+                followUps: arrayUnion(followUpData)
+            });
+            toast({ title: "บันทึกการติดตามสำเร็จ" });
+            onOpenChange(false);
+        } catch (error) {
+            toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" });
+        }
+    }
+
+    return (
+         <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>ติดตามงาน: {report?.maintenanceItem}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    <Textarea placeholder="เพิ่มหมายเหตุความคืบหน้า..." value={note} onChange={e => setNote(e.target.value)} required />
+                    <Input placeholder="ผู้บันทึก" value={author} onChange={e => setAuthor(e.target.value)} required />
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">ยกเลิก</Button></DialogClose>
                         <Button type="submit">บันทึก</Button>
