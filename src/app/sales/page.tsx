@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
 
-const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFraction digits: 2 })}`;
 
 function SalesPageContent() {
     const { firestore: db } = useFirebase();
@@ -1277,7 +1277,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                 <DialogHeader>
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
-                        The report will be generated for the date range currently selected on the report page: 
+                        The report will be generated for the date range currently selected on the report page:
                         <strong> {startDate}</strong> to <strong>{endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
@@ -1296,3 +1296,4 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
         </Dialog>
     );
 }
+    
