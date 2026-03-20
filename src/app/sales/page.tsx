@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useTransition as useTransitionReact, useRef } from 'react';
+import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, orderBy, where, setDoc, writeBatch } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
@@ -29,7 +29,7 @@ function SalesPageContent() {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
     const [isSaving, startTransition] = useTransitionReact();
-    const newSaleFormRef = useRef<HTMLFormElement>(null);
+    const [formKey, setFormKey] = useState(0);
 
     const salesQuery = useMemoFirebase(() => db ? query(collection(db, "salesdashboard1"), orderBy('date', 'desc')) : null, [db]);
     const { data: salesData, isLoading: loadingSales } = useCollection<Sale>(salesQuery);
@@ -265,7 +265,7 @@ function SalesPageContent() {
         startTransition(async () => {
             const success = await handleSaveSale(formData);
             if (success) {
-                newSaleFormRef.current?.reset();
+                setFormKey(k => k + 1);
             }
         });
     };
@@ -388,10 +388,10 @@ function SalesPageContent() {
                                 <CardTitle>New Sale Entry</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <form ref={newSaleFormRef} action={handleNewSaleAction} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <form key={formKey} action={handleNewSaleAction} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <Label htmlFor="sale-date">Date</Label>
-                                        <Input type="date" id="sale-date" name="date" defaultValue={new Date().toISOString().split('T')[0]} required />
+                                        <Input type="date" id="sale-date" name="date" required />
                                     </div>
                                     <div>
                                         <Label htmlFor="member-id">Member ID</Label>
@@ -1278,7 +1278,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
                         The report will be generated for the date range currently selected on the report page:
-                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
+                        <strong> {startDate}</strong> to <strong>{endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
