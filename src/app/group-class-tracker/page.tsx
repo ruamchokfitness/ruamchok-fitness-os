@@ -32,6 +32,11 @@ function GroupClassTrackerPageContent() {
     const { data: attendances, isLoading: l4 } = useCollection<GroupClassAttendance>(useMemoFirebase(() => db ? query(collection(db, "groupClassAttendances"), orderBy('created_at', 'desc')) : null, [db]));
 
     const [date, setDate] = useState('');
+    const [time, setTime] = useState('');
+    const [className, setClassName] = useState('');
+    const [instructor, setInstructor] = useState('');
+    const [attendance, setAttendance] = useState('');
+    
     useEffect(() => {
         setDate(new Date().toISOString().split('T')[0]);
     }, []);
@@ -39,13 +44,12 @@ function GroupClassTrackerPageContent() {
     const handleSaveAttendance = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!db) return;
-        const formData = new FormData(e.currentTarget as HTMLFormElement);
 
-        const dateVal = formData.get('date') as string;
-        const timeVal = formData.get('time') as string;
-        const classVal = formData.get('class_name') as string;
-        const instructorVal = formData.get('instructor') as string;
-        const attendanceVal = parseInt(formData.get('attendance') as string);
+        const dateVal = date;
+        const timeVal = time;
+        const classVal = className;
+        const instructorVal = instructor;
+        const attendanceVal = parseInt(attendance);
 
         if (!dateVal || !timeVal || !classVal || !instructorVal || isNaN(attendanceVal)) {
             toast({ title: 'ข้อมูลไม่ครบถ้วน', description: 'กรุณากรอกข้อมูลให้ครบทุกช่อง', variant: 'destructive' });
@@ -72,8 +76,11 @@ function GroupClassTrackerPageContent() {
                     created_at: serverTimestamp()
                 });
                 toast({ title: 'บันทึกสำเร็จ' });
-                (e.target as HTMLFormElement).reset();
                 setDate(new Date().toISOString().split('T')[0]);
+                setTime('');
+                setClassName('');
+                setInstructor('');
+                setAttendance('');
 
             } catch (error) {
                 toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถบันทึกข้อมูลได้', variant: 'destructive' });
@@ -150,7 +157,7 @@ function GroupClassTrackerPageContent() {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">เวลา</label>
-                                                <Select name="time" required>
+                                                <Select name="time" required value={time} onValueChange={setTime}>
                                                     <SelectTrigger><SelectValue placeholder="เลือกเวลา" /></SelectTrigger>
                                                     <SelectContent>
                                                         {(times || []).map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
@@ -161,7 +168,7 @@ function GroupClassTrackerPageContent() {
                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อคลาส</label>
-                                                 <Select name="class_name" required>
+                                                 <Select name="class_name" required value={className} onValueChange={setClassName}>
                                                     <SelectTrigger><SelectValue placeholder="เลือกคลาส" /></SelectTrigger>
                                                     <SelectContent>
                                                          {(classes || []).map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
@@ -170,7 +177,7 @@ function GroupClassTrackerPageContent() {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">ครูผู้สอน</label>
-                                                <Select name="instructor" required>
+                                                <Select name="instructor" required value={instructor} onValueChange={setInstructor}>
                                                     <SelectTrigger><SelectValue placeholder="เลือกครูผู้สอน" /></SelectTrigger>
                                                     <SelectContent>
                                                          {(instructors || []).map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}
@@ -180,7 +187,7 @@ function GroupClassTrackerPageContent() {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนผู้เข้าใช้ (คน)</label>
-                                            <Input type="number" name="attendance" min="0" placeholder="0" required />
+                                            <Input type="number" name="attendance" min="0" placeholder="0" required value={attendance} onChange={e => setAttendance(e.target.value)} />
                                         </div>
                                         <Button type="submit" disabled={isPending} className="w-full">
                                             {isPending ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
