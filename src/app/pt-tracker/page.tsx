@@ -1235,7 +1235,15 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
+            <DialogContent
+                className="max-w-xl"
+                onPointerDownOutside={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest('[data-radix-popper-content-wrapper]')) {
+                        e.preventDefault();
+                    }
+                }}
+            >
                  <DialogHeader>
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
@@ -1243,13 +1251,14 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                      <div>
                         <Label>Client *</Label>
                         <input type="hidden" name="client_id" value={selectedClientId} />
-                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen} modal={true}>
+                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
                             <PopoverTrigger asChild>
                                 <Button
                                     variant="outline"
                                     role="combobox"
                                     aria-expanded={clientPopoverOpen}
                                     className="w-full justify-between"
+                                    type="button"
                                 >
                                     {selectedClientId
                                         ? activeClients.find((client) => client.id === selectedClientId)?.name
@@ -1260,10 +1269,10 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <div className="p-2">
                                     <Input
-                                        autoFocus
                                         placeholder="Search by name or ID..."
                                         value={clientSearch}
                                         onChange={(e) => setClientSearch(e.target.value)}
+                                        autoFocus
                                     />
                                 </div>
                                 <ScrollArea className="h-64">
