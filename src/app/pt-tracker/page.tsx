@@ -14,13 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Check, ChevronDown } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Firestore } from 'firebase/firestore';
 
@@ -1096,10 +1094,9 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
     
-    // State for searchable client combobox
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
     
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
@@ -1122,7 +1119,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
         setSelectedClientId(clientId);
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
-        setClientPopoverOpen(false);
+        setClientSelectorOpen(false);
     }
 
      const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1235,15 +1232,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="max-w-xl"
-                onPointerDownOutside={(e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.closest('[data-radix-popper-content-wrapper]')) {
-                        e.preventDefault();
-                    }
-                }}
-            >
+            <DialogContent className="max-w-xl">
                  <DialogHeader>
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
@@ -1251,31 +1240,31 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                      <div>
                         <Label>Client *</Label>
                         <input type="hidden" name="client_id" value={selectedClientId} />
-                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={clientPopoverOpen}
-                                    className="w-full justify-between"
-                                    type="button"
-                                >
-                                    {selectedClientId
-                                        ? activeClients.find((client) => client.id === selectedClientId)?.name
-                                        : "Select client..."}
-                                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                <div className="p-2">
-                                    <Input
-                                        placeholder="Search by name or ID..."
-                                        value={clientSearch}
-                                        onChange={(e) => setClientSearch(e.target.value)}
-                                        autoFocus
-                                    />
-                                </div>
-                                <ScrollArea className="h-64">
+                         <div className="flex items-center gap-2">
+                            <Input
+                                readOnly
+                                value={selectedClientId ? activeClients.find(c => c.id === selectedClientId)?.name ?? 'N/A' : 'No client selected'}
+                                className="flex-1 bg-slate-100"
+                            />
+                            <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
+                                Select Client
+                            </Button>
+                        </div>
+                    </div>
+
+                    <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Select a Client</DialogTitle>
+                            </DialogHeader>
+                            <div className="py-4">
+                                <Input
+                                    placeholder="Search by name or ID..."
+                                    value={clientSearch}
+                                    onChange={(e) => setClientSearch(e.target.value)}
+                                    autoFocus
+                                />
+                                <ScrollArea className="h-72 mt-4">
                                     {filteredClientsForSearch.length === 0 ? (
                                         <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
                                     ) : (
@@ -1288,21 +1277,19 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                                                     className="w-full justify-start text-left h-auto"
                                                     onClick={() => handleClientSelect(client.id)}
                                                 >
-                                                    <div className="flex items-center w-full">
-                                                        <div className="flex-1">
-                                                            <p className="font-medium">{client.name}</p>
-                                                            <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                        </div>
-                                                        {selectedClientId === client.id && <Check className="ml-2 h-4 w-4" />}
+                                                    <div>
+                                                        <p className="font-medium">{client.name}</p>
+                                                        <p className="text-xs text-slate-500">{client.member_id}</p>
                                                     </div>
                                                 </Button>
                                             ))}
                                         </div>
                                     )}
                                 </ScrollArea>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                    
                       <div>
                         <Label>Package *</Label>
                         <Select name="purchase_id" required disabled={!selectedClientId}>
