@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useTransition } from 'react';
+import React, { useState, useEffect, useMemo, useTransition, useRef } from 'react';
 import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
@@ -1100,6 +1100,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
     const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
@@ -1117,6 +1118,15 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             setClientPackages([]);
         }
     }, [open]);
+
+    useEffect(() => {
+      if (clientPopoverOpen) {
+        // Use a timeout to allow the popover to render and avoid race conditions with Dialog's focus trap.
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
+      }
+    }, [clientPopoverOpen]);
 
     const handleClientSelect = (clientId: string) => {
         setSelectedClientId(clientId);
@@ -1260,10 +1270,10 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <div className="p-2">
                                     <Input
+                                        ref={searchInputRef}
                                         placeholder="Search by name or ID..."
                                         value={clientSearch}
                                         onChange={(e) => setClientSearch(e.target.value)}
-                                        autoFocus
                                     />
                                 </div>
                                 <ScrollArea className="h-64">
