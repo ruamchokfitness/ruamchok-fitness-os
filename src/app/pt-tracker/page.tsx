@@ -1100,7 +1100,6 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
     const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
@@ -1118,15 +1117,6 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             setClientPackages([]);
         }
     }, [open]);
-
-    useEffect(() => {
-      if (clientPopoverOpen) {
-        // Use a timeout to allow the popover to render and avoid race conditions with Dialog's focus trap.
-        setTimeout(() => {
-          searchInputRef.current?.focus();
-        }, 100);
-      }
-    }, [clientPopoverOpen]);
 
     const handleClientSelect = (clientId: string) => {
         setSelectedClientId(clientId);
@@ -1253,7 +1243,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                      <div>
                         <Label>Client *</Label>
                         <input type="hidden" name="client_id" value={selectedClientId} />
-                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen} modal={true}>
                             <PopoverTrigger asChild>
                                 <Button
                                     variant="outline"
@@ -1270,7 +1260,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <div className="p-2">
                                     <Input
-                                        ref={searchInputRef}
+                                        autoFocus
                                         placeholder="Search by name or ID..."
                                         value={clientSearch}
                                         onChange={(e) => setClientSearch(e.target.value)}
