@@ -1275,6 +1275,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                                                 <Button
                                                     key={client.id}
                                                     variant="ghost"
+                                                    type="button"
                                                     className="w-full justify-start text-left h-auto"
                                                     onClick={() => handleClientSelect(client.id)}
                                                 >
