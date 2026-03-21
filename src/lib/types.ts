@@ -109,7 +109,7 @@ export interface SalespersonTargets {
 export interface PTClient {
   id: string;
   name: string;
-  email?: string;
+  member_id?: string;
   phone?: string;
   status: 'active' | 'inactive';
 }
