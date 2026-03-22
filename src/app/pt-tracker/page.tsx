@@ -953,8 +953,20 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
 function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-    const [pricePerHour, setPricePerHour] = useState(pkg?.price_per_hour || 0);
+    const [pricePerHour, setPricePerHour] = useState(0);
+    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
+    const [clientSearch, setClientSearch] = useState('');
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [selectedClientName, setSelectedClientName] = useState('');
 
+    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
+    const filteredClientsForSearch = useMemo(() => clientSearch
+        ? activeClients.filter(client =>
+            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
+          )
+        : activeClients, [activeClients, clientSearch]);
+    
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
         if (!form) return;
@@ -966,18 +978,37 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
      useEffect(() => {
         if(pkg) {
             setPricePerHour(pkg.price_per_hour || 0);
+            const client = clients.find(c => c.id === pkg.client_id);
+            setSelectedClientId(pkg.client_id);
+            setSelectedClientName(client?.name || '');
         } else {
             setPricePerHour(0);
+            setSelectedClientId('');
+            setSelectedClientName('');
         }
-    }, [pkg, open]);
+    }, [pkg, clients, open]);
+
+    const handleClientSelect = (clientId: string) => {
+        const client = clients.find(c => c.id === clientId);
+        setSelectedClientId(clientId);
+        setSelectedClientName(client?.name || '');
+        setClientSelectorOpen(false);
+    }
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
+        const clientIdFromForm = formData.get('client_id') as string;
+
+        if (!clientIdFromForm) {
+            toast({title: "Please select a client", variant: "destructive"});
+            return;
+        }
+
         const data = {
-            client_id: formData.get('client_id') as string,
+            client_id: clientIdFromForm,
             package_name: formData.get('package_name') as string,
             hours_purchased: hours,
             price_paid: price,
@@ -1007,21 +1038,31 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl" onPointerDownOutside={(e) => {
+                if (e.target.closest('[data-radix-collection-item]')) {
+                    e.preventDefault();
+                }
+            }}>
                 <DialogHeader>
                     <DialogTitle>{pkg ? 'Edit Package' : 'Create PT Package'}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="package-client">Client *</Label>
-                            <Select name="client_id" defaultValue={pkg?.client_id} required disabled={!!pkg}>
-                                <SelectTrigger><SelectValue placeholder="Select Client"/></SelectTrigger>
-                                <SelectContent>
-                                    {clients.filter(c=> c.status === 'active').map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                    <div>
+                        <Label>Client *</Label>
+                        <input type="hidden" name="client_id" value={selectedClientId} />
+                        <div className="flex items-center gap-2">
+                            <Input
+                                id="package-client-display"
+                                readOnly
+                                value={selectedClientName || 'No client selected'}
+                                className="flex-1 bg-slate-100"
+                            />
+                            <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)} disabled={!!pkg}>
+                                Select Client
+                            </Button>
                         </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="package-name">Package Name *</Label>
                             <Select name="package_name" defaultValue={pkg?.package_name} required>
@@ -1032,20 +1073,20 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
+                         <div>
                             <Label htmlFor="package-hours">Hours Purchased *</Label>
                             <Input id="package-hours" name="hours_purchased" type="number" min="1" defaultValue={pkg?.hours_purchased} required onChange={calculatePricePerHour}/>
                         </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="package-price">Total Price (THB) *</Label>
                             <Input id="package-price" name="price_paid" type="number" min="0" defaultValue={pkg?.price_paid} required onChange={calculatePricePerHour}/>
                         </div>
-                    </div>
-                    <div className="p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm text-slate-600">Price per hour: </span>
-                        <span className="font-semibold text-slate-800">{formatCurrency(pricePerHour)}</span>
+                         <div className="p-3 bg-slate-50 rounded-lg self-end">
+                            <span className="text-sm text-slate-600">Price per hour: </span>
+                            <span className="font-semibold text-slate-800">{formatCurrency(pricePerHour)}</span>
+                        </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                          <div>
@@ -1084,6 +1125,44 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
                         </Button>
                     </DialogFooter>
                 </form>
+
+                 <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Select a Client</DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <Input
+                                placeholder="Search by name or ID..."
+                                value={clientSearch}
+                                onChange={(e) => setClientSearch(e.target.value)}
+                                autoFocus
+                            />
+                            <ScrollArea className="h-72 mt-4">
+                                {filteredClientsForSearch.length === 0 ? (
+                                    <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
+                                ) : (
+                                    <div className="space-y-1 p-1">
+                                        {filteredClientsForSearch.map((client) => (
+                                            <Button
+                                                key={client.id}
+                                                variant="ghost"
+                                                type="button"
+                                                className="w-full justify-start text-left h-auto"
+                                                onClick={() => handleClientSelect(client.id)}
+                                            >
+                                                <div>
+                                                    <p className="font-medium">{client.name}</p>
+                                                    <p className="text-xs text-slate-500">{client.member_id}</p>
+                                                </div>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                )}
+                            </ScrollArea>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </DialogContent>
         </Dialog>
     )
@@ -1096,6 +1175,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
+    const [selectedClientName, setSelectedClientName] = useState('');
     const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
     
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
@@ -1111,12 +1191,15 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
         if (!open) {
             setClientSearch('');
             setSelectedClientId('');
+            setSelectedClientName('');
             setClientPackages([]);
         }
     }, [open]);
 
     const handleClientSelect = (clientId: string) => {
+        const client = clients.find(c => c.id === clientId);
         setSelectedClientId(clientId);
+        setSelectedClientName(client?.name || '');
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
         setClientSelectorOpen(false);
@@ -1232,7 +1315,12 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
+            <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
+                // This is a workaround for the issue where the popover is outside the dialog
+                if (e.target.closest('[data-radix-collection-item]')) {
+                    e.preventDefault();
+                }
+            }}>
                  <DialogHeader>
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
@@ -1240,10 +1328,10 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                      <div>
                         <Label>Client *</Label>
                         <input type="hidden" name="client_id" value={selectedClientId} />
-                         <div className="flex items-center gap-2">
-                            <Input
+                        <div className="flex items-center gap-2">
+                           <Input
                                 readOnly
-                                value={selectedClientId ? activeClients.find(c => c.id === selectedClientId)?.name ?? 'N/A' : 'No client selected'}
+                                value={selectedClientName || 'No client selected'}
                                 className="flex-1 bg-slate-100"
                             />
                             <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
@@ -1251,46 +1339,8 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                             </Button>
                         </div>
                     </div>
-
-                    <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Select a Client</DialogTitle>
-                            </DialogHeader>
-                            <div className="py-4">
-                                <Input
-                                    placeholder="Search by name or ID..."
-                                    value={clientSearch}
-                                    onChange={(e) => setClientSearch(e.target.value)}
-                                    autoFocus
-                                />
-                                <ScrollArea className="h-72 mt-4">
-                                    {filteredClientsForSearch.length === 0 ? (
-                                        <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                                    ) : (
-                                        <div className="space-y-1 p-1">
-                                            {filteredClientsForSearch.map((client) => (
-                                                <Button
-                                                    key={client.id}
-                                                    variant="ghost"
-                                                    type="button"
-                                                    className="w-full justify-start text-left h-auto"
-                                                    onClick={() => handleClientSelect(client.id)}
-                                                >
-                                                    <div>
-                                                        <p className="font-medium">{client.name}</p>
-                                                        <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                    </div>
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </ScrollArea>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
                     
-                      <div>
+                    <div>
                         <Label>Package *</Label>
                         <Select name="purchase_id" required disabled={!selectedClientId}>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
@@ -1333,6 +1383,44 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                         </Button>
                     </DialogFooter>
                 </form>
+                
+                <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Select a Client</DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <Input
+                                placeholder="Search by name or ID..."
+                                value={clientSearch}
+                                onChange={(e) => setClientSearch(e.target.value)}
+                                autoFocus
+                            />
+                            <ScrollArea className="h-72 mt-4">
+                                {filteredClientsForSearch.length === 0 ? (
+                                    <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
+                                ) : (
+                                    <div className="space-y-1 p-1">
+                                        {filteredClientsForSearch.map((client) => (
+                                            <Button
+                                                key={client.id}
+                                                variant="ghost"
+                                                type="button"
+                                                className="w-full justify-start text-left h-auto"
+                                                onClick={() => handleClientSelect(client.id)}
+                                            >
+                                                <div>
+                                                    <p className="font-medium">{client.name}</p>
+                                                    <p className="text-xs text-slate-500">{client.member_id}</p>
+                                                </div>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                )}
+                            </ScrollArea>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </DialogContent>
         </Dialog>
     )
