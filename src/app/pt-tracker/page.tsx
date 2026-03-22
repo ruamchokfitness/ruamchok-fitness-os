@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown } from 'lucide-react';
@@ -746,7 +746,6 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
-    const [isPackageOpen, setIsPackageOpen] = useState(false);
 
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
@@ -771,14 +770,12 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
         const price = parseFloat(formData.get('price_paid') as string);
         const packageName = formData.get('package_name') as string;
 
-        const packageDataIsPresent = isPackageOpen && (packageName || !isNaN(hours) || !isNaN(price));
-
         if (!clientData.name) {
             toast({ title: "Client name is required", variant: "destructive" });
             return;
         }
 
-        if (packageDataIsPresent && (!packageName || isNaN(hours) || hours <= 0)) {
+        if (!packageName || isNaN(hours) || hours <= 0) {
             toast({ title: "Invalid Package Information", description: "Please provide a valid package name and hours purchased.", variant: "destructive" });
             return;
         }
@@ -790,33 +787,29 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
                 
                 batch.set(newClientRef, { ...clientData, entity_type: 'client' });
 
-                let successMessage = "Client created successfully.";
-
-                if (packageDataIsPresent) {
-                    const packageData = {
-                        package_name: packageName,
-                        hours_purchased: hours,
-                        price_paid: price || 0,
-                        price_per_hour: (hours > 0 && price > 0) ? price / hours : 0,
-                        purchase_date: (formData.get('purchase_date') as string) || new Date().toISOString().split('T')[0],
-                        expiry_date: (formData.get('expiry_date') as string) || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
-                        status: 'active',
-                        hours_used: 0,
-                        hours_remaining: hours,
-                        client_id: newClientRef.id, 
-                        entity_type: 'package',
-                    };
-                    const newPackageRef = doc(collection(db, "pt_packages"));
-                    batch.set(newPackageRef, packageData);
-                    successMessage = "Client and initial package created successfully.";
-                }
+                const packageData = {
+                    package_name: packageName,
+                    hours_purchased: hours,
+                    price_paid: price || 0,
+                    price_per_hour: (hours > 0 && price > 0) ? price / hours : 0,
+                    purchase_date: (formData.get('purchase_date') as string) || new Date().toISOString().split('T')[0],
+                    expiry_date: (formData.get('expiry_date') as string) || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+                    status: 'active',
+                    hours_used: 0,
+                    hours_remaining: hours,
+                    client_id: newClientRef.id, 
+                    entity_type: 'package',
+                };
+                const newPackageRef = doc(collection(db, "pt_packages"));
+                batch.set(newPackageRef, packageData);
+                const successMessage = "Client and initial package created successfully.";
 
                 await batch.commit();
                 toast({ title: "Success", description: successMessage });
                 onOpenChange(false);
             } catch (error) {
                 console.error("Error creating client/package:", error);
-                toast({ title: "Error", description: "Could not save client.", variant: "destructive" });
+                toast({ title: "Error", description: "Could not save client and package.", variant: "destructive" });
             }
         });
     }
@@ -845,56 +838,45 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
                             <Input id="client-phone" name="phone" type="tel" />
                         </div>
                     </div>
-
-                    <Collapsible open={isPackageOpen} onOpenChange={setIsPackageOpen} className="space-y-4">
-                        <div className="flex items-center justify-between mt-4 border-t pt-4">
-                            <h3 className="text-lg font-semibold text-slate-800">Initial Package (Optional)</h3>
-                            <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="sm" className="w-9 p-0">
-                                    <ChevronsUpDown className="h-4 w-4" />
-                                    <span className="sr-only">Toggle</span>
-                                </Button>
-                            </CollapsibleTrigger>
+                    <div className="space-y-4 border-t pt-4 mt-4">
+                        <h3 className="text-lg font-semibold text-slate-800">Initial Package</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="package-name">Package Name</Label>
+                                <Select name="package_name">
+                                    <SelectTrigger id="package-name"><SelectValue placeholder="Select a package type"/></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
+                                        <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label htmlFor="package-hours">Hours Purchased</Label>
+                                <Input id="package-hours" name="hours_purchased" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
+                            </div>
                         </div>
-                        <CollapsibleContent className="space-y-4 animate-in fade-in-0 zoom-in-95">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="package-name">Package Name</Label>
-                                    <Select name="package_name">
-                                        <SelectTrigger id="package-name"><SelectValue placeholder="Select a package type"/></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
-                                            <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <Label htmlFor="package-hours">Hours Purchased</Label>
-                                    <Input id="package-hours" name="hours_purchased" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
-                                </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="package-price">Total Price (THB)</Label>
+                                <Input id="package-price" name="price_paid" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="package-price">Total Price (THB)</Label>
-                                    <Input id="package-price" name="price_paid" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
-                                </div>
-                                <div className="p-3 bg-slate-50 rounded-lg self-end">
-                                    <span className="text-sm text-slate-600">Price per hour: </span>
-                                    <span className="font-semibold text-slate-800">{formatCurrency(pricePerHour)}</span>
-                                </div>
+                            <div className="p-3 bg-slate-50 rounded-lg self-end">
+                                <span className="text-sm text-slate-600">Price per hour: </span>
+                                <span className="font-semibold text-slate-800">{formatCurrency(pricePerHour)}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="package-purchase-date">Purchase Date</Label>
-                                    <Input id="package-purchase-date" name="purchase_date" type="date" defaultValue={new Date().toISOString().split('T')[0]}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="package-expiry-date">Expiry Date</Label>
-                                    <Input id="package-expiry-date" name="expiry_date" type="date" defaultValue={new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]}/>
-                                </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="package-purchase-date">Purchase Date</Label>
+                                <Input id="package-purchase-date" name="purchase_date" type="date" defaultValue={new Date().toISOString().split('T')[0]}/>
                             </div>
-                        </CollapsibleContent>
-                    </Collapsible>
+                            <div>
+                                <Label htmlFor="package-expiry-date">Expiry Date</Label>
+                                <Input id="package-expiry-date" name="expiry_date" type="date" defaultValue={new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]}/>
+                            </div>
+                        </div>
+                    </div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending} className="btn-primary">
@@ -1071,10 +1053,12 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
     )
 }
 
-function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
+function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
 
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
@@ -1088,11 +1072,16 @@ function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, 
         if(open) {
             if(pkg) {
                 setPricePerHour(pkg.price_per_hour || 0);
+                setSelectedClientId(pkg.client_id);
+            } else if (client) {
+                setSelectedClientId(client.id);
+                setPricePerHour(0);
             } else {
+                setSelectedClientId('');
                 setPricePerHour(0);
             }
         }
-    }, [pkg, open]);
+    }, [pkg, client, open]);
     
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1100,16 +1089,15 @@ function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, 
         const formData = new FormData(e.currentTarget);
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
+        const clientIdFromForm = formData.get('client_id') as string;
         
-        if (!client && !pkg) {
+        if (!clientIdFromForm) {
              toast({title: "No client selected.", variant: "destructive"});
             return;
         }
         
-        const clientId = pkg ? pkg.client_id : client!.id;
-
         const data: Omit<PTPackage, 'id'> = {
-            client_id: clientId,
+            client_id: clientIdFromForm,
             package_name: formData.get('package_name') as string,
             hours_purchased: hours,
             price_paid: price,
@@ -1137,16 +1125,28 @@ function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, 
         });
     }
 
-    const currentClient = pkg ? clients.find(c=>c.id === pkg.client_id) : client;
+    const currentClient = clients.find(c => c.id === selectedClientId);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{pkg ? 'Edit Package' : 'Add New Package'}</DialogTitle>
-                    {currentClient && <DialogDescription>For client: {currentClient.name}</DialogDescription>}
+                    <DialogDescription>
+                        For client: {currentClient?.name || "Please select a client"}
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <input type="hidden" name="client_id" value={selectedClientId} />
+                    {!pkg && !client && (
+                         <div className="flex items-end gap-2">
+                             <div className="flex-grow">
+                                <Label>Client</Label>
+                                 <Input readOnly value={currentClient?.name || ''} placeholder="No client selected"/>
+                             </div>
+                             <Button type="button" onClick={() => setClientSelectorOpen(true)}>Select Client</Button>
+                         </div>
+                    )}
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="package-name">Package Name *</Label>
@@ -1210,6 +1210,15 @@ function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, 
                         </Button>
                     </DialogFooter>
                 </form>
+                 <ClientSelectorDialog
+                    open={clientSelectorOpen}
+                    onOpenChange={setClientSelectorOpen}
+                    clients={clients}
+                    onClientSelect={(id) => {
+                        setSelectedClientId(id);
+                        setClientSelectorOpen(false);
+                    }}
+                 />
             </DialogContent>
         </Dialog>
     )
@@ -1220,37 +1229,25 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
     
-    const [clientSearch, setClientSearch] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [selectedClientName, setSelectedClientName] = useState('');
     const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
     
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
-    const filteredClientsForSearch = useMemo(() => clientSearch
-        ? activeClients.filter(client =>
-            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
-          )
-        : activeClients, [activeClients, clientSearch]);
-
     useEffect(() => {
         if (!open) {
-            setClientSearch('');
             setSelectedClientId('');
-            setSelectedClientName('');
             setClientPackages([]);
         }
     }, [open]);
 
     const handleClientSelect = (clientId: string) => {
-        const client = clients.find(c => c.id === clientId);
         setSelectedClientId(clientId);
-        setSelectedClientName(client?.name || '');
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
         setClientSelectorOpen(false);
     }
+    const selectedClient = clients.find(c => c.id === selectedClientId);
 
      const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -1377,7 +1374,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                         <div className="flex items-center gap-2">
                            <Input
                                 readOnly
-                                value={selectedClientName || 'No client selected'}
+                                value={selectedClient?.name || 'No client selected'}
                                 className="flex-1 bg-slate-100"
                             />
                             <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
@@ -1430,43 +1427,68 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                     </DialogFooter>
                 </form>
                 
-                 <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Select a Client</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4">
-                            <Input
-                                placeholder="Search by name or ID..."
-                                value={clientSearch}
-                                onChange={(e) => setClientSearch(e.target.value)}
-                                autoFocus
-                            />
-                            <ScrollArea className="h-72 mt-4">
-                                {filteredClientsForSearch.length === 0 ? (
-                                    <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                                ) : (
-                                    <div className="space-y-1 p-1">
-                                        {filteredClientsForSearch.map((client) => (
-                                            <Button
-                                                key={client.id}
-                                                variant="ghost"
-                                                type="button"
-                                                className="w-full justify-start text-left h-auto"
-                                                onClick={() => handleClientSelect(client.id)}
-                                            >
-                                                <div>
-                                                    <p className="font-medium">{client.name}</p>
-                                                    <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                </div>
-                                            </Button>
-                                        ))}
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                 <ClientSelectorDialog
+                    open={clientSelectorOpen}
+                    onOpenChange={setClientSelectorOpen}
+                    clients={activeClients}
+                    onClientSelect={handleClientSelect}
+                 />
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], onClientSelect: (id: string) => void }) {
+    const [clientSearch, setClientSearch] = useState('');
+    const filteredClientsForSearch = useMemo(() => clientSearch
+        ? clients.filter(client =>
+            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
+          )
+        : clients, [clients, clientSearch]);
+
+    useEffect(() => {
+        if (!open) {
+            setClientSearch('');
+        }
+    }, [open]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Select a Client</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <Input
+                        placeholder="Search by name or ID..."
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        autoFocus
+                    />
+                    <ScrollArea className="h-72 mt-4">
+                        {filteredClientsForSearch.length === 0 ? (
+                            <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
+                        ) : (
+                            <div className="space-y-1 p-1">
+                                {filteredClientsForSearch.map((client) => (
+                                    <Button
+                                        key={client.id}
+                                        variant="ghost"
+                                        type="button"
+                                        className="w-full justify-start text-left h-auto"
+                                        onClick={() => onClientSelect(client.id)}
+                                    >
+                                        <div>
+                                            <p className="font-medium">{client.name}</p>
+                                            <p className="text-xs text-slate-500">{client.member_id}</p>
+                                        </div>
+                                    </Button>
+                                ))}
+                            </div>
+                        )}
+                    </ScrollArea>
+                </div>
             </DialogContent>
         </Dialog>
     )
@@ -1737,3 +1759,5 @@ function DeleteButton({ type, id, name, db }: { type: string, id: string, name: 
         </>
     )
 }
+
+    
