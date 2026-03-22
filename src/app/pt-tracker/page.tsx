@@ -15,11 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Firestore } from 'firebase/firestore';
 
 
@@ -101,9 +103,8 @@ function PTTrackerPageContent() {
                     <div className="container mx-auto">
                         <TabsList className="bg-transparent p-1 h-auto">
                             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                            <TabsTrigger value="clients">Clients</TabsTrigger>
+                            <TabsTrigger value="clients">Clients &amp; Packages</TabsTrigger>
                             <TabsTrigger value="trainers">Trainers</TabsTrigger>
-                            <TabsTrigger value="packages">PT Packages</TabsTrigger>
                             <TabsTrigger value="sessions">Sessions</TabsTrigger>
                             <TabsTrigger value="commissions">Commissions</TabsTrigger>
                         </TabsList>
@@ -119,9 +120,6 @@ function PTTrackerPageContent() {
                     </TabsContent>
                     <TabsContent value="trainers">
                         <TrainersTab trainers={trainers||[]} commissions={commissions||[]} db={db} />
-                    </TabsContent>
-                     <TabsContent value="packages">
-                        <PackagesTab packages={packages||[]} clients={clients||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="sessions">
                         <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} db={db} />
@@ -312,85 +310,134 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     )
 }
 
-function TablePlaceholder() {
+function TablePlaceholder({ colSpan = 7 }: { colSpan?: number }) {
     return (
         <TableRow>
-            <TableCell colSpan={7} className="text-center h-24 text-slate-500">
+            <TableCell colSpan={colSpan} className="text-center h-24 text-slate-500">
                 No data available.
             </TableCell>
         </TableRow>
     )
 }
 
-// Clients Tab
+// Clients & Packages Tab
 function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore }) {
     const [search, setSearch] = useState('');
-    const [modalOpen, setModalOpen] = useState(false);
+    const [addClientModalOpen, setAddClientModalOpen] = useState(false);
+    const [editClientModalOpen, setEditClientModalOpen] = useState(false);
+    const [packageModalOpen, setPackageModalOpen] = useState(false);
     const [selectedClient, setSelectedClient] = useState<PTClient | null>(null);
+    const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
 
     const filteredClients = useMemo(() => 
-        clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+        clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.member_id?.toLowerCase().includes(search.toLowerCase()))
+        .sort((a, b) => a.name.localeCompare(b.name))
     , [clients, search]);
+    
+    const handleAddNewClient = () => {
+        setAddClientModalOpen(true);
+    };
 
-    const handleEdit = (client: PTClient) => {
+    const handleEditClient = (client: PTClient) => {
         setSelectedClient(client);
-        setModalOpen(true);
-    }
-    const handleAddNew = () => {
-        setSelectedClient(null);
-        setModalOpen(true);
-    }
+        setEditClientModalOpen(true);
+    };
+    
+    const handleAddPackage = (client: PTClient) => {
+        setSelectedClient(client);
+        setSelectedPackage(null);
+        setPackageModalOpen(true);
+    };
+    
+    const handleEditPackage = (pkg: PTPackage) => {
+        const client = clients.find(c => c.id === pkg.client_id);
+        setSelectedClient(client || null);
+        setSelectedPackage(pkg);
+        setPackageModalOpen(true);
+    };
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <Input type="text" placeholder="Search clients..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
-                <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Client</Button>
+                <Input type="text" placeholder="Search clients by name or ID..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
+                <Button onClick={handleAddNewClient} className="btn-primary"><Plus className="mr-2"/> Add Client</Button>
             </div>
             <Card>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Client</TableHead>
-                            <TableHead>Contact</TableHead>
-                            <TableHead>Active Packages</TableHead>
-                            <TableHead>Hours Remaining</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredClients.length === 0 ? <TablePlaceholder /> : filteredClients.map(client => {
-                            const clientPackages = packages.filter(p => p.client_id === client.id && p.status === 'active');
-                            const totalHours = clientPackages.reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
-                            return (
-                                <TableRow key={client.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
+                <Accordion type="single" collapsible className="w-full">
+                    {filteredClients.length > 0 ? filteredClients.map(client => {
+                        const clientPackages = packages.filter(p => p.client_id === client.id).sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+                        const activeHours = clientPackages.filter(p => p.status === 'active').reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
+
+                        return (
+                            <AccordionItem value={client.id} key={client.id} className="border-b last:border-b-0">
+                                <AccordionTrigger className="p-4 hover:bg-slate-50 [&[data-state=open]]:bg-slate-50">
+                                    <div className="flex items-center justify-between w-full pr-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold text-lg">
                                                 {client.name?.charAt(0)?.toUpperCase() || '?'}
                                             </div>
-                                            <span className="font-medium text-slate-800">{client.name}</span>
+                                            <div>
+                                                <p className="font-semibold text-slate-800 text-base text-left">{client.name}</p>
+                                                <p className="text-sm text-slate-500 text-left">{client.member_id || 'No ID'}</p>
+                                            </div>
+                                            <Badge variant="outline" className={`badge-${client.status}`}>{client.status}</Badge>
                                         </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <p className="font-medium">{client.member_id || 'N/A'}</p>
-                                        <p className="text-sm text-slate-500">{client.phone}</p>
-                                    </TableCell>
-                                    <TableCell>{clientPackages.length}</TableCell>
-                                    <TableCell><span className={`font-semibold ${totalHours > 0 ? 'text-green-600' : 'text-slate-400'}`}>{totalHours} hours</span></TableCell>
-                                    <TableCell><Badge variant="outline" className={`badge-${client.status}`}>{client.status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        <button onClick={() => handleEdit(client)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="client" id={client.id} name={client.name} db={db} />
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
+                                        <div className="text-right">
+                                            <p className="font-bold text-lg text-green-600">{activeHours} <span className="text-sm font-normal text-slate-500">hours left</span></p>
+                                            <p className="text-xs text-slate-400">{clientPackages.length} packages total</p>
+                                        </div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-0 pb-4 px-4 bg-slate-50">
+                                    <div className="border-t pt-4">
+                                        <div className="flex justify-end items-center mb-2 gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => handleEditClient(client)}><Edit className="mr-2 h-3 w-3"/> Edit Client Info</Button>
+                                            <Button size="sm" onClick={() => handleAddPackage(client)}><Plus className="mr-2 h-3 w-3"/> Add New Package</Button>
+                                        </div>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Package</TableHead>
+                                                    <TableHead>Hours (Used/Total)</TableHead>
+                                                    <TableHead>Price</TableHead>
+                                                    <TableHead>Valid Until</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {clientPackages.length === 0 ? (
+                                                    <TableRow><TableCell colSpan={6} className="text-center h-24 text-slate-500">No packages for this client.</TableCell></TableRow>
+                                                ) : clientPackages.map(pkg => (
+                                                    <TableRow key={pkg.id}>
+                                                        <TableCell className="font-medium text-slate-800">{pkg.package_name}</TableCell>
+                                                        <TableCell>{pkg.hours_used || 0} / {pkg.hours_purchased}</TableCell>
+                                                        <TableCell>{formatCurrency(pkg.price_paid)}</TableCell>
+                                                        <TableCell>{formatDate(pkg.expiry_date)}</TableCell>
+                                                        <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="sm" onClick={() => handleEditPackage(pkg)}>Edit</Button>
+                                                            <DeleteButton type="package" id={pkg.id} name={pkg.package_name} db={db} />
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )
+                    }) : (
+                        <div className="p-8 text-center text-slate-500">
+                            No clients found matching your search.
+                        </div>
+                    )}
+                </Accordion>
             </Card>
-            <ClientModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} db={db} />
+            {/* MODALS */}
+            <ClientAndPackageModal open={addClientModalOpen} onOpenChange={setAddClientModalOpen} db={db} />
+            <ClientModal open={editClientModalOpen} onOpenChange={setEditClientModalOpen} client={selectedClient} db={db} />
+            <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />
         </div>
     )
 }
@@ -492,98 +539,7 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
         </div>
     )
 }
-function PackagesTab({ packages, clients, db }: { packages: PTPackage[], clients: PTClient[], db: Firestore }) { 
-    const [filter, setFilter] = useState('all');
-    const [modalOpen, setModalOpen] = useState(false);
-    const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
 
-     const filteredPackages = useMemo(() => 
-        packages.filter(p => filter === 'all' || p.status === filter)
-    , [packages, filter]);
-
-    const handleEdit = (pkg: PTPackage) => {
-        setSelectedPackage(pkg);
-        setModalOpen(true);
-    }
-    const handleAddNew = () => {
-        setSelectedPackage(null);
-        setModalOpen(true);
-    }
-    return (
-         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                 <Select value={filter} onValueChange={setFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Package</Button>
-            </div>
-             <Card>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Client</TableHead>
-                            <TableHead>Package</TableHead>
-                            <TableHead>Hours</TableHead>
-                            <TableHead>Price</TableHead>
-                            <TableHead>Valid Until</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredPackages.length === 0 ? <TablePlaceholder/> : filteredPackages.map(pkg => {
-                            const client = clients.find(c => c.id === pkg.client_id);
-                            const progress = pkg.hours_purchased > 0 ? ((pkg.hours_used || 0) / pkg.hours_purchased * 100) : 0;
-                            return (
-                                <TableRow key={pkg.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
-                                                {client?.name?.charAt(0)?.toUpperCase() || '?'}
-                                            </div>
-                                            <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="font-medium text-slate-800">{pkg.package_name}</TableCell>
-                                    <TableCell>
-                                        <div className="w-32">
-                                            <div className="flex justify-between text-sm mb-1">
-                                                <span className="text-slate-500">{pkg.hours_used || 0} used</span>
-                                                <span className={`font-semibold ${(pkg.hours_remaining || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>{pkg.hours_remaining || 0} left</span>
-                                            </div>
-                                            <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
-                                                <div className="bg-gradient-to-r from-sky-400 to-sky-600 h-full" style={{width: `${progress}%`}}></div>
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <p className="font-semibold text-slate-800">{formatCurrency(pkg.price_paid)}</p>
-                                        <p className="text-xs text-slate-500">{formatCurrency(pkg.price_per_hour)}/hr</p>
-                                    </TableCell>
-                                    <TableCell>{formatDate(pkg.expiry_date)}</TableCell>
-                                    <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                         <button onClick={() => handleEdit(pkg)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="package" id={pkg.id} name={pkg.package_name} db={db} />
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
-            </Card>
-            <PackageModal open={modalOpen} onOpenChange={setModalOpen} pkg={selectedPackage} clients={clients} db={db} />
-        </div>
-    )
-}
 function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
     const [trainerFilter, setTrainerFilter] = useState('all');
@@ -786,13 +742,181 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
     )
 }
 
-// Client Modal
+function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOpenChange: (open: boolean) => void, db: Firestore }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const [pricePerHour, setPricePerHour] = useState(0);
+    const [isPackageOpen, setIsPackageOpen] = useState(false);
+
+    const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const form = e.target.form;
+        if (!form) return;
+        const hours = parseFloat((form.elements.namedItem('hours_purchased') as HTMLInputElement)?.value) || 0;
+        const price = parseFloat((form.elements.namedItem('price_paid') as HTMLInputElement)?.value) || 0;
+        setPricePerHour(hours > 0 ? price / hours : 0);
+    }
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        
+        const clientData = {
+            name: formData.get('name') as string,
+            member_id: formData.get('member_id') as string,
+            phone: formData.get('phone') as string,
+            status: 'active' as 'active' | 'inactive',
+        };
+
+        const hours = parseFloat(formData.get('hours_purchased') as string);
+        const price = parseFloat(formData.get('price_paid') as string);
+        const packageName = formData.get('package_name') as string;
+
+        const packageDataIsPresent = isPackageOpen && (packageName || !isNaN(hours) || !isNaN(price));
+
+        if (!clientData.name) {
+            toast({ title: "Client name is required", variant: "destructive" });
+            return;
+        }
+
+        if (packageDataIsPresent && (!packageName || isNaN(hours) || hours <= 0)) {
+            toast({ title: "Invalid Package Information", description: "Please provide a valid package name and hours purchased.", variant: "destructive" });
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const batch = writeBatch(db);
+                const newClientRef = doc(collection(db, "pt_clients"));
+                
+                batch.set(newClientRef, { ...clientData, entity_type: 'client' });
+
+                let successMessage = "Client created successfully.";
+
+                if (packageDataIsPresent) {
+                    const packageData = {
+                        package_name: packageName,
+                        hours_purchased: hours,
+                        price_paid: price || 0,
+                        price_per_hour: (hours > 0 && price > 0) ? price / hours : 0,
+                        purchase_date: (formData.get('purchase_date') as string) || new Date().toISOString().split('T')[0],
+                        expiry_date: (formData.get('expiry_date') as string) || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+                        status: 'active',
+                        hours_used: 0,
+                        hours_remaining: hours,
+                        client_id: newClientRef.id, 
+                        entity_type: 'package',
+                    };
+                    const newPackageRef = doc(collection(db, "pt_packages"));
+                    batch.set(newPackageRef, packageData);
+                    successMessage = "Client and initial package created successfully.";
+                }
+
+                await batch.commit();
+                toast({ title: "Success", description: successMessage });
+                onOpenChange(false);
+            } catch (error) {
+                console.error("Error creating client/package:", error);
+                toast({ title: "Error", description: "Could not save client.", variant: "destructive" });
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Add New Client</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                     <h3 className="text-lg font-semibold text-slate-800 border-b pb-2">Client Details</h3>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="client-name">Full Name *</Label>
+                            <Input id="client-name" name="name" required />
+                        </div>
+                        <div>
+                            <Label htmlFor="client-member-id">Member ID</Label>
+                            <Input id="client-member-id" name="member_id" />
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="client-phone">Phone</Label>
+                            <Input id="client-phone" name="phone" type="tel" />
+                        </div>
+                    </div>
+
+                    <Collapsible open={isPackageOpen} onOpenChange={setIsPackageOpen} className="space-y-4">
+                        <div className="flex items-center justify-between mt-4 border-t pt-4">
+                            <h3 className="text-lg font-semibold text-slate-800">Initial Package (Optional)</h3>
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="w-9 p-0">
+                                    <ChevronsUpDown className="h-4 w-4" />
+                                    <span className="sr-only">Toggle</span>
+                                </Button>
+                            </CollapsibleTrigger>
+                        </div>
+                        <CollapsibleContent className="space-y-4 animate-in fade-in-0 zoom-in-95">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="package-name">Package Name</Label>
+                                    <Select name="package_name">
+                                        <SelectTrigger id="package-name"><SelectValue placeholder="Select a package type"/></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
+                                            <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor="package-hours">Hours Purchased</Label>
+                                    <Input id="package-hours" name="hours_purchased" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="package-price">Total Price (THB)</Label>
+                                    <Input id="package-price" name="price_paid" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-lg self-end">
+                                    <span className="text-sm text-slate-600">Price per hour: </span>
+                                    <span className="font-semibold text-slate-800">{formatCurrency(pricePerHour)}</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="package-purchase-date">Purchase Date</Label>
+                                    <Input id="package-purchase-date" name="purchase_date" type="date" defaultValue={new Date().toISOString().split('T')[0]}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="package-expiry-date">Expiry Date</Label>
+                                    <Input id="package-expiry-date" name="expiry_date" type="date" defaultValue={new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]}/>
+                                </div>
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending} className="btn-primary">
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Create Client
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
 function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!client) return;
+
         const formData = new FormData(e.currentTarget);
         const data = {
             name: formData.get('name') as string,
@@ -803,13 +927,8 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
 
         startTransition(async () => {
             try {
-                if (client) {
-                    await updateDoc(doc(db, "pt_clients", client.id), data);
-                    toast({ title: "Client Updated" });
-                } else {
-                    await addDoc(collection(db, "pt_clients"), { ...data, entity_type: 'client' });
-                    toast({ title: "Client Added" });
-                }
+                await updateDoc(doc(db, "pt_clients", client.id), data);
+                toast({ title: "Client Updated" });
                 onOpenChange(false);
             } catch (error) {
                 toast({ title: "Error", description: "Could not save client.", variant: "destructive" });
@@ -821,43 +940,45 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{client ? 'Edit Client' : 'Add New Client'}</DialogTitle>
+                    <DialogTitle>Edit Client</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="client-name">Full Name *</Label>
-                            <Input id="client-name" name="name" defaultValue={client?.name || ''} required />
+                {client && (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="client-name">Full Name *</Label>
+                                <Input id="client-name" name="name" defaultValue={client.name || ''} required />
+                            </div>
+                            <div>
+                                <Label htmlFor="client-member-id">Member ID</Label>
+                                <Input id="client-member-id" name="member_id" defaultValue={client.member_id || ''} />
+                            </div>
                         </div>
-                        <div>
-                            <Label htmlFor="client-member-id">Member ID</Label>
-                            <Input id="client-member-id" name="member_id" defaultValue={client?.member_id || ''} />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="client-phone">Phone</Label>
+                                <Input id="client-phone" name="phone" type="tel" defaultValue={client.phone || ''} />
+                            </div>
+                            <div>
+                                <Label htmlFor="client-status">Status</Label>
+                                <Select name="status" defaultValue={client.status || 'active'}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="inactive">Inactive</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                    </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="client-phone">Phone</Label>
-                            <Input id="client-phone" name="phone" type="tel" defaultValue={client?.phone || ''} />
-                        </div>
-                         <div>
-                            <Label htmlFor="client-status">Status</Label>
-                            <Select name="status" defaultValue={client?.status || 'active'}>
-                                <SelectTrigger><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending} className="btn-primary">
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            {client ? 'Update' : 'Create'}
-                        </Button>
-                    </DialogFooter>
-                </form>
+                        <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                            <Button type="submit" disabled={isPending} className="btn-primary">
+                                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Update Client
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                )}
             </DialogContent>
         </Dialog>
     )
@@ -950,23 +1071,11 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
     )
 }
 
-function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, clients: PTClient[], db: Firestore }) {
+function PackageModal({ open, onOpenChange, pkg, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
-    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
-    const [clientSearch, setClientSearch] = useState('');
-    const [selectedClientId, setSelectedClientId] = useState('');
-    const [selectedClientName, setSelectedClientName] = useState('');
 
-    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
-    const filteredClientsForSearch = useMemo(() => clientSearch
-        ? activeClients.filter(client =>
-            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
-          )
-        : activeClients, [activeClients, clientSearch]);
-    
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
         if (!form) return;
@@ -976,46 +1085,38 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
     }
 
      useEffect(() => {
-        if(pkg) {
-            setPricePerHour(pkg.price_per_hour || 0);
-            const client = clients.find(c => c.id === pkg.client_id);
-            setSelectedClientId(pkg.client_id);
-            setSelectedClientName(client?.name || '');
-        } else {
-            setPricePerHour(0);
-            setSelectedClientId('');
-            setSelectedClientName('');
+        if(open) {
+            if(pkg) {
+                setPricePerHour(pkg.price_per_hour || 0);
+            } else {
+                setPricePerHour(0);
+            }
         }
-    }, [pkg, clients, open]);
-
-    const handleClientSelect = (clientId: string) => {
-        const client = clients.find(c => c.id === clientId);
-        setSelectedClientId(clientId);
-        setSelectedClientName(client?.name || '');
-        setClientSelectorOpen(false);
-    }
+    }, [pkg, open]);
+    
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
-        const clientIdFromForm = formData.get('client_id') as string;
-
-        if (!clientIdFromForm) {
-            toast({title: "Please select a client", variant: "destructive"});
+        
+        if (!client && !pkg) {
+             toast({title: "No client selected.", variant: "destructive"});
             return;
         }
+        
+        const clientId = pkg ? pkg.client_id : client!.id;
 
-        const data = {
-            client_id: clientIdFromForm,
+        const data: Omit<PTPackage, 'id'> = {
+            client_id: clientId,
             package_name: formData.get('package_name') as string,
             hours_purchased: hours,
             price_paid: price,
             price_per_hour: hours > 0 ? price / hours : 0,
             purchase_date: formData.get('purchase_date') as string,
             expiry_date: formData.get('expiry_date') as string,
-            status: pkg ? (formData.get('status') as string) : 'active',
+            status: pkg ? (formData.get('status') as PTPackage['status']) : 'active',
             hours_used: pkg?.hours_used || 0,
             hours_remaining: pkg ? hours - (pkg.hours_used || 0) : hours
         };
@@ -1036,32 +1137,16 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
         });
     }
 
+    const currentClient = pkg ? clients.find(c=>c.id === pkg.client_id) : client;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl" onPointerDownOutside={(e) => {
-                if (e.target.closest('[data-radix-collection-item]')) {
-                    e.preventDefault();
-                }
-            }}>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>{pkg ? 'Edit Package' : 'Create PT Package'}</DialogTitle>
+                    <DialogTitle>{pkg ? 'Edit Package' : 'Add New Package'}</DialogTitle>
+                    {currentClient && <DialogDescription>For client: {currentClient.name}</DialogDescription>}
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <Label>Client *</Label>
-                        <input type="hidden" name="client_id" value={selectedClientId} />
-                        <div className="flex items-center gap-2">
-                            <Input
-                                id="package-client-display"
-                                readOnly
-                                value={selectedClientName || 'No client selected'}
-                                className="flex-1 bg-slate-100"
-                            />
-                            <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)} disabled={!!pkg}>
-                                Select Client
-                            </Button>
-                        </div>
-                    </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="package-name">Package Name *</Label>
@@ -1121,48 +1206,10 @@ function PackageModal({ open, onOpenChange, pkg, clients, db }: { open: boolean,
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending} className="btn-primary">
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            {pkg ? 'Update' : 'Create'}
+                            {pkg ? 'Update Package' : 'Create Package'}
                         </Button>
                     </DialogFooter>
                 </form>
-
-                 <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Select a Client</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4">
-                            <Input
-                                placeholder="Search by name or ID..."
-                                value={clientSearch}
-                                onChange={(e) => setClientSearch(e.target.value)}
-                                autoFocus
-                            />
-                            <ScrollArea className="h-72 mt-4">
-                                {filteredClientsForSearch.length === 0 ? (
-                                    <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                                ) : (
-                                    <div className="space-y-1 p-1">
-                                        {filteredClientsForSearch.map((client) => (
-                                            <Button
-                                                key={client.id}
-                                                variant="ghost"
-                                                type="button"
-                                                className="w-full justify-start text-left h-auto"
-                                                onClick={() => handleClientSelect(client.id)}
-                                            >
-                                                <div>
-                                                    <p className="font-medium">{client.name}</p>
-                                                    <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                </div>
-                                            </Button>
-                                        ))}
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </div>
-                    </DialogContent>
-                </Dialog>
             </DialogContent>
         </Dialog>
     )
@@ -1316,8 +1363,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
-                // This is a workaround for the issue where the popover is outside the dialog
-                if (e.target.closest('[data-radix-collection-item]')) {
+                if (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role="dialog"]')) {
                     e.preventDefault();
                 }
             }}>
@@ -1384,7 +1430,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                     </DialogFooter>
                 </form>
                 
-                <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
+                 <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen}>
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle>Select a Client</DialogTitle>
