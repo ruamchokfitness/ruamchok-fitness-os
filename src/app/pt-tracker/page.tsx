@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -619,7 +620,7 @@ function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: 
 
 function CommissionsTab({ commissions, trainers, sessions, clients }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
-    const [monthFilter, setMonthFilter] = useState('all');
+    const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
@@ -630,6 +631,15 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
             (monthFilter === 'all' || c.month_reference === monthFilter)
         );
     }, [commissions, trainerFilter, monthFilter]);
+    
+    const filteredTrainersForCards = useMemo(() => {
+        const activeTrainers = trainers.filter(t => t.status === 'active');
+        if (trainerFilter === 'all') {
+            return activeTrainers;
+        }
+        return activeTrainers.filter(t => t.id === trainerFilter);
+    }, [trainers, trainerFilter]);
+
 
     return (
          <div className="space-y-6">
@@ -660,15 +670,13 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                 </Button>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {trainers.filter(t=> t.status === 'active').map(trainer => {
-                    const thisMonthRef = getMonthReference();
-                    const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && c.month_reference === thisMonthRef);
-                    const totalHours = monthCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
-                    const totalEarnings = monthCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
+                {filteredTrainersForCards.map(trainer => {
+                    const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (monthFilter === 'all' ? true : c.month_reference === monthFilter));
+                    const totalHours = monthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
+                    const totalEarnings = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
                     const plan = COMMISSION_PLANS[trainer.commission_plan];
-                    const tier = (plan?.tiers && totalHours > plan.tiers[0].maxHours) ? 'Tier 2' : 'Tier 1';
-
-                     return (
+                     
+                    return (
                         <Card key={trainer.id} className="p-5">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-lg">
@@ -681,12 +689,8 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                             </div>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Hours (${thisMonthRef})</span>
+                                    <span className="text-slate-500">Hours ({monthFilter === 'all' ? 'All Time' : monthFilter})</span>
                                     <span className="font-semibold text-slate-800">{totalHours}h</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Current Tier</span>
-                                    <span className={`font-semibold ${(plan?.tiers && totalHours > plan.tiers[0].maxHours) ? 'text-green-600' : 'text-slate-800'}`}>{tier}</span>
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
                                     <span className="text-slate-500">Total Earnings</span>
@@ -818,7 +822,7 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Add New Client</DialogTitle>
+                    <DialogTitle>Add New Client & Initial Package</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                      <h3 className="text-lg font-semibold text-slate-800 border-b pb-2">Client Details</h3>
@@ -842,8 +846,8 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
                         <h3 className="text-lg font-semibold text-slate-800">Initial Package</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="package-name">Package Name</Label>
-                                <Select name="package_name">
+                                <Label htmlFor="package-name">Package Name *</Label>
+                                <Select name="package_name" required>
                                     <SelectTrigger id="package-name"><SelectValue placeholder="Select a package type"/></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
@@ -852,8 +856,8 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
                                 </Select>
                             </div>
                             <div>
-                                <Label htmlFor="package-hours">Hours Purchased</Label>
-                                <Input id="package-hours" name="hours_purchased" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour}/>
+                                <Label htmlFor="package-hours">Hours Purchased *</Label>
+                                <Input id="package-hours" name="hours_purchased" type="number" min="0" defaultValue={0} onChange={calculatePricePerHour} required/>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -881,7 +885,7 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending} className="btn-primary">
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Create Client
+                            Create Client & Package
                         </Button>
                     </DialogFooter>
                 </form>
@@ -931,7 +935,7 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
                                 <Label htmlFor="client-name">Full Name *</Label>
                                 <Input id="client-name" name="name" defaultValue={client.name || ''} required />
                             </div>
-                            <div>
+                             <div>
                                 <Label htmlFor="client-member-id">Member ID</Label>
                                 <Input id="client-member-id" name="member_id" defaultValue={client.member_id || ''} />
                             </div>
@@ -1059,6 +1063,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     const [pricePerHour, setPricePerHour] = useState(0);
     const [selectedClientId, setSelectedClientId] = useState('');
     const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
+    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
@@ -1089,7 +1094,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         const formData = new FormData(e.currentTarget);
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
-        const clientIdFromForm = formData.get('client_id') as string;
+        const clientIdFromForm = selectedClientId;
         
         if (!clientIdFromForm) {
              toast({title: "No client selected.", variant: "destructive"});
@@ -1137,8 +1142,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="hidden" name="client_id" value={selectedClientId} />
-                    {!pkg && !client && (
+                     {!pkg && (
                          <div className="flex items-end gap-2">
                              <div className="flex-grow">
                                 <Label>Client</Label>
@@ -1213,7 +1217,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                  <ClientSelectorDialog
                     open={clientSelectorOpen}
                     onOpenChange={setClientSelectorOpen}
-                    clients={clients}
+                    clients={activeClients}
                     onClientSelect={(id) => {
                         setSelectedClientId(id);
                         setClientSelectorOpen(false);
@@ -1256,7 +1260,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
         const duration = parseFloat(formData.get('duration_hours') as string);
         const trainerId = formData.get('trainer_id') as string;
         const sessionDateTime = new Date(formData.get('session_datetime') as string);
-        const clientIdFromForm = formData.get('client_id') as string;
+        const clientIdFromForm = selectedClientId;
 
         if(!clientIdFromForm) {
             toast({ title: "Please select a client", variant: "destructive"});
@@ -1359,7 +1363,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
+             <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
                 if (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role="dialog"]')) {
                     e.preventDefault();
                 }
@@ -1370,7 +1374,6 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                  <form onSubmit={handleSubmit} className="space-y-4">
                      <div>
                         <Label>Client *</Label>
-                        <input type="hidden" name="client_id" value={selectedClientId} />
                         <div className="flex items-center gap-2">
                            <Input
                                 readOnly
@@ -1440,6 +1443,8 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
 
 function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], onClientSelect: (id: string) => void }) {
     const [clientSearch, setClientSearch] = useState('');
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
     const filteredClientsForSearch = useMemo(() => clientSearch
         ? clients.filter(client =>
             client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
@@ -1448,8 +1453,11 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
         : clients, [clients, clientSearch]);
 
     useEffect(() => {
-        if (!open) {
+        if (open) {
             setClientSearch('');
+            setTimeout(() => {
+                searchInputRef.current?.focus();
+            }, 100);
         }
     }, [open]);
 
@@ -1461,10 +1469,10 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
                 </DialogHeader>
                 <div className="py-4">
                     <Input
+                        ref={searchInputRef}
                         placeholder="Search by name or ID..."
                         value={clientSearch}
                         onChange={(e) => setClientSearch(e.target.value)}
-                        autoFocus
                     />
                     <ScrollArea className="h-72 mt-4">
                         {filteredClientsForSearch.length === 0 ? (
