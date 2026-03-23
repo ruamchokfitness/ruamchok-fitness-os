@@ -57,6 +57,122 @@ const planColors: { [key: string]: string } = {
     PLAN_C: 'bg-cyan-100 text-cyan-700'
 };
 
+// Helper Functions
+const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount || 0);
+const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+async function recalculateCommissions(db: Firestore, trainerId: string, newPlan: PTTrainer['commission_plan']) {
+    const { toast } = useToast();
+    const monthRef = getMonthReference();
+
+    // 1. Get all completed sessions for the trainer for the current month
+    const sessionsQuery = query(
+        collection(db, "pt_sessions"),
+        where("trainer_id", "==", trainerId),
+        where("session_status", "==", "completed")
+    );
+    const sessionsSnapshot = await getDocs(sessionsQuery);
+    const allCompletedSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
+
+    const currentMonthDate = new Date();
+    const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
+    const lastDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59);
+
+    const sessionsThisMonth = allCompletedSessions
+        .filter(s => {
+            const sessionDate = new Date(s.session_datetime);
+            return sessionDate >= firstDay && sessionDate <= lastDay;
+        })
+        .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
+
+    // 2. Get all packages to find package names
+    const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
+    const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
+
+    // 3. Get and delete all existing commissions for this trainer and month
+    const commissionsQuery = query(
+        collection(db, "pt_commissions"),
+        where("trainer_id", "==", trainerId),
+        where("month_reference", "==", monthRef)
+    );
+    const commissionsSnapshot = await getDocs(commissionsQuery);
+
+    const batch = writeBatch(db);
+    commissionsSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    // 4. Recalculate and create new commission docs
+    let cumulativeHoursInMonth = 0;
+    for (const session of sessionsThisMonth) {
+        const pkg = allPackages.find(p => p.id === session.purchase_id);
+        if (!pkg) {
+            console.warn(`Package not found for session ${session.id}, skipping commission recalculation.`);
+            continue;
+        }
+
+        const duration = session.duration_hours;
+        const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
+        let rate = 0;
+        let commission = 0;
+        let commissionType: PTCommission['commission_type'];
+
+        if (isBoxingPackage) {
+            rate = COMMISSION_PLANS.BOXING.rate!;
+            commission = duration * rate;
+            commissionType = 'BOXING';
+        } else {
+            const plan = COMMISSION_PLANS[newPlan];
+            commissionType = newPlan;
+            if (plan.rate) { // Fixed rate plan (Plan C)
+                rate = plan.rate;
+                commission = duration * rate;
+            } else if (plan.tiers) { // Tiered plan (Plan A, B)
+                const tier1Max = plan.tiers[0].maxHours;
+                const tier1Rate = plan.tiers[0].rate;
+                const tier2Rate = plan.tiers[1].rate;
+
+                if (cumulativeHoursInMonth >= tier1Max) {
+                    rate = tier2Rate;
+                    commission = duration * rate;
+                } else if ((cumulativeHoursInMonth + duration) <= tier1Max) {
+                    rate = tier1Rate;
+                    commission = duration * tier1Rate;
+                } else {
+                    const hoursAtTier1 = tier1Max - cumulativeHoursInMonth;
+                    const hoursAtTier2 = duration - hoursAtTier1;
+                    commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                    rate = commission / duration; // Effective blended rate
+                }
+            }
+        }
+        
+        const commissionData: Omit<PTCommission, 'id'> = {
+            trainer_id: trainerId,
+            session_id: session.id,
+            duration_hours: duration,
+            hourly_rate_applied: Math.round(rate),
+            commission_amount: Math.round(commission),
+            cumulative_hours_before: cumulativeHoursInMonth,
+            cumulative_hours_after: cumulativeHoursInMonth + duration,
+            commission_plan: newPlan,
+            commission_type: commissionType,
+            month_reference: monthRef
+        };
+
+        const newCommissionRef = doc(collection(db, "pt_commissions"));
+        batch.set(newCommissionRef, commissionData);
+
+        cumulativeHoursInMonth += duration;
+    }
+
+    // 5. Commit batch
+    await batch.commit();
+}
+
+
 function PTTrackerPageContent() {
     const { firestore: db } = useFirebase();
     const { toast } = useToast();
@@ -151,13 +267,6 @@ export default function PTTrackerPage() {
         </FirebaseClientProvider>
     );
 }
-
-// Helper Functions
-const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount || 0);
-const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
-const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
 
 // Dashboard Tab
 function DashboardTab({ clients, trainers, packages, sessions, commissions }: { clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], sessions: PTSession[], commissions: PTCommission[] }) {
@@ -1003,14 +1112,27 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
         startTransition(async () => {
             try {
                 if (trainer) {
+                    const planChanged = trainer.commission_plan !== data.commission_plan;
                     await updateDoc(doc(db, "pt_trainers", trainer.id), data);
                     toast({ title: "Trainer Updated" });
+
+                    if (planChanged) {
+                        toast({ title: "Commission plan changed", description: "Recalculating current month's commissions..." });
+                        try {
+                            await recalculateCommissions(db, trainer.id, data.commission_plan);
+                            toast({ title: "Commissions Recalculated", description: `Commissions for the current month have been updated based on the new plan.` });
+                        } catch (recalcError) {
+                             console.error("Error recalculating commissions:", recalcError);
+                             toast({ title: "Recalculation Error", description: "Could not update commissions for the new plan.", variant: "destructive" });
+                        }
+                    }
                 } else {
                     await addDoc(collection(db, "pt_trainers"), { ...data, entity_type: 'trainer' });
                     toast({ title: "Trainer Added" });
                 }
                 onOpenChange(false);
             } catch (error) {
+                console.error("Error saving trainer:", error);
                 toast({ title: "Error", description: "Could not save trainer.", variant: "destructive" });
             }
         });
