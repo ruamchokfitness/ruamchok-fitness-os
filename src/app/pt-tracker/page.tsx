@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useTransition, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useTransition, useRef, useCallback } from 'react';
 import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, getDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
@@ -679,6 +679,11 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const { toast } = useToast();
     const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
 
+    const lastCompletedClientId = useMemo(() => {
+        const lastCompletedSession = sessions.find(s => s.session_status === 'completed');
+        return lastCompletedSession?.client_id || null;
+    }, [sessions]);
+
     const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName') => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -819,7 +824,16 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                     </TableBody>
                 </Table>
             </Card>
-            <SessionModal open={modalOpen} onOpenChange={setModalOpen} clients={clients} trainers={trainers} packages={packages} commissionPlans={commissionPlans} db={db} />
+            <SessionModal 
+                open={modalOpen} 
+                onOpenChange={setModalOpen} 
+                clients={clients} 
+                trainers={trainers} 
+                packages={packages} 
+                commissionPlans={commissionPlans} 
+                db={db}
+                initialClientId={lastCompletedClientId}
+            />
         </div>
     )
 }
@@ -1514,7 +1528,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     )
 }
 
-function SessionModal({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) {
+function SessionModal({ open, onOpenChange, clients, trainers, packages, commissionPlans, db, initialClientId }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore, initialClientId: string | null }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
@@ -1522,19 +1536,25 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
     const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
-    useEffect(() => {
-        if (!open) {
-            setSelectedClientId('');
-            setClientPackages([]);
-        }
-    }, [open]);
-
-    const handleClientSelect = (clientId: string) => {
+    const handleClientSelect = useCallback((clientId: string) => {
         setSelectedClientId(clientId);
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
         setClientSelectorOpen(false);
-    }
+    }, [packages]);
+
+    useEffect(() => {
+        if (open) {
+            if (initialClientId) {
+                handleClientSelect(initialClientId);
+            }
+        } else {
+            // Reset on close
+            setSelectedClientId('');
+            setClientPackages([]);
+        }
+    }, [open, initialClientId, handleClientSelect]);
+
     const selectedClient = clients.find(c => c.id === selectedClientId);
 
      const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
