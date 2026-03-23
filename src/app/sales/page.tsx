@@ -738,11 +738,12 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                 const targetAmount = value as number;
                                 const progress = Math.min((monthlySales / targetAmount) * 100, 100);
                                 const progressColor = progress >= 100 ? 'bg-green-500' : progress >= 75 ? 'bg-yellow-500' : 'bg-red-500';
+                                const remaining = Math.max(0, targetAmount - monthlySales);
                                 return (
                                 <div key={key}>
                                     <div className="flex justify-between text-sm text-gray-600">
                                         <span>Target {key.replace('target', '')}: {formatCurrency(targetAmount)}</span>
-                                        <span>{Math.round(progress)}%</span>
+                                        <span className="text-xs">{Math.round(progress)}% ({formatCurrency(remaining)})</span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                                         <div className={`${progressColor} h-2 rounded-full`} style={{ width: `${progress}%` }}></div>
@@ -1278,7 +1279,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                     <DialogTitle>Generate Sales Report</DialogTitle>
                     <DialogDescription>
                         The report will be generated for the date range currently selected on the report page:
-                        <strong> {startDate}</strong> to <strong>{endDate}</strong>.
+                        <strong> ${startDate}</strong> to <strong>${endDate}</strong>.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
