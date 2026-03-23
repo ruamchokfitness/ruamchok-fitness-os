@@ -737,11 +737,10 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
             if (pkg) {
                 const packageRef = doc(db, "pt_packages", pkg.id);
                 const newHoursUsed = (pkg.hours_used || 0) - sessionToDelete.duration_hours;
-                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
                 
                 batch.update(packageRef, {
                     hours_used: Math.max(0, newHoursUsed),
-                    hours_remaining: newHoursRemaining,
+                    hours_remaining: pkg.hours_purchased - newHoursUsed,
                     status: 'active' // Always revert to active
                 });
             } else {
@@ -1365,6 +1364,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
         const clientIdFromForm = selectedClientId;
+        const hoursUsed = pkg ? parseFloat(formData.get('hours_used') as string) : 0;
         
         if (!clientIdFromForm) {
              toast({title: "No client selected.", variant: "destructive"});
@@ -1380,8 +1380,8 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
             purchase_date: formData.get('purchase_date') as string,
             expiry_date: formData.get('expiry_date') as string,
             status: pkg ? (formData.get('status') as PTPackage['status']) : 'active',
-            hours_used: pkg?.hours_used || 0,
-            hours_remaining: pkg ? hours - (pkg.hours_used || 0) : hours
+            hours_used: hoursUsed,
+            hours_remaining: hours - hoursUsed,
         };
 
         startTransition(async () => {
@@ -1466,8 +1466,8 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                     {pkg && (
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                               <Label>Hours Used</Label>
-                               <Input value={pkg.hours_used || 0} readOnly className="bg-slate-50"/>
+                               <Label htmlFor="package-hours-used">Hours Used</Label>
+                               <Input id="package-hours-used" name="hours_used" type="number" step="0.1" defaultValue={pkg.hours_used || 0} />
                             </div>
                             <div>
                                <Label>Status</Label>
