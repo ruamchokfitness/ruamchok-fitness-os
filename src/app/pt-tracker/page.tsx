@@ -41,10 +41,20 @@ const COMMISSION_PLANS: { [key: string]: { name: string; tiers?: { maxHours: num
             { maxHours: Infinity, rate: 200 }
         ]
     },
+    PLAN_C: {
+        name: 'Plan C',
+        rate: 250,
+    },
     BOXING: {
         name: 'Boxing Package',
         rate: 220,
     }
+};
+
+const planColors: { [key: string]: string } = {
+    PLAN_A: 'bg-primary-100 text-primary-700',
+    PLAN_B: 'bg-green-100 text-green-700',
+    PLAN_C: 'bg-cyan-100 text-cyan-700'
 };
 
 function PTTrackerPageContent() {
@@ -463,7 +473,7 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                  <h3 className="text-lg font-semibold text-slate-800">Commission Plans</h3>
                 <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Trainer</Button>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="p-4 border-2 border-primary-200">
                     <h4 className="font-semibold text-primary-700 mb-2">Plan A</h4>
                     <div className="text-sm text-slate-600 space-y-1">
@@ -476,6 +486,12 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                     <div className="text-sm text-slate-600 space-y-1">
                          <p>Hours 1-70: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![0].rate)}/hour</span></p>
                         <p>Hours 71+: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![1].rate)}/hour</span></p>
+                    </div>
+                </Card>
+                <Card className="p-4 border-2 border-cyan-200">
+                    <h4 className="font-semibold text-cyan-700 mb-2">Plan C</h4>
+                    <div className="text-sm text-slate-600 space-y-1">
+                         <p>Fixed Rate: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_C.rate!)}/hour</span></p>
                     </div>
                 </Card>
                  <Card className="p-4 border-2 border-red-200">
@@ -503,7 +519,6 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                             const trainerCommissions = commissions.filter(c => c.trainer_id === trainer.id && c.month_reference === thisMonthRef);
                             const monthlyHours = trainerCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                             const monthlyEarnings = trainerCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
-                            const plan = COMMISSION_PLANS[trainer.commission_plan];
                             return (
                                 <TableRow key={trainer.id}>
                                      <TableCell>
@@ -519,7 +534,7 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                                         <p className="text-sm text-slate-500">{trainer.phone}</p>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="outline" className={trainer.commission_plan === 'PLAN_A' ? 'bg-primary-100 text-primary-700' : 'bg-green-100 text-green-700'}>{COMMISSION_PLANS[trainer.commission_plan]?.name || 'Not Set'}</Badge>
+                                        <Badge variant="outline" className={planColors[trainer.commission_plan] || 'bg-slate-100 text-slate-700'}>{COMMISSION_PLANS[trainer.commission_plan]?.name || 'Not Set'}</Badge>
                                     </TableCell>
                                     <TableCell>
                                         <p className="font-semibold text-slate-800">{monthlyHours} hours</p>
@@ -684,7 +699,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-slate-800">{trainer.name}</h4>
-                                    <Badge variant="outline" className={trainer.commission_plan === 'PLAN_A' ? 'bg-primary-100 text-primary-700' : 'bg-green-100 text-green-700'}>{plan?.name || 'No Plan'}</Badge>
+                                    <Badge variant="outline" className={planColors[trainer.commission_plan] || 'bg-slate-100 text-slate-700'}>{plan?.name || 'No Plan'}</Badge>
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -982,7 +997,7 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
             email: formData.get('email') as string,
             phone: formData.get('phone') as string,
             status: formData.get('status') as 'active' | 'inactive',
-            commission_plan: formData.get('commission_plan') as 'PLAN_A' | 'PLAN_B'
+            commission_plan: formData.get('commission_plan') as 'PLAN_A' | 'PLAN_B' | 'PLAN_C'
         };
 
         startTransition(async () => {
@@ -1030,6 +1045,7 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
                                 <SelectContent>
                                     <SelectItem value="PLAN_A">Plan A</SelectItem>
                                     <SelectItem value="PLAN_B">Plan B</SelectItem>
+                                    <SelectItem value="PLAN_C">Plan C</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -1143,13 +1159,19 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                      {!pkg && (
-                         <div className="flex items-end gap-2">
-                             <div className="flex-grow">
-                                <Label>Client</Label>
-                                 <Input readOnly value={currentClient?.name || ''} placeholder="No client selected"/>
-                             </div>
-                             <Button type="button" onClick={() => setClientSelectorOpen(true)}>Select Client</Button>
-                         </div>
+                        <div className="space-y-2">
+                            <Label>Client</Label>
+                            <div className="flex items-center gap-2">
+                               <Input
+                                    readOnly
+                                    value={currentClient?.name || 'No client selected'}
+                                    className="flex-1 bg-slate-100"
+                                />
+                                <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
+                                    Select Client
+                                </Button>
+                            </div>
+                        </div>
                     )}
                      <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1232,10 +1254,8 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
-    
     const [selectedClientId, setSelectedClientId] = useState('');
     const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
-    
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
     useEffect(() => {
@@ -1311,7 +1331,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
             let rate = 0;
             let commission = 0;
-            let commissionType: 'BOXING' | 'PLAN_A' | 'PLAN_B' = 'PLAN_A';
+            let commissionType: PTCommission['commission_type'];
 
             if (isBoxingPackage) {
                 rate = COMMISSION_PLANS.BOXING.rate!;
@@ -1320,7 +1340,10 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             } else {
                 const plan = COMMISSION_PLANS[trainer.commission_plan];
                 commissionType = trainer.commission_plan;
-                if (plan && plan.tiers) {
+                if (plan.rate) {
+                    rate = plan.rate;
+                    commission = duration * rate;
+                } else if (plan && plan.tiers) {
                     const tier1Max = plan.tiers[0].maxHours;
                     const tier1Rate = plan.tiers[0].rate;
                     const tier2Rate = plan.tiers[1].rate;
@@ -1340,8 +1363,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                 }
             }
             
-             const commissionData = {
-                entity_type: 'commission',
+             const commissionData: Omit<PTCommission, 'id'> = {
                 trainer_id: trainerId,
                 session_id: newSessionRef.id,
                 duration_hours: duration,
@@ -1364,7 +1386,8 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
              <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
-                if (e.target.closest('[data-radix-collection-item]') || e.target.closest('[role="dialog"]')) {
+                const target = e.target as HTMLElement;
+                if (target.closest('[data-radix-collection-item]') || target.closest('[role="dialog"]')) {
                     e.preventDefault();
                 }
             }}>
@@ -1372,7 +1395,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
                  <form onSubmit={handleSubmit} className="space-y-4">
-                     <div>
+                    <div className="space-y-2">
                         <Label>Client *</Label>
                         <div className="flex items-center gap-2">
                            <Input

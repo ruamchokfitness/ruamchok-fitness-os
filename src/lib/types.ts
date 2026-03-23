@@ -119,7 +119,7 @@ export interface PTTrainer {
   name: string;
   email?: string;
   phone?: string;
-  commission_plan: 'PLAN_A' | 'PLAN_B';
+  commission_plan: 'PLAN_A' | 'PLAN_B' | 'PLAN_C';
   status: 'active' | 'inactive';
 }
 
@@ -158,8 +158,8 @@ export interface PTCommission {
   commission_amount: number;
   cumulative_hours_before: number;
   cumulative_hours_after: number;
-  commission_plan: 'PLAN_A' | 'PLAN_B';
-  commission_type: 'PLAN_A' | 'PLAN_B' | 'BOXING';
+  commission_plan: 'PLAN_A' | 'PLAN_B' | 'PLAN_C';
+  commission_type: 'PLAN_A' | 'PLAN_B' | 'BOXING' | 'PLAN_C';
   month_reference: string; // YYYY-MM
 }
 
