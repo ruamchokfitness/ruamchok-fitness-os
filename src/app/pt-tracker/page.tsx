@@ -573,7 +573,7 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                 </Accordion>
             </Card>
             {/* MODALS */}
-            <ClientAndPackageModal open={addClientModalOpen} onOpenChange={setAddClientModalOpen} db={db} />
+            <ClientAndPackageModal open={addClientModalOpen} onOpenChange={setAddClientModalOpen} clients={clients} db={db} />
             <ClientModal open={editClientModalOpen} onOpenChange={setEditClientModalOpen} client={selectedClient} db={db} />
             <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />
         </div>
@@ -634,6 +634,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
                             const monthlyHours = trainerCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                             const monthlyEarnings = trainerCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
                             const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
+                             
                             return (
                                 <TableRow key={trainer.id}>
                                      <TableCell>
@@ -1001,7 +1002,7 @@ function SortableHeader({ children, columnKey, sortConfig, requestSort, classNam
     );
 };
 
-function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOpenChange: (open: boolean) => void, db: Firestore }) {
+function ClientAndPackageModal({ open, onOpenChange, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, db: Firestore, clients: PTClient[] }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
@@ -1020,10 +1021,19 @@ function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOp
         
         const clientData = {
             name: formData.get('name') as string,
-            member_id: formData.get('member_id') as string,
+            member_id: (formData.get('member_id') as string || '').trim(),
             phone: formData.get('phone') as string,
             status: 'active' as 'active' | 'inactive',
         };
+
+        if (clientData.member_id && clients.some(c => c.member_id === clientData.member_id)) {
+            toast({
+                title: "Member ID already exists",
+                description: "This Member ID is already in use. Please enter a unique ID.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
@@ -1364,7 +1374,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
         const clientIdFromForm = selectedClientId;
-        const hoursUsed = pkg ? parseFloat(formData.get('hours_used') as string) : 0;
+        const hoursUsed = pkg ? (parseFloat((formData.get('hours_used') as HTMLInputElement).value) || 0) : 0;
         
         if (!clientIdFromForm) {
              toast({title: "No client selected.", variant: "destructive"});
