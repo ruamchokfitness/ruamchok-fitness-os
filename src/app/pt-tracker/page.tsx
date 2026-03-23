@@ -737,7 +737,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
             if (pkg) {
                 const packageRef = doc(db, "pt_packages", pkg.id);
                 const newHoursUsed = (pkg.hours_used || 0) - sessionToDelete.duration_hours;
-                const newHoursRemaining = (pkg.hours_remaining || 0) + sessionToDelete.duration_hours;
+                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
                 
                 batch.update(packageRef, {
                     hours_used: Math.max(0, newHoursUsed),
@@ -1646,7 +1646,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
                 const target = e.target as HTMLElement;
-                if (target.closest('[data-radix-collection-item]') || target.closest('[role="dialog"]')) {
+                if (target.closest('[role="dialog"]') && (target.closest('[role="dialog"]') as HTMLElement).id === 'client-selector-dialog') {
                     e.preventDefault();
                 }
             }}>
@@ -1744,8 +1744,8 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
     }, [open]);
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+        <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+            <DialogContent className="sm:max-w-md" id="client-selector-dialog">
                 <DialogHeader>
                     <DialogTitle>Select a Client</DialogTitle>
                 </DialogHeader>
@@ -1755,6 +1755,7 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
                         placeholder="Search by name or ID..."
                         value={clientSearch}
                         onChange={(e) => setClientSearch(e.target.value)}
+                        autoFocus
                     />
                     <ScrollArea className="h-72 mt-4">
                         {filteredClientsForSearch.length === 0 ? (
