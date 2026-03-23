@@ -2,11 +2,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition, useRef } from 'react';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
 
-import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission } from '@/lib/types';
+import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, PTCommissionTier } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,44 +26,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import type { Firestore } from 'firebase/firestore';
 
 
-const COMMISSION_PLANS: { [key: string]: { name: string; tiers?: { maxHours: number; rate: number }[], rate?: number } } = {
-    PLAN_A: {
-        name: 'Plan A',
-        tiers: [
-            { maxHours: 70, rate: 150 },
-            { maxHours: Infinity, rate: 180 }
-        ]
-    },
-    PLAN_B: {
-        name: 'Plan B',
-        tiers: [
-            { maxHours: 70, rate: 180 },
-            { maxHours: Infinity, rate: 200 }
-        ]
-    },
-    PLAN_C: {
-        name: 'Plan C',
-        rate: 250,
-    },
-    BOXING: {
-        name: 'Boxing Package',
-        rate: 220,
-    }
-};
-
-const planColors: { [key: string]: string } = {
-    PLAN_A: 'bg-primary-100 text-primary-700',
-    PLAN_B: 'bg-green-100 text-green-700',
-    PLAN_C: 'bg-cyan-100 text-cyan-700'
-};
-
 // Helper Functions
 const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount || 0);
 const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-async function recalculateCommissions(db: Firestore, trainerId: string, newPlan: PTTrainer['commission_plan']) {
+async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[]) {
     const monthRef = getMonthReference();
 
     // 1. Get all completed sessions for the trainer for the current month
@@ -89,7 +58,7 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlan:
     // 2. Get all packages to find package names
     const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
     const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
-
+    
     // 3. Get and delete all existing commissions for this trainer and month
     const commissionsQuery = query(
         collection(db, "pt_commissions"),
@@ -105,6 +74,14 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlan:
 
     // 4. Recalculate and create new commission docs
     let cumulativeHoursInMonth = 0;
+    const plan = allPlans.find(p => p.id === newPlanId);
+    if (!plan) {
+        console.error(`Commission plan with ID ${newPlanId} not found.`);
+        return;
+    }
+    const boxingPlan = allPlans.find(p => p.id === 'BOXING');
+
+
     for (const session of sessionsThisMonth) {
         const pkg = allPackages.find(p => p.id === session.purchase_id);
         if (!pkg) {
@@ -116,34 +93,38 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlan:
         const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
         let rate = 0;
         let commission = 0;
-        let commissionType: PTCommission['commission_type'];
+        let commissionTypeName = '';
 
-        if (isBoxingPackage) {
-            rate = COMMISSION_PLANS.BOXING.rate!;
+        if (isBoxingPackage && boxingPlan) {
+            rate = boxingPlan.tiers[0].rate;
             commission = duration * rate;
-            commissionType = 'BOXING';
+            commissionTypeName = boxingPlan.name;
         } else {
-            const plan = COMMISSION_PLANS[newPlan];
-            commissionType = newPlan;
-            if (plan.rate) { // Fixed rate plan (Plan C)
-                rate = plan.rate;
+            commissionTypeName = plan.name;
+            if (plan.tiers.length === 1) { // Fixed rate plan
+                rate = plan.tiers[0].rate;
                 commission = duration * rate;
-            } else if (plan.tiers) { // Tiered plan (Plan A, B)
-                const tier1Max = plan.tiers[0].maxHours;
-                const tier1Rate = plan.tiers[0].rate;
-                const tier2Rate = plan.tiers[1].rate;
+            } else { // Tiered plan
+                const tier1 = plan.tiers.find(t => t.maxHours !== Infinity);
+                const tier2 = plan.tiers.find(t => t.maxHours === Infinity);
 
-                if (cumulativeHoursInMonth >= tier1Max) {
-                    rate = tier2Rate;
-                    commission = duration * rate;
-                } else if ((cumulativeHoursInMonth + duration) <= tier1Max) {
-                    rate = tier1Rate;
-                    commission = duration * tier1Rate;
-                } else {
-                    const hoursAtTier1 = tier1Max - cumulativeHoursInMonth;
-                    const hoursAtTier2 = duration - hoursAtTier1;
-                    commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
-                    rate = commission / duration; // Effective blended rate
+                if (tier1 && tier2) {
+                    const tier1Max = tier1.maxHours;
+                    const tier1Rate = tier1.rate;
+                    const tier2Rate = tier2.rate;
+
+                    if (cumulativeHoursInMonth >= tier1Max) {
+                        rate = tier2Rate;
+                        commission = duration * rate;
+                    } else if ((cumulativeHoursInMonth + duration) <= tier1Max) {
+                        rate = tier1Rate;
+                        commission = duration * tier1Rate;
+                    } else {
+                        const hoursAtTier1 = tier1Max - cumulativeHoursInMonth;
+                        const hoursAtTier2 = duration - hoursAtTier1;
+                        commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                        rate = commission / duration; // Effective blended rate
+                    }
                 }
             }
         }
@@ -156,8 +137,8 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlan:
             commission_amount: Math.round(commission),
             cumulative_hours_before: cumulativeHoursInMonth,
             cumulative_hours_after: cumulativeHoursInMonth + duration,
-            commission_plan: newPlan,
-            commission_type: commissionType,
+            commission_plan: newPlanId,
+            commission_type: commissionTypeName,
             month_reference: monthRef
         };
 
@@ -182,8 +163,9 @@ function PTTrackerPageContent() {
     const { data: packages, isLoading: l3 } = useCollection<PTPackage>(useMemoFirebase(() => db ? query(collection(db, "pt_packages"), orderBy('purchase_date', 'desc')) : null, [db]));
     const { data: sessions, isLoading: l4 } = useCollection<PTSession>(useMemoFirebase(() => db ? query(collection(db, "pt_sessions"), orderBy('session_datetime', 'desc')) : null, [db]));
     const { data: commissions, isLoading: l5 } = useCollection<PTCommission>(useMemoFirebase(() => db ? query(collection(db, "pt_commissions"), orderBy('commission_amount', 'desc')) : null, [db]));
+    const { data: commissionPlans, isLoading: l6 } = useCollection<PTCommissionPlan>(useMemoFirebase(() => db ? query(collection(db, "pt_commission_plans"), orderBy('name')) : null, [db]));
     
-    const loading = l1 || l2 || l3 || l4 || l5;
+    const loading = l1 || l2 || l3 || l4 || l5 || l6;
     
     // Initial Data Seeding
     useEffect(() => {
@@ -206,6 +188,31 @@ function PTTrackerPageContent() {
         }
         seedData();
     }, [db, clients, l1]);
+    
+     useEffect(() => {
+        if (!db || l6) return;
+        const seedCommissionPlans = async () => {
+            const plansCollection = collection(db, "pt_commission_plans");
+            const snapshot = await getDocs(query(plansCollection));
+            if (snapshot.empty) {
+                console.log("Seeding default commission plans...");
+                const batch = writeBatch(db);
+                const defaultPlans = [
+                    { id: 'PLAN_A', name: 'Plan A', isDeletable: false, tiers: [{ maxHours: 70, rate: 150 }, { maxHours: Infinity, rate: 180 }] },
+                    { id: 'PLAN_B', name: 'Plan B', isDeletable: false, tiers: [{ maxHours: 70, rate: 180 }, { maxHours: Infinity, rate: 200 }] },
+                    { id: 'PLAN_C', name: 'Plan C', isDeletable: false, tiers: [{ maxHours: Infinity, rate: 250 }] },
+                    { id: 'BOXING', name: 'Boxing Package', isDeletable: false, tiers: [{ maxHours: Infinity, rate: 220 }] }
+                ];
+                defaultPlans.forEach(plan => {
+                    const docRef = doc(db, "pt_commission_plans", plan.id);
+                    batch.set(docRef, { name: plan.name, isDeletable: plan.isDeletable, tiers: plan.tiers });
+                });
+                await batch.commit();
+            }
+        };
+        seedCommissionPlans();
+    }, [db, commissionPlans, l6]);
+
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -245,13 +252,13 @@ function PTTrackerPageContent() {
                         <ClientsTab clients={clients||[]} packages={packages||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="trainers">
-                        <TrainersTab trainers={trainers||[]} commissions={commissions||[]} db={db} />
+                        <TrainersTab trainers={trainers||[]} commissions={commissions||[]} commissionPlans={commissionPlans||[]} db={db} />
                     </TabsContent>
                     <TabsContent value="sessions">
-                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} db={db} />
+                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} commissionPlans={commissionPlans || []} db={db} />
                     </TabsContent>
                     <TabsContent value="commissions">
-                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} />
+                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} />
                     </TabsContent>
                 </div>
             </Tabs>
@@ -561,55 +568,31 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
     )
 }
 
-function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], commissions: PTCommission[], db: Firestore }) { 
-    const [modalOpen, setModalOpen] = useState(false);
+function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
+    const [trainerModalOpen, setTrainerModalOpen] = useState(false);
+    const [plansModalOpen, setPlansModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
 
     const handleEdit = (trainer: PTTrainer) => {
         setSelectedTrainer(trainer);
-        setModalOpen(true);
+        setTrainerModalOpen(true);
     }
     const handleAddNew = () => {
         setSelectedTrainer(null);
-        setModalOpen(true);
+        setTrainerModalOpen(true);
     }
     
     return (
         <div className="space-y-6">
              <div className="flex justify-between items-center">
-                 <h3 className="text-lg font-semibold text-slate-800">Commission Plans</h3>
-                <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Trainer</Button>
+                 <h3 className="text-lg font-semibold text-slate-800">Trainer Roster</h3>
+                <div className="flex gap-2">
+                    <Button onClick={() => setPlansModalOpen(true)} variant="outline"><Settings className="mr-2"/> Manage Plans</Button>
+                    <Button onClick={handleAddNew} className="btn-primary"><Plus className="mr-2"/> Add Trainer</Button>
+                </div>
             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="p-4 border-2 border-primary-200">
-                    <h4 className="font-semibold text-primary-700 mb-2">Plan A</h4>
-                    <div className="text-sm text-slate-600 space-y-1">
-                        <p>Hours 1-70: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_A.tiers![0].rate)}/hour</span></p>
-                        <p>Hours 71+: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_A.tiers![1].rate)}/hour</span></p>
-                    </div>
-                </Card>
-                <Card className="p-4 border-2 border-green-200">
-                    <h4 className="font-semibold text-green-700 mb-2">Plan B</h4>
-                    <div className="text-sm text-slate-600 space-y-1">
-                         <p>Hours 1-70: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![0].rate)}/hour</span></p>
-                        <p>Hours 71+: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_B.tiers![1].rate)}/hour</span></p>
-                    </div>
-                </Card>
-                <Card className="p-4 border-2 border-cyan-200">
-                    <h4 className="font-semibold text-cyan-700 mb-2">Plan C</h4>
-                    <div className="text-sm text-slate-600 space-y-1">
-                         <p>Fixed Rate: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.PLAN_C.rate!)}/hour</span></p>
-                    </div>
-                </Card>
-                 <Card className="p-4 border-2 border-red-200">
-                    <h4 className="font-semibold text-red-700 mb-2">Boxing Package</h4>
-                    <div className="text-sm text-slate-600 space-y-1">
-                         <p>Fixed Rate: <span className="font-semibold">{formatCurrency(COMMISSION_PLANS.BOXING.rate!)}/hour</span></p>
-                         <p className="text-xs text-slate-500 italic">Hours still count towards monthly total.</p>
-                    </div>
-                </Card>
-            </div>
+            
             <Card>
                 <Table>
                     <TableHeader>
@@ -627,6 +610,7 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                             const trainerCommissions = commissions.filter(c => c.trainer_id === trainer.id && c.month_reference === thisMonthRef);
                             const monthlyHours = trainerCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                             const monthlyEarnings = trainerCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+                            const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
                             return (
                                 <TableRow key={trainer.id}>
                                      <TableCell>
@@ -642,7 +626,7 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                                         <p className="text-sm text-slate-500">{trainer.phone}</p>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="outline" className={planColors[trainer.commission_plan] || 'bg-slate-100 text-slate-700'}>{COMMISSION_PLANS[trainer.commission_plan]?.name || 'Not Set'}</Badge>
+                                        <Badge variant="outline">{plan?.name || 'Not Set'}</Badge>
                                     </TableCell>
                                     <TableCell>
                                         <p className="font-semibold text-slate-800">{monthlyHours} hours</p>
@@ -659,12 +643,13 @@ function TrainersTab({ trainers, commissions, db }: { trainers: PTTrainer[], com
                     </TableBody>
                 </Table>
             </Card>
-            <TrainerModal open={modalOpen} onOpenChange={setModalOpen} trainer={selectedTrainer} db={db} />
+            <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} />
+            <ManagePlansDialog open={plansModalOpen} onOpenChange={setPlansModalOpen} plans={commissionPlans} trainers={trainers} db={db} />
         </div>
     )
 }
 
-function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore }) { 
+function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
     const [trainerFilter, setTrainerFilter] = useState('all');
 
@@ -736,12 +721,12 @@ function SessionsTab({ sessions, clients, trainers, packages, db }: { sessions: 
                     </TableBody>
                 </Table>
             </Card>
-            <SessionModal open={modalOpen} onOpenChange={setModalOpen} clients={clients} trainers={trainers} packages={packages} db={db} />
+            <SessionModal open={modalOpen} onOpenChange={setModalOpen} clients={clients} trainers={trainers} packages={packages} commissionPlans={commissionPlans} db={db} />
         </div>
     )
 }
 
-function CommissionsTab({ commissions, trainers, sessions, clients }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[] }) { 
+function CommissionsTab({ commissions, trainers, sessions, clients, commissionPlans }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -797,7 +782,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                     const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (monthFilter === 'all' ? true : c.month_reference === monthFilter));
                     const totalHours = monthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                     const totalEarnings = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
-                    const plan = COMMISSION_PLANS[trainer.commission_plan];
+                    const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
                      
                     return (
                         <Card key={trainer.id} className="p-5">
@@ -807,7 +792,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-slate-800">{trainer.name}</h4>
-                                    <Badge variant="outline" className={planColors[trainer.commission_plan] || 'bg-slate-100 text-slate-700'}>{plan?.name || 'No Plan'}</Badge>
+                                    <Badge variant="outline">{plan?.name || 'No Plan'}</Badge>
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -841,12 +826,11 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                         {filteredCommissions.length === 0 ? <TablePlaceholder/> : filteredCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
-                            const planName = comm.commission_type === 'BOXING' ? 'Boxing' : COMMISSION_PLANS[comm.commission_plan]?.name;
                             return (
                                 <TableRow key={comm.id}>
                                     <TableCell>{formatDateTime(session?.session_datetime)}</TableCell>
                                     <TableCell>{trainer?.name || 'Unknown'}</TableCell>
-                                    <TableCell><Badge variant="outline" className={comm.commission_type === 'BOXING' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{planName}</Badge></TableCell>
+                                    <TableCell><Badge variant="outline" className={comm.commission_type === 'Boxing Package' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{comm.commission_type}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
                                     <TableCell>{comm.cumulative_hours_before}h → {comm.cumulative_hours_after}h</TableCell>
@@ -864,6 +848,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients }: { commissi
                 commissions={commissions}
                 sessions={sessions}
                 clients={clients}
+                commissionPlans={commissionPlans}
             />
         </div>
     )
@@ -1093,7 +1078,7 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
     )
 }
 
-function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, db: Firestore }) {
+function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, commissionPlans: PTCommissionPlan[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -1105,7 +1090,7 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
             email: formData.get('email') as string,
             phone: formData.get('phone') as string,
             status: formData.get('status') as 'active' | 'inactive',
-            commission_plan: formData.get('commission_plan') as 'PLAN_A' | 'PLAN_B' | 'PLAN_C'
+            commission_plan: formData.get('commission_plan') as string
         };
 
         startTransition(async () => {
@@ -1118,7 +1103,7 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
                     if (planChanged) {
                         toast({ title: "Commission plan changed", description: "Recalculating current month's commissions..." });
                         try {
-                            await recalculateCommissions(db, trainer.id, data.commission_plan);
+                            await recalculateCommissions(db, trainer.id, data.commission_plan, commissionPlans);
                             toast({ title: "Commissions Recalculated", description: `Commissions for the current month have been updated based on the new plan.` });
                         } catch (recalcError) {
                              console.error("Error recalculating commissions:", recalcError);
@@ -1164,9 +1149,9 @@ function TrainerModal({ open, onOpenChange, trainer, db }: { open: boolean, onOp
                             <Select name="commission_plan" defaultValue={trainer?.commission_plan || 'PLAN_A'}>
                                 <SelectTrigger><SelectValue/></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="PLAN_A">Plan A</SelectItem>
-                                    <SelectItem value="PLAN_B">Plan B</SelectItem>
-                                    <SelectItem value="PLAN_C">Plan C</SelectItem>
+                                    {(commissionPlans || []).map(plan => (
+                                        <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -1371,7 +1356,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     )
 }
 
-function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore }) {
+function SessionModal({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
@@ -1449,37 +1434,42 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
             const commissions = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
             const cumulativeHoursBefore = commissions.reduce((sum, c) => sum + c.duration_hours, 0);
 
-            const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
             let rate = 0;
             let commission = 0;
-            let commissionType: PTCommission['commission_type'];
+            let commissionTypeName = '';
+            
+            const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
+            const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
+            const trainerPlan = commissionPlans.find(p => p.id === trainer.commission_plan);
 
-            if (isBoxingPackage) {
-                rate = COMMISSION_PLANS.BOXING.rate!;
+            if (isBoxingPackage && boxingPlan) {
+                rate = boxingPlan.tiers[0].rate;
                 commission = duration * rate;
-                commissionType = 'BOXING';
-            } else {
-                const plan = COMMISSION_PLANS[trainer.commission_plan];
-                commissionType = trainer.commission_plan;
-                if (plan.rate) {
-                    rate = plan.rate;
+                commissionTypeName = boxingPlan.name;
+            } else if (trainerPlan) {
+                commissionTypeName = trainerPlan.name;
+                 if (trainerPlan.tiers.length === 1) { // Fixed rate plan
+                    rate = trainerPlan.tiers[0].rate;
                     commission = duration * rate;
-                } else if (plan && plan.tiers) {
-                    const tier1Max = plan.tiers[0].maxHours;
-                    const tier1Rate = plan.tiers[0].rate;
-                    const tier2Rate = plan.tiers[1].rate;
+                } else { // Tiered plan
+                    const tier1 = trainerPlan.tiers.find(t => t.maxHours !== Infinity);
+                    const tier2 = trainerPlan.tiers.find(t => t.maxHours === Infinity);
+                    if(tier1 && tier2) {
+                        const { maxHours: tier1Max, rate: tier1Rate } = tier1;
+                        const { rate: tier2Rate } = tier2;
 
-                    if (cumulativeHoursBefore >= tier1Max) {
-                        rate = tier2Rate;
-                        commission = duration * tier2Rate;
-                    } else if ((cumulativeHoursBefore + duration) <= tier1Max) {
-                        rate = tier1Rate;
-                        commission = duration * tier1Rate;
-                    } else {
-                        const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
-                        const hoursAtTier2 = duration - hoursAtTier1;
-                        commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
-                        rate = commission / duration; // blended rate
+                        if (cumulativeHoursBefore >= tier1Max) {
+                            rate = tier2Rate;
+                            commission = duration * tier2Rate;
+                        } else if ((cumulativeHoursBefore + duration) <= tier1Max) {
+                            rate = tier1Rate;
+                            commission = duration * tier1Rate;
+                        } else {
+                            const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
+                            const hoursAtTier2 = duration - hoursAtTier1;
+                            commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                            rate = commission / duration; // blended rate
+                        }
                     }
                 }
             }
@@ -1493,7 +1483,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, db }: {
                 cumulative_hours_before: cumulativeHoursBefore,
                 cumulative_hours_after: cumulativeHoursBefore + duration,
                 commission_plan: trainer.commission_plan,
-                commission_type: commissionType,
+                commission_type: commissionTypeName,
                 month_reference: monthRef
             };
 
@@ -1646,7 +1636,7 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
     )
 }
 
-function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[] }) {
+function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[] }) {
     const { toast } = useToast();
 
     const generatePayoutsPDF = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1665,6 +1655,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
             toast({ title: "Trainer not found", variant: "destructive" });
             return;
         }
+        const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
 
         let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId);
         if (period && period !== 'all') {
@@ -1721,7 +1712,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <h1>TRAINING REPORT</h1>
                         <div class="header-info">
                             <div><strong>Trainer:</strong> ${trainer.name}</div>
-                            <div><strong>Plan:</strong> ${trainer.commission_plan || 'N/A'}</div>
+                            <div><strong>Plan:</strong> ${plan?.name || 'N/A'}</div>
                         </div>
                     </div>
                     <div class="summary-cards">
@@ -1762,13 +1753,12 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                 const session = sessions.find(s => s.id === comm.session_id);
                 const client = clients.find(c => c.id === session?.client_id);
                 const dateStr = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
-                const planName = comm.commission_type === 'BOXING' ? 'Boxing' : COMMISSION_PLANS[comm.commission_plan]?.name;
                 
                 htmlContent += `
                     <tr>
                         <td>${dateStr}</td>
                         <td>${client?.name || '-'}</td>
-                        <td>${planName}</td>
+                        <td>${comm.commission_type}</td>
                         <td>${comm.duration_hours || 0}h</td>
                         <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
                         <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
@@ -1914,3 +1904,209 @@ function DeleteButton({ type, id, name, db }: { type: string, id: string, name: 
 
     
 
+
+function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: boolean, onOpenChange: (open: boolean) => void, plans: PTCommissionPlan[], trainers: PTTrainer[], db: Firestore }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const [editingPlan, setEditingPlan] = useState<PTCommissionPlan | null>(null);
+
+    const [planName, setPlanName] = useState('');
+    const [planType, setPlanType] = useState<'TIERED' | 'FIXED'>('TIERED');
+    const [tier1Hours, setTier1Hours] = useState('');
+    const [tier1Rate, setTier1Rate] = useState('');
+    const [tier2Rate, setTier2Rate] = useState('');
+    const [fixedRate, setFixedRate] = useState('');
+
+    const resetForm = () => {
+        setEditingPlan(null);
+        setPlanName('');
+        setPlanType('TIERED');
+        setTier1Hours('');
+        setTier1Rate('');
+        setTier2Rate('');
+        setFixedRate('');
+    }
+
+    useEffect(() => {
+        if (!open) {
+            resetForm();
+        }
+    }, [open]);
+    
+    const handleEdit = (plan: PTCommissionPlan) => {
+        setEditingPlan(plan);
+        setPlanName(plan.name);
+        if (plan.tiers.length > 1) {
+            setPlanType('TIERED');
+            const tier1 = plan.tiers.find(t => t.maxHours !== Infinity);
+            const tier2 = plan.tiers.find(t => t.maxHours === Infinity);
+            setTier1Hours(String(tier1?.maxHours || ''));
+            setTier1Rate(String(tier1?.rate || ''));
+            setTier2Rate(String(tier2?.rate || ''));
+            setFixedRate('');
+        } else {
+            setPlanType('FIXED');
+            setFixedRate(String(plan.tiers[0]?.rate || ''));
+            setTier1Hours('');
+            setTier1Rate('');
+            setTier2Rate('');
+        }
+    }
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        startTransition(async () => {
+            if (!planName) {
+                toast({ title: "Plan name is required", variant: 'destructive' });
+                return;
+            }
+
+            let tiers: PTCommissionTier[] = [];
+            if (planType === 'FIXED') {
+                const rate = parseFloat(fixedRate);
+                if (isNaN(rate) || rate < 0) {
+                    toast({ title: "Invalid fixed rate", variant: 'destructive' });
+                    return;
+                }
+                tiers = [{ maxHours: Infinity, rate }];
+            } else {
+                const t1Hours = parseFloat(tier1Hours);
+                const t1Rate = parseFloat(tier1Rate);
+                const t2Rate = parseFloat(tier2Rate);
+                if (isNaN(t1Hours) || t1Hours <= 0 || isNaN(t1Rate) || t1Rate < 0 || isNaN(t2Rate) || t2Rate < 0) {
+                    toast({ title: "Invalid tier values", variant: 'destructive' });
+                    return;
+                }
+                tiers = [{ maxHours: t1Hours, rate: t1Rate }, { maxHours: Infinity, rate: t2Rate }];
+            }
+            
+            const planData = { name: planName, tiers, isDeletable: true };
+
+            try {
+                if (editingPlan) {
+                    await updateDoc(doc(db, "pt_commission_plans", editingPlan.id), planData);
+                    toast({ title: "Plan updated successfully" });
+                } else {
+                    await addDoc(collection(db, "pt_commission_plans"), planData);
+                    toast({ title: "Plan created successfully" });
+                }
+                resetForm();
+            } catch (error) {
+                console.error("Error saving plan:", error);
+                toast({ title: "Error saving plan", variant: 'destructive' });
+            }
+        });
+    }
+
+    const handleDelete = (plan: PTCommissionPlan) => {
+        if (!plan.isDeletable) {
+            toast({ title: "Cannot delete default plan", variant: 'destructive' });
+            return;
+        }
+        const isPlanInUse = trainers.some(t => t.commission_plan === plan.id);
+        if (isPlanInUse) {
+            toast({ title: "Cannot delete plan", description: "This plan is currently assigned to one or more trainers.", variant: 'destructive' });
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                await deleteDoc(doc(db, "pt_commission_plans", plan.id));
+                toast({ title: "Plan deleted successfully" });
+                if (editingPlan?.id === plan.id) {
+                    resetForm();
+                }
+            } catch (error) {
+                toast({ title: "Error deleting plan", variant: 'destructive' });
+            }
+        });
+    }
+
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader><DialogTitle>Manage Commission Plans</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    <div>
+                        <h4 className="font-semibold mb-2 text-slate-700">Existing Plans</h4>
+                        <ScrollArea className="h-96 pr-4">
+                            <div className="space-y-2">
+                                {(plans || []).map(p => (
+                                    <Card key={p.id} className={`p-3 ${editingPlan?.id === p.id ? 'border-primary' : ''}`}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-semibold">{p.name}</p>
+                                                <div className="text-xs text-slate-500 mt-1">
+                                                    {p.tiers.length === 1 ? `Fixed: ${formatCurrency(p.tiers[0].rate)}/hr` : 
+                                                    `Tiers: ${p.tiers.map(t => `${formatCurrency(t.rate)}`).join(' / ')}`}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(p)}><Edit className="h-4 w-4"/></Button>
+                                                {p.isDeletable && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => handleDelete(p)}><Trash2 className="h-4 w-4"/></Button>}
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
+                    <div>
+                        <h4 className="font-semibold mb-2 text-slate-700">{editingPlan ? 'Edit Plan' : 'Add New Plan'}</h4>
+                        <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg bg-slate-50">
+                            <div>
+                                <Label htmlFor="plan-name">Plan Name</Label>
+                                <Input id="plan-name" value={planName} onChange={e => setPlanName(e.target.value)} required/>
+                            </div>
+                            <div>
+                                <Label>Plan Type</Label>
+                                <Select value={planType} onValueChange={(v: 'TIERED' | 'FIXED') => setPlanType(v)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="TIERED">Tiered Rate</SelectItem>
+                                        <SelectItem value="FIXED">Fixed Rate</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {planType === 'FIXED' ? (
+                                <div>
+                                    <Label htmlFor="fixed-rate">Rate per Hour</Label>
+                                    <Input id="fixed-rate" type="number" placeholder="250" value={fixedRate} onChange={e => setFixedRate(e.target.value)}/>
+                                </div>
+                            ) : (
+                                <div className="space-y-2 border p-3 rounded-md">
+                                    <p className="text-sm font-medium">Tiers</p>
+                                     <div>
+                                        <Label htmlFor="tier1-hours">Tier 1: Up to (hours)</Label>
+                                        <Input id="tier1-hours" type="number" placeholder="70" value={tier1Hours} onChange={e => setTier1Hours(e.target.value)}/>
+                                    </div>
+                                     <div>
+                                        <Label htmlFor="tier1-rate">Tier 1: Rate per Hour</Label>
+                                        <Input id="tier1-rate" type="number" placeholder="180" value={tier1Rate} onChange={e => setTier1Rate(e.target.value)}/>
+                                    </div>
+                                     <div>
+                                        <Label htmlFor="tier2-rate">Tier 2: Rate (Above Tier 1)</Label>
+                                        <Input id="tier2-rate" type="number" placeholder="200" value={tier2Rate} onChange={e => setTier2Rate(e.target.value)}/>
+                                    </div>
+                                </div>
+                            )}
+                             <div className="flex justify-end gap-2 pt-4">
+                                {editingPlan && <Button type="button" variant="ghost" onClick={resetForm}>Cancel Edit</Button>}
+                                <Button type="submit" disabled={isPending}>
+                                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                    {editingPlan ? 'Save Changes' : 'Create Plan'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                 <DialogFooter className="mt-4">
+                    <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+    

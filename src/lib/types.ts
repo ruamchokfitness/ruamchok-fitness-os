@@ -1,5 +1,6 @@
 
 
+
 export type Employee = {
   id: string;
   name: string;
@@ -119,7 +120,7 @@ export interface PTTrainer {
   name: string;
   email?: string;
   phone?: string;
-  commission_plan: 'PLAN_A' | 'PLAN_B' | 'PLAN_C';
+  commission_plan: string;
   status: 'active' | 'inactive';
 }
 
@@ -158,10 +159,23 @@ export interface PTCommission {
   commission_amount: number;
   cumulative_hours_before: number;
   cumulative_hours_after: number;
-  commission_plan: 'PLAN_A' | 'PLAN_B' | 'PLAN_C';
-  commission_type: 'PLAN_A' | 'PLAN_B' | 'BOXING' | 'PLAN_C';
+  commission_plan: string;
+  commission_type: string;
   month_reference: string; // YYYY-MM
 }
+
+export interface PTCommissionTier {
+  maxHours: number;
+  rate: number;
+}
+
+export interface PTCommissionPlan {
+  id: string;
+  name: string;
+  tiers: PTCommissionTier[];
+  isDeletable?: boolean; // Default plans are not deletable
+}
+
 
 // RCF Group Class Attendance Tracker
 export interface GroupClass {
@@ -191,3 +205,5 @@ export interface GroupClassAttendance {
   attendance: number;
   created_at: any; // Firestore Timestamp
 }
+
+    
