@@ -64,7 +64,6 @@ const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocale
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
 async function recalculateCommissions(db: Firestore, trainerId: string, newPlan: PTTrainer['commission_plan']) {
-    const { toast } = useToast();
     const monthRef = getMonthReference();
 
     // 1. Get all completed sessions for the trainer for the current month
@@ -1627,8 +1626,8 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
                                 {filteredClientsForSearch.map((client) => (
                                     <Button
                                         key={client.id}
-                                        variant="ghost"
                                         type="button"
+                                        variant="ghost"
                                         className="w-full justify-start text-left h-auto"
                                         onClick={() => onClientSelect(client.id)}
                                     >
@@ -1914,3 +1913,4 @@ function DeleteButton({ type, id, name, db }: { type: string, id: string, name: 
 }
 
     
+
