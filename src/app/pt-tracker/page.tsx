@@ -680,8 +680,17 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
 
     const lastCompletedClientId = useMemo(() => {
-        const lastCompletedSession = sessions.find(s => s.session_status === 'completed');
-        return lastCompletedSession?.client_id || null;
+        const completedSessions = sessions.filter(s => s.session_status === 'completed' && s.completion_timestamp);
+        if (completedSessions.length === 0) return null;
+    
+        // Sort by completion timestamp descending to find the most recent one
+        completedSessions.sort((a, b) => {
+            const dateA = a.completion_timestamp ? new Date(a.completion_timestamp).getTime() : 0;
+            const dateB = b.completion_timestamp ? new Date(b.completion_timestamp).getTime() : 0;
+            return dateB - dateA;
+        });
+    
+        return completedSessions[0]?.client_id || null;
     }, [sessions]);
 
     const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName') => {
