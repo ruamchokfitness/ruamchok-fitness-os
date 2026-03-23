@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition, useRef } from 'react';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, getDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
 
@@ -454,6 +454,7 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
     const [packageModalOpen, setPackageModalOpen] = useState(false);
     const [selectedClient, setSelectedClient] = useState<PTClient | null>(null);
     const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
+    const { toast } = useToast();
 
     const filteredClients = useMemo(() => 
         clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.member_id?.toLowerCase().includes(search.toLowerCase()))
@@ -480,6 +481,16 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
         setSelectedClient(client || null);
         setSelectedPackage(pkg);
         setPackageModalOpen(true);
+    };
+
+    const handleDeletePackage = async (packageId: string) => {
+        try {
+            await deleteDoc(doc(db, "pt_packages", packageId));
+            toast({ title: "Package Deleted" });
+        } catch (error) {
+            console.error("Error deleting package: ", error);
+            toast({ title: "Error", description: "Could not delete package.", variant: "destructive" });
+        }
     };
 
     return (
@@ -543,7 +554,7 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                                                         <TableCell><Badge variant="outline" className={`badge-${pkg.status}`}>{pkg.status}</Badge></TableCell>
                                                         <TableCell className="text-right">
                                                             <Button variant="ghost" size="sm" onClick={() => handleEditPackage(pkg)}>Edit</Button>
-                                                            <DeleteButton type="package" id={pkg.id} name={pkg.package_name} db={db} />
+                                                            <DeleteButton type="package" name={pkg.package_name} onConfirmDelete={() => handleDeletePackage(pkg.id)} />
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
@@ -573,6 +584,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
     const [plansModalOpen, setPlansModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
+    const { toast } = useToast();
 
     const handleEdit = (trainer: PTTrainer) => {
         setSelectedTrainer(trainer);
@@ -582,6 +594,16 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
         setSelectedTrainer(null);
         setTrainerModalOpen(true);
     }
+
+    const handleDeleteTrainer = async (trainerId: string) => {
+        try {
+            await deleteDoc(doc(db, "pt_trainers", trainerId));
+            toast({ title: "Trainer Deleted" });
+        } catch (error) {
+            console.error("Error deleting trainer: ", error);
+            toast({ title: "Error", description: "Could not delete trainer.", variant: "destructive" });
+        }
+    };
     
     return (
         <div className="space-y-6">
@@ -635,7 +657,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
                                     <TableCell><Badge variant="outline" className={`badge-${trainer.status}`}>{trainer.status}</Badge></TableCell>
                                      <TableCell className="text-right">
                                         <button onClick={() => handleEdit(trainer)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
-                                        <DeleteButton type="trainer" id={trainer.id} name={trainer.name} db={db} />
+                                        <DeleteButton type="trainer" name={trainer.name} onConfirmDelete={() => handleDeleteTrainer(trainer.id)} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -652,6 +674,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
 function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
     const [trainerFilter, setTrainerFilter] = useState('all');
+    const { toast } = useToast();
 
     const filteredSessions = useMemo(() => {
         return sessions.filter(s => trainerFilter === 'all' || s.trainer_id === trainerFilter);
@@ -668,6 +691,46 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     async function handleCancelSession(sessionId: string) {
         await updateDoc(doc(db, "pt_sessions", sessionId), { session_status: 'cancelled' });
     }
+
+    const handleDeleteSession = async (sessionToDelete: PTSession) => {
+        try {
+            const batch = writeBatch(db);
+            const sessionRef = doc(db, "pt_sessions", sessionToDelete.id);
+
+            // 1. Find and update the package
+            const pkg = packages.find(p => p.id === sessionToDelete.purchase_id);
+            if (pkg) {
+                const packageRef = doc(db, "pt_packages", pkg.id);
+                const newHoursUsed = (pkg.hours_used || 0) - sessionToDelete.duration_hours;
+                const newHoursRemaining = (pkg.hours_remaining || 0) + sessionToDelete.duration_hours;
+                
+                batch.update(packageRef, {
+                    hours_used: Math.max(0, newHoursUsed),
+                    hours_remaining: newHoursRemaining,
+                    status: 'active' // Always revert to active
+                });
+            } else {
+                 toast({ title: "Warning", description: "Could not find associated package to restore hours.", variant: "destructive" });
+            }
+
+            // 2. Delete the session
+            batch.delete(sessionRef);
+            
+            // Commit batch before recalculating
+            await batch.commit();
+
+            // 3. Recalculate commissions for the trainer for that month
+            const trainer = trainers.find(t => t.id === sessionToDelete.trainer_id);
+            if (trainer) {
+                await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans);
+            }
+
+            toast({ title: "Session Deleted", description: "Session hours restored and commissions recalculated." });
+        } catch (err) {
+            console.error(err);
+            toast({ title: "Error", description: "Could not delete session.", variant: "destructive" });
+        }
+    };
 
     return (
          <div className="space-y-6">
@@ -713,7 +776,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                                                 <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
                                             </>
                                         )}
-                                        <DeleteButton type="session" id={session.id} name={`Session for ${client?.name}`} db={db} />
+                                        <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
                                     </TableCell>
                                 </TableRow>
                             )
@@ -1496,13 +1559,13 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-             <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
+            <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest('[data-radix-collection-item]') || target.closest('[role="dialog"]')) {
                     e.preventDefault();
                 }
             }}>
-                 <DialogHeader>
+                <DialogHeader>
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
                  <form onSubmit={handleSubmit} className="space-y-4">
@@ -1854,29 +1917,14 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
     );
 }
 
-function DeleteButton({ type, id, name, db }: { type: string, id: string, name: string, db: Firestore }) {
-    const { toast } = useToast();
+function DeleteButton({ type, name, onConfirmDelete }: { type: string, name: string, onConfirmDelete: () => void }) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     
-    const handleDelete = () => {
+    const handleConfirm = () => {
         startTransition(async () => {
-            try {
-                // When deleting a session, must also delete associated commission.
-                if (type === 'session') {
-                    const q = query(collection(db, "pt_commissions"), where("session_id", "==", id));
-                    const commissionSnapshot = await getDocs(q);
-                    if(!commissionSnapshot.empty){
-                         await deleteDoc(doc(db, "pt_commissions", commissionSnapshot.docs[0].id));
-                    }
-                }
-                
-                await deleteDoc(doc(db, `pt_${type}s`, id));
-                toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} Deleted` });
-                setOpen(false);
-            } catch {
-                toast({ title: "Error", description: `Could not delete ${type}.`, variant: "destructive" });
-            }
+            await onConfirmDelete();
+            setOpen(false);
         });
     }
 
@@ -1891,7 +1939,7 @@ function DeleteButton({ type, id, name, db }: { type: string, id: string, name: 
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700" disabled={isPending}>
+                        <AlertDialogAction onClick={handleConfirm} className="bg-red-600 hover:bg-red-700" disabled={isPending}>
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                             Delete
                         </AlertDialogAction>
@@ -1901,7 +1949,6 @@ function DeleteButton({ type, id, name, db }: { type: string, id: string, name: 
         </>
     )
 }
-
     
 
 
@@ -2108,5 +2155,3 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
         </Dialog>
     )
 }
-
-    
