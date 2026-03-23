@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Firestore } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 
 // Helper Functions
@@ -675,10 +676,44 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const [modalOpen, setModalOpen] = useState(false);
     const [trainerFilter, setTrainerFilter] = useState('all');
     const { toast } = useToast();
+    const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
 
-    const filteredSessions = useMemo(() => {
-        return sessions.filter(s => trainerFilter === 'all' || s.trainer_id === trainerFilter);
-    }, [sessions, trainerFilter]);
+    const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName') => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedSessions = useMemo(() => {
+        let sortableItems = [...sessions.filter(s => trainerFilter === 'all' || s.trainer_id === trainerFilter)];
+        
+        sortableItems.sort((a, b) => {
+            let aValue: any, bValue: any;
+
+            if (sortConfig.key === 'clientName') {
+                aValue = clients.find(c => c.id === a.client_id)?.name || '';
+                bValue = clients.find(c => c.id === b.client_id)?.name || '';
+            } else if (sortConfig.key === 'trainerName') {
+                aValue = trainers.find(t => t.id === a.trainer_id)?.name || '';
+                bValue = trainers.find(t => t.id === b.trainer_id)?.name || '';
+            } else {
+                 aValue = a[sortConfig.key as keyof PTSession];
+                 bValue = b[sortConfig.key as keyof PTSession];
+            }
+            
+            if (aValue < bValue) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+
+        return sortableItems;
+    }, [sessions, trainerFilter, sortConfig, clients, trainers]);
 
     async function handleCompleteSession(sessionId: string) {
         const session = sessions.find(s => s.id === sessionId);
@@ -750,16 +785,16 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Date/Time</TableHead>
-                            <TableHead>Client</TableHead>
-                            <TableHead>Trainer</TableHead>
-                            <TableHead>Duration</TableHead>
-                            <TableHead>Status</TableHead>
+                            <SortableHeader columnKey="session_datetime" sortConfig={sortConfig} requestSort={requestSort}>Date/Time</SortableHeader>
+                            <SortableHeader columnKey="clientName" sortConfig={sortConfig} requestSort={requestSort}>Client</SortableHeader>
+                            <SortableHeader columnKey="trainerName" sortConfig={sortConfig} requestSort={requestSort}>Trainer</SortableHeader>
+                            <SortableHeader columnKey="duration_hours" sortConfig={sortConfig} requestSort={requestSort}>Duration</SortableHeader>
+                            <SortableHeader columnKey="session_status" sortConfig={sortConfig} requestSort={requestSort}>Status</SortableHeader>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                         {filteredSessions.length === 0 ? <TablePlaceholder /> : filteredSessions.map(session => {
+                         {sortedSessions.length === 0 ? <TablePlaceholder /> : sortedSessions.map(session => {
                             const client = clients.find(c => c.id === session.client_id);
                             const trainer = trainers.find(t => t.id === session.trainer_id);
                             return (
@@ -793,15 +828,49 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof PTCommission | 'sessionDate' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'sessionDate', direction: 'descending' });
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
-    const filteredCommissions = useMemo(() => {
-        return commissions.filter(c => 
+    const requestSort = (key: keyof PTCommission | 'sessionDate' | 'trainerName') => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedCommissions = useMemo(() => {
+        let sortableItems = commissions.filter(c => 
             (trainerFilter === 'all' || c.trainer_id === trainerFilter) && 
             (monthFilter === 'all' || c.month_reference === monthFilter)
         );
-    }, [commissions, trainerFilter, monthFilter]);
+
+        sortableItems.sort((a, b) => {
+            let aValue: any, bValue: any;
+
+            if (sortConfig.key === 'sessionDate') {
+                aValue = sessions.find(s => s.id === a.session_id)?.session_datetime || '';
+                bValue = sessions.find(s => s.id === b.session_id)?.session_datetime || '';
+            } else if (sortConfig.key === 'trainerName') {
+                aValue = trainers.find(t => t.id === a.trainer_id)?.name || '';
+                bValue = trainers.find(t => t.id === b.trainer_id)?.name || '';
+            } else {
+                aValue = a[sortConfig.key as keyof PTCommission];
+                bValue = b[sortConfig.key as keyof PTCommission];
+            }
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+
+        return sortableItems;
+    }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers]);
     
     const filteredTrainersForCards = useMemo(() => {
         const activeTrainers = trainers.filter(t => t.status === 'active');
@@ -876,17 +945,17 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 <Table>
                     <TableHeader>
                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Trainer</TableHead>
-                            <TableHead>Plan</TableHead>
-                            <TableHead>Hours</TableHead>
-                            <TableHead>Rate</TableHead>
-                            <TableHead>Cumulative</TableHead>
-                            <TableHead className="text-right">Commission</TableHead>
+                            <SortableHeader columnKey="sessionDate" sortConfig={sortConfig} requestSort={requestSort}>Date</SortableHeader>
+                            <SortableHeader columnKey="trainerName" sortConfig={sortConfig} requestSort={requestSort}>Trainer</SortableHeader>
+                            <SortableHeader columnKey="commission_type" sortConfig={sortConfig} requestSort={requestSort}>Plan</SortableHeader>
+                            <SortableHeader columnKey="duration_hours" sortConfig={sortConfig} requestSort={requestSort}>Hours</SortableHeader>
+                            <SortableHeader columnKey="hourly_rate_applied" sortConfig={sortConfig} requestSort={requestSort}>Rate</SortableHeader>
+                            <SortableHeader columnKey="cumulative_hours_after" sortConfig={sortConfig} requestSort={requestSort}>Cumulative</SortableHeader>
+                            <SortableHeader columnKey="commission_amount" sortConfig={sortConfig} requestSort={requestSort} className="text-right">Commission</SortableHeader>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredCommissions.length === 0 ? <TablePlaceholder/> : filteredCommissions.map(comm => {
+                        {sortedCommissions.length === 0 ? <TablePlaceholder/> : sortedCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
                             return (
@@ -916,6 +985,22 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         </div>
     )
 }
+
+function SortableHeader({ children, columnKey, sortConfig, requestSort, className }: { children: React.ReactNode, columnKey: string, sortConfig: {key: string, direction: string}, requestSort: (key: string) => void, className?: string }) {
+    const isSortedAsc = sortConfig.key === columnKey && sortConfig.direction === 'ascending';
+    const isSortedDesc = sortConfig.key === columnKey && sortConfig.direction === 'descending';
+
+    return (
+        <TableHead onClick={() => requestSort(columnKey)} className={cn("cursor-pointer select-none", className)}>
+            <div className="flex items-center gap-2">
+                {children}
+                {isSortedAsc && <ArrowUp className="h-4 w-4" />}
+                {isSortedDesc && <ArrowDown className="h-4 w-4" />}
+                {!isSortedAsc && !isSortedDesc && <ArrowUpDown className="h-4 w-4 opacity-30" />}
+            </div>
+        </TableHead>
+    );
+};
 
 function ClientAndPackageModal({ open, onOpenChange, db }: { open: boolean, onOpenChange: (open: boolean) => void, db: Firestore }) {
     const { toast } = useToast();
