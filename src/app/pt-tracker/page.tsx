@@ -33,34 +33,26 @@ const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDate
 const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[]) {
-    const monthRef = getMonthReference();
+async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[], monthRef: string) {
+    const [year, month] = monthRef.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0, 23, 59, 59);
 
-    // 1. Get all completed sessions for the trainer for the current month
     const sessionsQuery = query(
         collection(db, "pt_sessions"),
         where("trainer_id", "==", trainerId),
-        where("session_status", "==", "completed")
+        where("session_status", "==", "completed"),
+        where("session_datetime", ">=", firstDay.toISOString()),
+        where("session_datetime", "<=", lastDay.toISOString())
     );
     const sessionsSnapshot = await getDocs(sessionsQuery);
-    const allCompletedSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
-
-    const currentMonthDate = new Date();
-    const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
-    const lastDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59);
-
-    const sessionsThisMonth = allCompletedSessions
-        .filter(s => {
-            const sessionDate = new Date(s.session_datetime);
-            return sessionDate >= firstDay && sessionDate <= lastDay;
-        })
+    const sessionsThisMonth = sessionsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as PTSession))
         .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
 
-    // 2. Get all packages to find package names
     const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
     const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
     
-    // 3. Get and delete all existing commissions for this trainer and month
     const commissionsQuery = query(
         collection(db, "pt_commissions"),
         where("trainer_id", "==", trainerId),
@@ -73,7 +65,6 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
         batch.delete(doc.ref);
     });
 
-    // 4. Recalculate and create new commission docs
     let cumulativeHoursInMonth = 0;
     const plan = allPlans.find(p => p.id === newPlanId);
     if (!plan) {
@@ -149,7 +140,6 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
         cumulativeHoursInMonth += duration;
     }
 
-    // 5. Commit batch
     await batch.commit();
 }
 
@@ -675,6 +665,8 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
 
 function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
     const [modalOpen, setModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
     const [trainerFilter, setTrainerFilter] = useState('all');
     const { toast } = useToast();
     const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
@@ -683,7 +675,6 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
         const completedSessions = sessions.filter(s => s.session_status === 'completed' && s.completion_timestamp);
         if (completedSessions.length === 0) return null;
     
-        // Sort by completion timestamp descending to find the most recent one
         completedSessions.sort((a, b) => {
             const dateA = a.completion_timestamp ? new Date(a.completion_timestamp).getTime() : 0;
             const dateB = b.completion_timestamp ? new Date(b.completion_timestamp).getTime() : 0;
@@ -733,45 +724,45 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     async function handleCompleteSession(sessionId: string) {
         const session = sessions.find(s => s.id === sessionId);
         if (!session || session.session_status !== 'scheduled') return;
-        // Logic to complete session and create commission
-        // This is complex and involves updating multiple collections.
-        // For now, just update the status.
         await updateDoc(doc(db, "pt_sessions", sessionId), { session_status: 'completed' });
     }
     async function handleCancelSession(sessionId: string) {
         await updateDoc(doc(db, "pt_sessions", sessionId), { session_status: 'cancelled' });
     }
 
+    const handleEditSession = (session: PTSession) => {
+        setSessionToEdit(session);
+        setEditModalOpen(true);
+    };
+
     const handleDeleteSession = async (sessionToDelete: PTSession) => {
         try {
             const batch = writeBatch(db);
             const sessionRef = doc(db, "pt_sessions", sessionToDelete.id);
 
-            // 1. Find and update the package
             const pkg = packages.find(p => p.id === sessionToDelete.purchase_id);
             if (pkg) {
                 const packageRef = doc(db, "pt_packages", pkg.id);
                 const newHoursUsed = (pkg.hours_used || 0) - sessionToDelete.duration_hours;
+                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
                 
                 batch.update(packageRef, {
                     hours_used: Math.max(0, newHoursUsed),
-                    hours_remaining: pkg.hours_purchased - newHoursUsed,
-                    status: 'active' // Always revert to active
+                    hours_remaining: newHoursRemaining,
+                    status: 'active'
                 });
             } else {
                  toast({ title: "Warning", description: "Could not find associated package to restore hours.", variant: "destructive" });
             }
 
-            // 2. Delete the session
             batch.delete(sessionRef);
             
-            // Commit batch before recalculating
             await batch.commit();
 
-            // 3. Recalculate commissions for the trainer for that month
             const trainer = trainers.find(t => t.id === sessionToDelete.trainer_id);
             if (trainer) {
-                await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans);
+                const sessionMonthRef = getMonthReference(new Date(sessionToDelete.session_datetime));
+                await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans, sessionMonthRef);
             }
 
             toast({ title: "Session Deleted", description: "Session hours restored and commissions recalculated." });
@@ -819,13 +810,18 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                                     <TableCell>{session.duration_hours} hr</TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge></TableCell>
                                     <TableCell className="text-right">
-                                        {session.session_status === 'scheduled' && (
-                                            <>
-                                                <button onClick={() => handleCompleteSession(session.id)} className="text-green-600 hover:text-green-800 mr-2" title="Mark Complete">✓</button>
-                                                <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
-                                            </>
-                                        )}
-                                        <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
+                                        <div className="flex justify-end items-center">
+                                            {session.session_status === 'scheduled' && (
+                                                <>
+                                                    <button onClick={() => handleCompleteSession(session.id)} className="text-green-600 hover:text-green-800 mr-2" title="Mark Complete">✓</button>
+                                                    <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
+                                                </>
+                                            )}
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditSession(session)}>
+                                                <Edit className="h-4 w-4"/>
+                                            </Button>
+                                            <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             )
@@ -843,6 +839,15 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 db={db}
                 initialClientId={lastCompletedClientId}
             />
+            <SessionEditModal
+                open={editModalOpen}
+                onOpenChange={setEditModalOpen}
+                session={sessionToEdit}
+                trainers={trainers}
+                packages={packages}
+                commissionPlans={commissionPlans}
+                db={db}
+            />
         </div>
     )
 }
@@ -855,6 +860,14 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
+    useEffect(() => {
+        if (!months.includes(monthFilter) && months.length > 0) {
+            setMonthFilter(months[0]);
+        } else if (months.length === 0) {
+            setMonthFilter(getMonthReference());
+        }
+    }, [months, monthFilter]);
+
     const requestSort = (key: keyof PTCommission | 'sessionDate' | 'trainerName') => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -866,7 +879,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     const sortedCommissions = useMemo(() => {
         let sortableItems = commissions.filter(c => 
             (trainerFilter === 'all' || c.trainer_id === trainerFilter) && 
-            (monthFilter === 'all' || c.month_reference === monthFilter)
+            (c.month_reference === monthFilter)
         );
 
         sortableItems.sort((a, b) => {
@@ -922,7 +935,6 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                             <SelectValue placeholder="All Months" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Months</SelectItem>
                             {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                         </SelectContent>
                     </Select>
@@ -934,7 +946,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredTrainersForCards.map(trainer => {
-                    const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (monthFilter === 'all' ? true : c.month_reference === monthFilter));
+                    const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (c.month_reference === monthFilter));
                     const totalHours = monthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                     const totalEarnings = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
                     const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
@@ -952,7 +964,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                             </div>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Hours ({monthFilter === 'all' ? 'All Time' : monthFilter})</span>
+                                    <span className="text-slate-500">Hours ({monthFilter})</span>
                                     <span className="font-semibold text-slate-800">{totalHours}h</span>
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
@@ -1283,7 +1295,8 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { op
                     if (planChanged) {
                         toast({ title: "Commission plan changed", description: "Recalculating current month's commissions..." });
                         try {
-                            await recalculateCommissions(db, trainer.id, data.commission_plan, commissionPlans);
+                            const currentMonthRef = getMonthReference();
+                            await recalculateCommissions(db, trainer.id, data.commission_plan, commissionPlans, currentMonthRef);
                             toast({ title: "Commissions Recalculated", description: `Commissions for the current month have been updated based on the new plan.` });
                         } catch (recalcError) {
                              console.error("Error recalculating commissions:", recalcError);
@@ -1757,6 +1770,139 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                     clients={activeClients}
                     onClientSelect={handleClientSelect}
                  />
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function SessionEditModal({ open, onOpenChange, session: sessionToEdit, trainers, packages, db, commissionPlans }: { open: boolean, onOpenChange: (open: boolean) => void, session: PTSession | null, trainers: PTTrainer[], packages: PTPackage[], db: Firestore, commissionPlans: PTCommissionPlan[] }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const [sessionDateTime, setSessionDateTime] = useState('');
+    const [trainerId, setTrainerId] = useState('');
+    const [duration, setDuration] = useState('1');
+
+    useEffect(() => {
+        if (sessionToEdit) {
+            setSessionDateTime(new Date(new Date(sessionToEdit.session_datetime).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+            setTrainerId(sessionToEdit.trainer_id);
+            setDuration(String(sessionToEdit.duration_hours));
+        }
+    }, [sessionToEdit]);
+
+    if (!sessionToEdit) return null;
+
+    const pkg = packages.find(p => p.id === sessionToEdit.purchase_id);
+    const client = useMemo(() => clients.find(c => c.id === sessionToEdit.client_id), [clients, sessionToEdit]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pkg) { 
+            toast({ title: "Package not found", variant: "destructive" });
+            return;
+        }
+
+        const newDuration = parseFloat(duration);
+        const hourDiff = newDuration - sessionToEdit.duration_hours;
+        const currentRemaining = pkg.hours_remaining || 0;
+
+        if (hourDiff > currentRemaining) {
+            toast({ title: "Insufficient hours in package", description: `Not enough hours to increase duration. Available: ${currentRemaining}h`, variant: 'destructive' });
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const batch = writeBatch(db);
+
+                const pkgRef = doc(db, "pt_packages", pkg.id);
+                const newHoursUsed = (pkg.hours_used || 0) + hourDiff;
+                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
+                batch.update(pkgRef, {
+                    hours_used: newHoursUsed,
+                    hours_remaining: newHoursRemaining,
+                    status: newHoursRemaining <= 0 ? 'completed' : 'active'
+                });
+
+                const sessionRef = doc(db, "pt_sessions", sessionToEdit.id);
+                batch.update(sessionRef, {
+                    session_datetime: new Date(sessionDateTime).toISOString(),
+                    trainer_id: trainerId,
+                    duration_hours: newDuration
+                });
+
+                await batch.commit();
+
+                const originalMonthRef = getMonthReference(new Date(sessionToEdit.session_datetime));
+                const newMonthRef = getMonthReference(new Date(sessionDateTime));
+                const trainersToUpdate = new Set<string>([sessionToEdit.trainer_id, trainerId]);
+
+                for (const tId of trainersToUpdate) {
+                    const trainer = trainers.find(t => t.id === tId);
+                    if (trainer) {
+                        await recalculateCommissions(db, tId, trainer.commission_plan, commissionPlans, originalMonthRef);
+                        if (originalMonthRef !== newMonthRef) {
+                            await recalculateCommissions(db, tId, trainer.commission_plan, commissionPlans, newMonthRef);
+                        }
+                    }
+                }
+                
+                toast({ title: "Session Updated Successfully" });
+                onOpenChange(false);
+            } catch (error) {
+                console.error("Error updating session: ", error);
+                toast({ title: "Error updating session", variant: "destructive" });
+            }
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Session</DialogTitle>
+                    <DialogDescription>For client: {client?.name}</DialogDescription>
+                </DialogHeader>
+                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <Label>Package</Label>
+                        <Input readOnly value={`${pkg?.package_name} (${pkg?.hours_remaining}h left)`} className="bg-slate-100" />
+                    </div>
+                     <div>
+                        <Label htmlFor="edit-session-trainer">Trainer *</Label>
+                        <Select name="trainer_id" value={trainerId} onValueChange={setTrainerId} required>
+                            <SelectTrigger id="edit-session-trainer"><SelectValue placeholder="Select Trainer"/></SelectTrigger>
+                            <SelectContent>
+                                {trainers.filter(t => t.status === 'active').map(t=> <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                           <Label htmlFor="edit-session-datetime">Date & Time *</Label>
+                           <Input id="edit-session-datetime" name="session_datetime" type="datetime-local" value={sessionDateTime} onChange={e => setSessionDateTime(e.target.value)} required/>
+                        </div>
+                        <div>
+                           <Label htmlFor="edit-session-duration">Duration (hours) *</Label>
+                            <Select name="duration_hours" value={duration} onValueChange={setDuration} required>
+                               <SelectTrigger id="edit-session-duration"><SelectValue/></SelectTrigger>
+                               <SelectContent>
+                                   <SelectItem value="1">1 hour</SelectItem>
+                                   <SelectItem value="1.5">1.5 hours</SelectItem>
+                                   <SelectItem value="2">2 hours</SelectItem>
+                               </SelectContent>
+                           </Select>
+                        </div>
+                    </div>
+                     <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending} className="btn-primary">
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Update Session
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     )
