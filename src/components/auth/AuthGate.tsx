@@ -21,7 +21,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // While user status is loading, show a global spinner
   if (isUserLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
@@ -31,7 +31,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // show a spinner while the redirect is in flight.
   if (!user && pathname !== '/login') {
     return (
-        <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
     );

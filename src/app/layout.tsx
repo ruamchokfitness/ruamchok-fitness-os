@@ -24,7 +24,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased bg-gray-50 text-gray-900">
+      <body className="font-body antialiased bg-background text-foreground">
         <FirebaseClientProvider>
           <AuthGate>
             {children}
