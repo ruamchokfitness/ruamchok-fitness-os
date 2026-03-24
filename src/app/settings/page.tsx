@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useTransition } from 'react';
@@ -50,10 +51,16 @@ function UserManagementPage() {
     if (!firestore || !auth) return;
 
     const formData = new FormData(e.currentTarget);
-    const username = formData.get('username') as string;
+    const username = (formData.get('username') as string || '').trim();
     const name = formData.get('name') as string;
     const role = formData.get('role') as 'admin' | 'staff';
     const password = formData.get('password') as string;
+    
+    if (!editUser && !username) {
+        toast({ title: "Error", description: "Username cannot be empty.", variant: "destructive" });
+        return;
+    }
+
     const email = `${username}@rcf.system`;
     
     startTransition(async () => {
@@ -229,3 +236,5 @@ function UserManagementPage() {
 }
 
 export default UserManagementPage;
+
+    
