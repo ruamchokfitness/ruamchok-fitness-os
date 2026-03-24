@@ -105,12 +105,22 @@ function SessionWorkout({ session, trainerName }: { session: PTSession, trainerN
 export function PersonalTable({ clientId, trainers }: PersonalTableProps) {
   const { firestore } = useFirebase();
 
+  // Remove orderBy from the query to avoid needing a composite index
   const sessionsQuery = useMemoFirebase(() => firestore ? query(
     collection(firestore, 'pt_sessions'),
-    where('client_id', '==', clientId),
-    orderBy('session_datetime', 'desc')
+    where('client_id', '==', clientId)
   ) : null, [firestore, clientId]);
-  const { data: sessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+  const { data: unsortedSessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+
+  // Sort the sessions on the client-side
+  const sessions = useMemo(() => {
+    if (!unsortedSessions) return null;
+    return [...unsortedSessions].sort((a, b) => {
+      const dateA = a.session_datetime ? new Date(a.session_datetime).getTime() : 0;
+      const dateB = b.session_datetime ? new Date(b.session_datetime).getTime() : 0;
+      return dateB - dateA; // Sort descending
+    });
+  }, [unsortedSessions]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>;
