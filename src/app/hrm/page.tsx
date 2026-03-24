@@ -1,15 +1,14 @@
 'use client';
-import { UserPlus, Users } from "lucide-react";
+import { UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive } from "lucide-react";
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { EmployeeGrid } from "@/components/employees/employee-grid";
 import { PolicyFooter } from "@/components/policies/policy-footer";
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
-import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, writeBatch, doc, getDocs, limit } from 'firebase/firestore';
-import type { Employee, Quota, Policy, VacationTier, PublicHoliday } from "@/lib/types";
+import type { Employee, Quota, Policy, VacationTier, PublicHoliday, User } from "@/lib/types";
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 
 
 function HrmHeader() {
@@ -21,7 +20,7 @@ function HrmHeader() {
     return (
         <header className="bg-slate-900 text-white py-4 md:py-6">
             <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Users className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -114,6 +113,47 @@ function HrmPageContent() {
 
     return (
         <>
+            <div className="mb-8 p-4 bg-card rounded-lg shadow-sm border">
+                <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     <Link href="https://www.jotform.com/sign/250938573129061/invite/01js96gv8r393cf244acf323f8" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <FileText className="mr-3 text-blue-500" />
+                            <div>
+                                <p className="font-semibold">ใบลา</p>
+                                <p className="text-xs text-muted-foreground">Leave Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                     <Link href="https://www.jotform.com/sign/251001899741054/invite/01jsxk2pwn8d091da3f941ed76" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <Clock className="mr-3 text-orange-500" />
+                            <div>
+                                <p className="font-semibold">ใบทำงานล่วงเวลา</p>
+                                <p className="text-xs text-muted-foreground">Overtime Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                    <Link href="https://www.jotform.com/sign/250951687461061/invite/01jwqs11ag5a2110789807e5f1" target="_blank" rel="noopener noreferrer">
+                         <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <CalendarClock className="mr-3 text-green-500" />
+                            <div>
+                                <p className="font-semibold">ใบลงเวลาทำงาน</p>
+                                <p className="text-xs text-muted-foreground">Timesheet Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                    <Link href="https://www.jotform.com/sign/252451871554056/invite/01k47cqbwc34d76b08e21c77d6" target="_blank" rel="noopener noreferrer">
+                         <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <FileArchive className="mr-3 text-purple-500" />
+                             <div>
+                                <p className="font-semibold">ใบขอเอกสาร</p>
+                                <p className="text-xs text-muted-foreground">Document Request</p>
+                            </div>
+                        </Button>
+                    </Link>
+                </div>
+            </div>
             <div className="flex justify-end mb-8">
             <AddEmployeeDialog>
                 <Button className="transition-transform hover:scale-105">
@@ -132,11 +172,11 @@ function HrmPageContent() {
 
 export default function HrmPage() {
   return (
-    <FirebaseClientProvider>
+    <>
       <HrmHeader />
       <div className="container mx-auto px-4 py-8">
         <HrmPageContent />
       </div>
-    </FirebaseClientProvider>
+    </>
   );
 }
