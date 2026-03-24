@@ -380,6 +380,7 @@
             "thighs": { "type": "string" }, "calves": { "type": "string" }
           }
         },
+        "trainerNotes": { "type": "string" },
         "clientSignature": { "type": "string", "description": "Data URI of client's signature." }
       },
       "required": ["clientId", "date", "medicalProfile"]

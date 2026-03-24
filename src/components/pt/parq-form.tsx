@@ -151,6 +151,7 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                 fitnessGoals: existingParq?.fitnessGoals || [],
                 medicalProfile: existingParq?.medicalProfile || {},
                 medicalReleaseRequired: existingParq?.medicalReleaseRequired || false,
+                trainerNotes: existingParq?.trainerNotes || '',
             },
             assessments: {
                 'Start': existingAssessments.find(a => a.assessmentType === 'Start') || { assessmentType: 'Start' },
@@ -192,6 +193,11 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                             ))}
                         </div>
                         <Textarea placeholder="สภาพร่างกายหรือประวัติการรักษาพยาบาลอื่นโปรดระบุ/Any other medical condition, please specify:" className="mt-4" {...register('parq.otherMedicalCondition')}/>
+                        <div className="mt-4">
+                            <Controller name="parq.medicalReleaseRequired" control={control} render={({ field }) => (
+                                <YesNoQuestion label="ต้องแสดงใบรับรองแพทย์ก่อนเข้าโปรแกรมออกกำลังกาย (ครูผู้ฝึกเป็นผู้วินิจฉัย)/Medical release required before participation in exercise? (Trainer to complete)" value={field.value} onChange={field.onChange} />
+                            )}/>
+                        </div>
                     </div>
 
                     <Separator />
@@ -246,20 +252,16 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                     <Separator />
 
                     {/* Signature */}
-                     <div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
-                            <div>
-                                <Controller name="parq.medicalReleaseRequired" control={control} render={({ field }) => (
-                                     <YesNoQuestion label="ต้องแสดงใบรับรองแพทย์ก่อนเข้าโปรแกรมออกกำลังกาย (ครูผู้ฝึกเป็นผู้วินิจฉัย)" value={field.value} onChange={field.onChange} />
-                                )}/>
-                                <p className="text-xs text-muted-foreground mt-1">Medical release required before participation in exercise? (Trainer to complete)</p>
-                            </div>
-                            <div>
-                                <Controller name="parq.clientSignature" control={control} render={({ field }) => (
-                                    <SignaturePad label="ลงชื่อ/Signed" onSignatureChange={field.onChange} className="mt-4" />
-                                )}/>
-                                <p className="text-xs text-muted-foreground mt-1">ข้าพเจ้าขอรับรองว่าข้อมูลเป็นความจริงและถูกต้อง / I certify that the information I have provided is true and correct.</p>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                        <div>
+                            <Label htmlFor="trainer-notes">Note</Label>
+                            <Textarea id="trainer-notes" placeholder="เทรนเนอร์กรอกข้อมูลอื่นๆเพิ่มเติม..." {...register('parq.trainerNotes')} />
+                        </div>
+                        <div>
+                            <Controller name="parq.clientSignature" control={control} render={({ field }) => (
+                                <SignaturePad label="ลงชื่อ/Signed" onSignatureChange={field.onChange} className="mt-4" />
+                            )}/>
+                            <p className="text-xs text-muted-foreground mt-1">ข้าพเจ้าขอรับรองว่าข้อมูลเป็นความจริงและถูกต้อง / I certify that the information I have provided is true and correct.</p>
                         </div>
                     </div>
                     
@@ -322,3 +324,5 @@ const GoalForm = ({ register }: { register: any }) => (
         ))}
     </div>
 );
+
+    

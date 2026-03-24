@@ -202,6 +202,7 @@ export type PARQ = {
       thighs?: string,
       calves?: string,
     }
+    trainerNotes?: string;
     clientSignature?: string;
 };
 
@@ -259,4 +260,5 @@ export interface GroupClassAttendance {
   attendance: number;
   created_at: any; // Firestore Timestamp
 }
+
     
