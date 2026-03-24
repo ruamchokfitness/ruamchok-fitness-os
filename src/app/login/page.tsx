@@ -9,19 +9,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
+  signInWithEmailAndPassword,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 
 export default function LoginPage() {
   const { auth } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -40,14 +37,8 @@ export default function LoginPage() {
 
     startTransition(async () => {
       try {
-        if (isSignUp) {
-          await createUserWithEmailAndPassword(auth, email, password);
-          toast({ title: "Account Created", description: "You can now sign in." });
-          setIsSignUp(false); // Switch to sign-in view after successful sign-up
-        } else {
-          await signInWithEmailAndPassword(auth, email, password);
-          router.push('/'); // Redirect to home page on successful login
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        router.push('/'); // Redirect to home page on successful login
       } catch (err: any) {
         let errorMessage = "An unexpected error occurred.";
         switch (err.code) {
@@ -80,7 +71,7 @@ export default function LoginPage() {
       const fullEmail = `${email}@rcf.system`;
       sendPasswordResetEmail(auth, fullEmail)
         .then(() => {
-          toast({ title: "Password Reset Email Sent", description: `If a user with username "${email}" exists, a password reset link has been sent to their registered email.` });
+          toast({ title: "Password Reset Email Sent", description: `If a user with username "${email}" exists, a password reset link has been sent to their registered email address.` });
         })
         .catch((error) => {
           toast({ title: "Error", description: "Could not send password reset email.", variant: "destructive" });
@@ -95,7 +86,7 @@ export default function LoginPage() {
             <div className="w-20 h-20 mx-auto bg-slate-900 rounded-full flex items-center justify-center">
                  <span className="text-3xl font-bold text-white">RCF</span>
             </div>
-          <CardTitle className="text-2xl">{isSignUp ? "Create Account" : "Sign In"}</CardTitle>
+          <CardTitle className="text-2xl">Sign In</CardTitle>
           <CardDescription>Welcome to Ruamchok Fitness OS</CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,29 +116,13 @@ export default function LoginPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSignUp ? "Sign Up" : "Sign In"}
+              Sign In
             </Button>
           </form>
            <div className="mt-4 text-center text-sm">
-            {isSignUp ? (
-              <>
-                Already have an account?{" "}
-                <button onClick={() => setIsSignUp(false)} className="underline">
-                  Sign In
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button onClick={() => setIsSignUp(true)} className="underline">
-                  Sign Up
-                </button>
-                 <span className="mx-2">|</span>
-                <button onClick={handleForgotPassword} className="underline">
-                    Forgot Password?
-                </button>
-              </>
-            )}
+            <button onClick={handleForgotPassword} className="underline">
+                Forgot Password?
+            </button>
           </div>
         </CardContent>
       </Card>
@@ -157,3 +132,4 @@ export default function LoginPage() {
     </div>
   );
 }
+    

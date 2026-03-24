@@ -1,9 +1,9 @@
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo } from 'react';
+import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User } from 'firebase/auth'; // Keep User type for hooks that might need it later
+import { Auth, onAuthStateChanged, User } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 interface FirebaseProviderProps {
@@ -85,6 +85,32 @@ export interface UserHookResult {
 }
 
 export const useUser = (): UserHookResult => {
-  // Return a static "logged out" state since auth is disabled for development.
-  return { user: null, isUserLoading: false, userError: null };
+  const { auth } = useFirebase();
+  const [user, setUser] = useState<User | null>(null);
+  const [isUserLoading, setIsLoading] = useState(true);
+  const [userError, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!auth) {
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        setUser(user);
+        setIsLoading(false);
+      },
+      (error) => {
+        setError(error);
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [auth]);
+
+  return { user, isUserLoading, userError };
 };
+    
