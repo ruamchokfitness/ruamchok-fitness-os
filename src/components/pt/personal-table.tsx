@@ -107,16 +107,24 @@ export function PersonalTable({ clientId, trainers }: PersonalTableProps) {
   const sessionsQuery = useMemoFirebase(() => firestore ? query(
     collection(firestore, 'pt_sessions'),
     where('client_id', '==', clientId),
-    where('session_status', '==', 'completed'),
-    orderBy('session_datetime', 'desc')
+    where('session_status', '==', 'completed')
   ) : null, [firestore, clientId]);
   const { data: sessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+
+  const sortedSessions = useMemo(() => {
+    if (!sessions) return [];
+    return [...sessions].sort((a, b) => {
+        const dateA = a.session_datetime ? new Date(a.session_datetime).getTime() : 0;
+        const dateB = b.session_datetime ? new Date(b.session_datetime).getTime() : 0;
+        return dateB - dateA;
+    });
+  }, [sessions]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>;
   }
 
-  if (!sessions || sessions.length === 0) {
+  if (!sortedSessions || sortedSessions.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -137,7 +145,7 @@ export function PersonalTable({ clientId, trainers }: PersonalTableProps) {
       </CardHeader>
       <CardContent>
         <Accordion type="single" collapsible className="w-full">
-            {sessions.map(session => {
+            {sortedSessions.map(session => {
                 const trainerName = trainers.find(t => t.id === session.trainer_id)?.name || 'Unknown Trainer';
                 return (
                     <AccordionItem value={session.id} key={session.id}>
