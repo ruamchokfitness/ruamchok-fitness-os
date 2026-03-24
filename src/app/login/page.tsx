@@ -39,8 +39,15 @@ export default function LoginPage() {
       return;
     }
 
-    // Determine if it's an email or a username that needs conversion
-    const email = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@rcf.system`;
+    // Special mapping for the admin user, and flexible handling for others.
+    let email: string;
+    if (loginIdentifier.toLowerCase() === 'admin') {
+      email = 'ruamchokfitness@gmail.com';
+    } else if (!loginIdentifier.includes('@')) {
+      email = `${loginIdentifier}@rcf.system`;
+    } else {
+      email = loginIdentifier;
+    }
 
     startTransition(async () => {
       try {
@@ -48,6 +55,10 @@ export default function LoginPage() {
           await signInWithEmailAndPassword(auth, email, password);
           router.push('/');
         } else { // signup mode
+          if (loginIdentifier.toLowerCase() === 'admin') {
+            setError("The username 'admin' is reserved. Please choose another username or try signing in.");
+            return;
+          }
           if (!name.trim()) {
             setError("Full Name is required.");
             return;
@@ -97,7 +108,15 @@ export default function LoginPage() {
     const promptedInput = prompt("Please enter your username or email to reset the password:");
     if (promptedInput) {
       const loginIdentifier = promptedInput.trim();
-      const fullEmail = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@rcf.system`;
+      let fullEmail: string;
+
+      if (loginIdentifier.toLowerCase() === 'admin') {
+        fullEmail = 'ruamchokfitness@gmail.com';
+      } else if (loginIdentifier.includes('@')) {
+        fullEmail = loginIdentifier;
+      } else {
+        fullEmail = `${loginIdentifier}@rcf.system`;
+      }
       
       sendPasswordResetEmail(auth, fullEmail)
         .then(() => {
@@ -105,7 +124,7 @@ export default function LoginPage() {
         })
         .catch((error) => {
           console.error("Forgot password error:", error);
-          // Don't reveal if user exists or not
+          // Don't reveal if user exists or not for security reasons
           toast({ title: "Password Reset Email Sent", description: `If a user with identifier "${promptedInput}" exists, a password reset link has been sent.` });
         });
     }
