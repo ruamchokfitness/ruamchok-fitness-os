@@ -15,6 +15,8 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
 
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
@@ -27,6 +29,10 @@ export default function LoginPage() {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetIdentifier, setResetIdentifier] = useState("");
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +96,7 @@ export default function LoginPage() {
             errorMessage = "Invalid username/email or password.";
             break;
           case 'auth/email-already-in-use':
-            errorMessage = "An account with this email or username already exists. Please try signing in.";
+            errorMessage = "An account with this email or username already exists. Please try signing in instead.";
             break;
           case 'auth/weak-password':
             errorMessage = "Password should be at least 6 characters.";
@@ -105,29 +111,41 @@ export default function LoginPage() {
   };
 
   const handleForgotPassword = () => {
-    const promptedInput = prompt("Please enter your username or email to reset the password:");
-    if (promptedInput) {
-      const loginIdentifier = promptedInput.trim();
-      let fullEmail: string;
-
-      if (loginIdentifier.toLowerCase() === 'admin') {
-        fullEmail = 'ruamchokfitness@gmail.com';
-      } else if (loginIdentifier.includes('@')) {
-        fullEmail = loginIdentifier;
-      } else {
-        fullEmail = `${loginIdentifier}@rcf.system`;
-      }
-      
-      sendPasswordResetEmail(auth, fullEmail)
-        .then(() => {
-          toast({ title: "Password Reset Email Sent", description: `If a user with identifier "${promptedInput}" exists, a password reset link has been sent.` });
-        })
-        .catch((error) => {
-          console.error("Forgot password error:", error);
-          // Don't reveal if user exists or not for security reasons
-          toast({ title: "Password Reset Email Sent", description: `If a user with identifier "${promptedInput}" exists, a password reset link has been sent.` });
-        });
+    if (!resetIdentifier.trim()) {
+      toast({ title: "Username or Email is required", variant: "destructive" });
+      return;
     }
+  
+    const loginIdentifier = resetIdentifier.trim();
+    let fullEmail: string;
+  
+    if (loginIdentifier.toLowerCase() === 'admin') {
+      fullEmail = 'ruamchokfitness@gmail.com';
+    } else if (loginIdentifier.includes('@')) {
+      fullEmail = loginIdentifier;
+    } else {
+      fullEmail = `${loginIdentifier}@rcf.system`;
+    }
+  
+    startTransition(async () => {
+      try {
+        await sendPasswordResetEmail(auth, fullEmail);
+        toast({
+          title: "Password Reset Email Sent",
+          description: `If an account for "${loginIdentifier}" exists, a password reset link has been sent to the associated email address.`,
+        });
+      } catch (error) {
+        console.error("Forgot password error:", error);
+        // Do not reveal if user exists or not for security reasons
+        toast({
+          title: "Password Reset Email Sent",
+          description: `If an account for "${loginIdentifier}" exists, a password reset link has been sent.`,
+        });
+      } finally {
+        setResetDialogOpen(false);
+        setResetIdentifier('');
+      }
+    });
   };
 
   const toggleMode = () => {
@@ -139,6 +157,7 @@ export default function LoginPage() {
   }
 
   return (
+    <>
     <div className="flex items-center justify-center min-h-screen bg-slate-100">
       <Card className="w-full max-w-sm mx-auto shadow-2xl">
         <CardHeader className="text-center space-y-2">
@@ -210,7 +229,7 @@ export default function LoginPage() {
           </div>
           {authMode === 'signin' && (
             <div className="mt-4 text-center text-sm">
-              <button onClick={handleForgotPassword} className="underline">
+              <button onClick={() => setResetDialogOpen(true)} className="underline">
                 Forgot Password?
               </button>
             </div>
@@ -221,5 +240,33 @@ export default function LoginPage() {
         &copy; {new Date().getFullYear()} Ruamchok Fitness. All rights reserved.
       </footer>
     </div>
+    <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Reset Password</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Enter your username or email address and we will send you a link to reset your password.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+                <Label htmlFor="reset-identifier" className="sr-only">Username or Email</Label>
+                <Input 
+                    id="reset-identifier"
+                    value={resetIdentifier} 
+                    onChange={(e) => setResetIdentifier(e.target.value)}
+                    placeholder="e.g., admin or user@example.com"
+                    autoFocus
+                />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleForgotPassword} disabled={isPending}>
+                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                  Send Reset Link
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
