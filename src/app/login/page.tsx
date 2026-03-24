@@ -37,6 +37,7 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!auth || !firestore) return;
 
     const loginIdentifier = emailOrUsername.trim();
 
@@ -46,9 +47,11 @@ export default function LoginPage() {
     }
 
     let email: string;
+    // Special handling for the 'admin' username
     if (loginIdentifier.toLowerCase() === 'admin') {
       email = 'ruamchokfitness@gmail.com';
     } else if (!loginIdentifier.includes('@')) {
+      // For sign-up, we only allow 'admin' now. For sign-in, this allows staff users.
       email = `${loginIdentifier}@rcf.system`;
     } else {
       email = loginIdentifier;
@@ -60,18 +63,19 @@ export default function LoginPage() {
           await signInWithEmailAndPassword(auth, email, password);
           router.push('/');
         } else { // signup mode
-          if (loginIdentifier.toLowerCase() !== 'admin') {
-             setError('Only the "admin" user can be created at this time. Please contact your system administrator if you need an account.');
+           if (loginIdentifier.toLowerCase() !== 'admin') {
+             setError('Only the "admin" user can be created through this form. Please sign in or contact an administrator.');
              return;
-          }
+           }
            if (name.trim() === '') {
              setError('Full Name is required.');
              return;
-          }
+           }
           
           const emailToCreate = 'ruamchokfitness@gmail.com'; // Hardcode the admin email
+          const passwordToCreate = 'rcf0882527094'; // Hardcode the admin password
           
-          const userCredential = await createUserWithEmailAndPassword(auth, emailToCreate, password);
+          const userCredential = await createUserWithEmailAndPassword(auth, emailToCreate, passwordToCreate);
           const newUser = userCredential.user;
 
           // Create the user profile document in Firestore with the admin role
@@ -82,6 +86,8 @@ export default function LoginPage() {
             role: 'admin' // Assign 'admin' role directly
           });
           
+          // After successful creation, sign them in
+          await signInWithEmailAndPassword(auth, emailToCreate, passwordToCreate);
           router.push('/');
         }
       } catch (err: any) {
@@ -111,6 +117,7 @@ export default function LoginPage() {
   };
 
   const handleForgotPassword = () => {
+    if (!auth) return;
     if (!resetIdentifier.trim()) {
       toast({ title: "Username or Email is required", variant: "destructive" });
       return;
@@ -132,10 +139,11 @@ export default function LoginPage() {
         await sendPasswordResetEmail(auth, fullEmail);
         toast({
           title: "Password Reset Email Sent",
-          description: `If an account exists, a password reset link has been sent to the associated email address.`,
+          description: `If an account exists for "${loginIdentifier}", a password reset link has been sent to its associated email address.`,
         });
       } catch (error) {
         console.error("Forgot password error:", error);
+        // Silently fail to prevent user enumeration
         toast({
           title: "Password Reset Email Sent",
           description: `If an account for "${loginIdentifier}" exists, a password reset link has been sent.`,
@@ -186,7 +194,7 @@ export default function LoginPage() {
               <Input
                 id="emailOrUsername"
                 type="text"
-                placeholder="Enter 'admin' or your email"
+                placeholder={authMode === 'signup' ? "Enter 'admin'" : "Enter 'admin' or your email"}
                 required
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
@@ -197,11 +205,12 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder={authMode === 'signup' ? "Enter 'rcf0882527094'" : "Enter your password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+               {authMode === 'signup' && <p className="text-xs text-muted-foreground">The system will use the default password you provided.</p>}
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={isPending}>
