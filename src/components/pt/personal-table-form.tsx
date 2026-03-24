@@ -79,7 +79,7 @@ export function PersonalTableForm({ session, existingTable, clientId, packageId,
                     session_status: 'scheduled',
                     trainer_id: '',
                 };
-                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), newSessionData);
+                const newSessionRef = await addDoc(collection(firestore, 'pt_sessions'), newSessionData);
                 sessionId = newSessionRef.id;
             }
 
@@ -87,7 +87,7 @@ export function PersonalTableForm({ session, existingTable, clientId, packageId,
                 throw new Error("Could not create or find session ID.");
             }
 
-            const tableRef = doc(db, `pt_sessions/${sessionId}/personalTable`, sessionId);
+            const tableRef = doc(firestore, `pt_sessions/${sessionId}/personalTable`, sessionId);
             
             const tableData = {
                 sessionId: sessionId,
