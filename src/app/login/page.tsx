@@ -39,6 +39,7 @@ export default function LoginPage() {
       return;
     }
 
+    // Determine if it's an email or a username that needs conversion
     const email = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@rcf.system`;
 
     startTransition(async () => {
@@ -78,7 +79,7 @@ export default function LoginPage() {
             errorMessage = "Invalid username/email or password.";
             break;
           case 'auth/email-already-in-use':
-            errorMessage = "This email or username is already taken. Please choose another.";
+            errorMessage = "An account with this email or username already exists. Please try signing in.";
             break;
           case 'auth/weak-password':
             errorMessage = "Password should be at least 6 characters.";
