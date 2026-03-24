@@ -1,23 +1,16 @@
 "use client";
 
 import React from 'react';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTClient, PTPackage } from '@/lib/types';
+import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, User, FileSignature, Dumbbell, History, FileText } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { SessionSigningDialog } from '@/components/pt/session-signing-dialog';
+
 
 function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: string }> }) {
     const params = React.use(paramsPromise);
@@ -30,7 +23,10 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const packagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId), where('status', '==', 'active')) : null, [firestore, clientId]);
     const { data: activePackages, isLoading: loadingPackages } = useCollection<PTPackage>(packagesQuery);
     
-    const isLoading = loadingClient || loadingPackages;
+    const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]));
+    const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]));
+
+    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans;
     
     if (isLoading) {
         return (
@@ -85,23 +81,14 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                                                  <p className="text-xs text-muted-foreground">Expires: {new Date(pkg.expiry_date).toLocaleDateString()}</p>
                                              </div>
                                              
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button>Start Session</Button>
-                                                </DialogTrigger>
-                                                <DialogContent>
-                                                    <DialogHeader>
-                                                        <DialogTitle>Start New Session</DialogTitle>
-                                                    </DialogHeader>
-                                                    <div className="py-4">
-                                                        <p>Session signing and creation will be implemented here.</p>
-                                                        <p className="font-semibold mt-2">Package: {pkg.package_name}</p>
-                                                    </div>
-                                                    <DialogFooter>
-                                                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                                                    </DialogFooter>
-                                                </DialogContent>
-                                            </Dialog>
+                                            <SessionSigningDialog
+                                                client={client}
+                                                pkg={pkg}
+                                                trainers={trainers || []}
+                                                commissionPlans={commissionPlans || []}
+                                            >
+                                                <Button>Start Session</Button>
+                                            </SessionSigningDialog>
 
                                          </div>
                                      </Card>
