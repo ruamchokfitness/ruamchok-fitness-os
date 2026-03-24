@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useMemo } from 'react';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
@@ -24,16 +24,30 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const clientRef = useMemoFirebase(() => firestore ? doc(firestore, 'pt_clients', clientId) : null, [firestore, clientId]);
     const { data: client, isLoading: loadingClient } = useDoc<PTClient>(clientRef);
 
-    const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId), orderBy('purchase_date', 'desc')) : null, [firestore, clientId]);
-    const { data: allPackages, isLoading: loadingPackages } = useCollection<PTPackage>(allPackagesQuery);
+    // Fetch all packages and filter/sort on the client to avoid composite index errors
+    const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages')) : null, [firestore]);
+    const { data: allPackagesData, isLoading: loadingPackages } = useCollection<PTPackage>(allPackagesQuery);
 
-    const activePackages = useMemo(() => allPackages?.filter(p => p.status === 'active') || [], [allPackages]);
+    const allPackages = useMemo(() => {
+        if (!allPackagesData) return [];
+        return allPackagesData
+            .filter(p => p.client_id === clientId)
+            .sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+    }, [allPackagesData, clientId]);
+
+    const activePackages = useMemo(() => allPackages.filter(p => p.status === 'active') || [], [allPackages]);
     
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]));
     const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]));
 
-    const sessionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_sessions'), where('client_id', '==', clientId)) : null, [firestore, clientId]);
-    const { data: sessions, isLoading: loadingSessions } = useCollection<PTSession>(sessionsQuery);
+    // Fetch all sessions and filter on the client to avoid index errors
+    const sessionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_sessions')) : null, [firestore]);
+    const { data: allSessionsData, isLoading: loadingSessions } = useCollection<PTSession>(sessionsQuery);
+
+    const sessions = useMemo(() => {
+        if (!allSessionsData) return [];
+        return allSessionsData.filter(s => s.client_id === clientId);
+    }, [allSessionsData, clientId]);
 
     const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans || loadingSessions;
     
