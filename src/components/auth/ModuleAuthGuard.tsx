@@ -43,4 +43,3 @@ export function ModuleAuthGuard({ requiredRole, children }: ModuleAuthGuardProps
 
   return <>{children}</>;
 }
-    

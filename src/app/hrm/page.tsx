@@ -34,21 +34,11 @@ function HrmHeader() {
 
 // This is the seeding logic moved from src/lib/data.ts
 const seedInitialData = async (firestore: any) => {
-    const employeesCollectionRef = collection(firestore, "employees");
-    const employeesSnapshot = await getDocs(query(employeesCollectionRef, limit(1)));
-    if (employeesSnapshot.empty) {
-        console.log("No employees found. Seeding initial data...");
+    const policiesCollectionRef = collection(firestore, "policies");
+    const policiesSnapshot = await getDocs(query(policiesCollectionRef, limit(1)));
+    if (policiesSnapshot.empty) {
+        console.log("No policies found. Seeding initial data...");
         const batch = writeBatch(firestore);
-
-        const initialEmployees: Employee[] = [
-          { id: 'emp1', name: 'ประเทศ โสมานัส' },
-          { id: 'emp2', name: 'สมชาย เข็มกลัด' },
-        ];
-        
-        const initialQuotas: Quota[] = [
-          { employeeId: 'emp1', vacation: 6, holiday: 8, birthday: 1, holidayPermissions: ['วันแม่', 'วันพ่อ', 'วันแรงงาน'] },
-          { employeeId: 'emp2', vacation: 8, holiday: 8, birthday: 1, holidayPermissions: ['วันแม่', 'วันพ่อ', 'วันแรงงาน', 'วันปิยะมหาราช'] },
-        ];
 
         const initialPolicies: Policy[] = [
             { key: 'system_title', value: 'RuamChok Fitness HRM'},
@@ -81,8 +71,6 @@ const seedInitialData = async (firestore: any) => {
           { id: 'ph8', name: 'วันพ่อ', date: '5 ธันวาคม 2569' },
         ];
 
-        initialEmployees.forEach(e => batch.set(doc(collection(firestore, "employees"), e.id), e));
-        initialQuotas.forEach(q => batch.set(doc(collection(firestore, "quotas"), q.employeeId), q));
         initialPolicies.forEach(p => batch.set(doc(collection(firestore, "policies"), p.key), p));
         initialVacationTiers.forEach(vt => batch.set(doc(collection(firestore, "vacationTiers"), vt.id), vt));
         initialPublicHolidays.forEach(ph => batch.set(doc(collection(firestore, "publicHolidays"), ph.id), ph));

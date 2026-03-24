@@ -54,9 +54,15 @@ export interface MaintenanceReport {
   responsible: string;
   category: string;
   maintenanceItem: string;
-  notes: string;
   completed: boolean;
   timestamp: any; // Firestore timestamp
+  followUps?: MaintenanceFollowUp[];
+}
+
+export interface MaintenanceFollowUp {
+  date: string;
+  note: string;
+  author: string;
 }
 
 export interface MaintenanceCategory {
@@ -133,4 +139,134 @@ export interface GroupClassAttendance {
   created_at: any; // Firestore Timestamp
 }
 
-    
+
+// PT Tracker Types
+export interface PTClient {
+  id: string;
+  name: string;
+  member_id?: string;
+  phone?: string;
+  status: 'active' | 'inactive';
+}
+
+export interface PTTrainer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  status: 'active' | 'inactive';
+  commission_plan: string;
+}
+
+export interface PTPackage {
+  id: string;
+  client_id: string;
+  package_name: string;
+  hours_purchased: number;
+  price_paid: number;
+  price_per_hour: number;
+  purchase_date: string; // YYYY-MM-DD
+  expiry_date: string; // YYYY-MM-DD
+  status: 'active' | 'completed' | 'expired';
+  hours_used: number;
+  hours_remaining: number;
+}
+
+export interface PTSession {
+  id: string;
+  client_id: string;
+  purchase_id: string;
+  trainer_id: string;
+  session_datetime: string; // ISO 8601
+  duration_hours: number;
+  session_status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  completed_by?: string;
+  completion_timestamp?: string; // ISO 8601
+  clientSignature?: string; // Data URL
+  trainerSignature?: string; // Data URL
+}
+
+export interface PTCommission {
+  id: string;
+  trainer_id: string;
+  session_id: string;
+  duration_hours: number;
+  hourly_rate_applied: number;
+  commission_amount: number;
+  cumulative_hours_before: number;
+  cumulative_hours_after: number;
+  commission_plan: string;
+  commission_type: string;
+  month_reference: string; // YYYY-MM
+}
+
+export interface PTCommissionTier {
+    maxHours: number;
+    rate: number;
+}
+
+export interface PTCommissionPlan {
+    id: string;
+    name: string;
+    tiers: PTCommissionTier[];
+    isDeletable?: boolean;
+}
+
+export interface PARQ {
+    id: string;
+    clientId: string;
+    createdAt: any;
+    dob?: string;
+    emergencyTel?: string;
+    trainerToComplete?: string;
+    medicalProfile?: { [key: string]: boolean };
+    otherMedicalCondition?: string;
+    medicalReleaseRequired?: boolean;
+    fitnessGoals?: string[];
+    otherFitnessGoals?: string;
+    assessmentGoals?: Partial<PhysicalAssessment>;
+    trainerNotes?: string;
+    clientSignature?: string;
+}
+
+export interface PhysicalAssessment {
+    id: string;
+    clientId: string;
+    assessmentType: 'Start' | '2 Week Reassessment' | '6 Week Reassessment';
+    assessmentDate?: string;
+    trainerName?: string;
+    height?: number;
+    bodyMass?: number;
+    bloodPressure?: string;
+    restingHR?: number;
+    bodyFat?: number;
+    shoulders?: number;
+    chest?: number;
+    arms?: string;
+    waist?: number;
+    hips?: number;
+    thighs?: string;
+    calves?: string;
+    fitTestScore?: number;
+    treadmillLevel?: number;
+    sitReachScore?: number;
+    bmi?: number;
+}
+
+export interface PTWorkout {
+    id: string;
+    clientId: string;
+    packageId: string;
+    sessionNumber: number;
+    date?: string;
+    focus?: string;
+    exercises?: Array<{
+        name?: string;
+        sets?: string;
+        reps?: string;
+        weight?: string;
+        rest?: string;
+    }>;
+    trainerNotes?: string;
+    clientFeedback?: string;
+}
