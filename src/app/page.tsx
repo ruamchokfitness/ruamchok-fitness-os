@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2 } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, FileSignature } from 'lucide-react';
 
 export default function Home() {
   const menuItems = [
@@ -32,6 +32,13 @@ export default function Home() {
       icon: <Trophy className="w-8 h-8 text-primary" />,
       disabled: false,
     },
+    {
+      title: 'Member Sign-in Sheet',
+      description: 'PT client sign-in, PAR-Q, and workout log.',
+      href: '/member-signin',
+      icon: <FileSignature className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
      {
       title: 'RCF Group Class Attendance Tracker',
       description: 'Track and analyze group class attendance.',
@@ -50,7 +57,7 @@ export default function Home() {
         <p className="text-lg text-gray-600">Your central hub for managing fitness center operations.</p>
       </header>
       <main>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {menuItems.map((item) => (
             <Link key={item.title} href={item.disabled ? '#' : item.href} passHref>
               <Card className={`transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -67,8 +74,10 @@ export default function Home() {
         </div>
       </main>
       <footer className="text-center mt-12 text-gray-500">
-        <p>&copy; {new Date().getFullYear()} Ruamchok Fitness. All rights reserved.</p>
+        <p>&copy; ${new Date().getFullYear()} Ruamchok Fitness. All rights reserved.</p>
       </footer>
     </div>
   );
 }
+
+    

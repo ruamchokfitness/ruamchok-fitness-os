@@ -233,6 +233,75 @@
       },
       "required": ["id", "date", "month_year", "day_of_week", "time", "class_name", "instructor", "attendance", "created_at"]
     },
+    "PTClient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PTClient",
+      "type": "object",
+      "description": "Represents a personal training client.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "member_id": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "name", "status"]
+    },
+    "PTTrainer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PTTrainer",
+      "type": "object",
+      "description": "Represents a personal trainer.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "commission_plan": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "name", "commission_plan", "status"]
+    },
+    "PTPackage": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PTPackage",
+        "type": "object",
+        "description": "Represents a purchased personal training package.",
+        "properties": {
+            "id": { "type": "string" },
+            "client_id": { "type": "string" },
+            "package_name": { "type": "string" },
+            "hours_purchased": { "type": "number" },
+            "price_paid": { "type": "number" },
+            "price_per_hour": { "type": "number" },
+            "purchase_date": { "type": "string", "format": "date" },
+            "expiry_date": { "type": "string", "format": "date" },
+            "hours_used": { "type": "number" },
+            "hours_remaining": { "type": "number" },
+            "status": { "type": "string", "enum": ["active", "expired", "completed"] }
+        },
+        "required": ["client_id", "package_name", "hours_purchased", "purchase_date", "status"]
+    },
+    "PTSession": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PTSession",
+        "type": "object",
+        "description": "Represents a single personal training session.",
+        "properties": {
+            "id": { "type": "string" },
+            "client_id": { "type": "string" },
+            "purchase_id": { "type": "string" },
+            "trainer_id": { "type": "string" },
+            "session_datetime": { "type": "string", "format": "date-time" },
+            "duration_hours": { "type": "number" },
+            "session_status": { "type": "string", "enum": ["completed", "scheduled", "cancelled"] },
+            "completed_by": { "type": "string" },
+            "completion_timestamp": { "type": "string", "format": "date-time" },
+            "clientSignature": { "type": "string", "description": "Data URI of client's signature." },
+            "trainerSignature": { "type": "string", "description": "Data URI of trainer's signature." }
+        },
+        "required": ["client_id", "purchase_id", "trainer_id", "session_datetime", "duration_hours", "session_status"]
+    },
     "PTCommissionPlan": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "PTCommissionPlan",
@@ -255,6 +324,74 @@
             "isDeletable": { "type": "boolean", "description": "Whether the plan can be deleted by a user. Default plans are not deletable." }
         },
         "required": ["name", "tiers"]
+    },
+    "PTCommission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PTCommission",
+      "type": "object",
+      "description": "Records a commission payout for a single session.",
+      "properties": {
+        "id": { "type": "string" },
+        "trainer_id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "duration_hours": { "type": "number" },
+        "hourly_rate_applied": { "type": "number" },
+        "commission_amount": { "type": "number" },
+        "cumulative_hours_before": { "type": "number" },
+        "cumulative_hours_after": { "type": "number" },
+        "commission_plan": { "type": "string" },
+        "commission_type": { "type": "string" },
+        "month_reference": { "type": "string" }
+      },
+      "required": ["trainer_id", "session_id", "commission_amount", "month_reference"]
+    },
+    "PARQ": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PAR-Q",
+        "type": "object",
+        "description": "Physical Activity Readiness Questionnaire for a client.",
+        "properties": {
+            "id": { "type": "string" },
+            "clientId": { "type": "string" },
+            "date": { "type": "string", "format": "date" },
+            "answers": {
+              "type": "object",
+              "properties": {
+                "q1": {"type": "boolean"}, "q2": {"type": "boolean"}, "q3": {"type": "boolean"}, "q4": {"type": "boolean"}, "q5": {"type": "boolean"}, "q6": {"type": "boolean"}, "q7": {"type": "boolean"}
+              }
+            },
+            "details": { "type": "string", "description": "If answered yes to any question, please provide details." },
+            "clientSignature": { "type": "string", "description": "Data URI of client's signature." }
+        },
+        "required": ["clientId", "date", "answers"]
+    },
+    "PersonalTableEntry": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "PersonalTableEntry",
+        "type": "object",
+        "description": "A record of exercises for a single training session.",
+        "properties": {
+            "id": { "type": "string" },
+            "sessionId": { "type": "string" },
+            "focus": { "type": "string" },
+            "exercises": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "sets": { "type": "string" },
+                        "reps": { "type": "string" },
+                        "weight": { "type": "string" },
+                        "rest": { "type": "string" }
+                    },
+                    "required": ["name"]
+                }
+            },
+            "trainerNotes": { "type": "string" },
+            "clientFeedback": { "type": "string" }
+        },
+        "required": ["sessionId"]
     }
   },
   "auth": {
@@ -418,12 +555,81 @@
         }
       },
       {
+        "path": "/pt_clients/{clientId}",
+        "definition": {
+          "entityName": "PTClient",
+          "schema": { "$ref": "#/backend/entities/PTClient" },
+          "description": "Stores personal training client profiles.",
+          "params": [{ "name": "clientId", "description": "Unique ID for the PT client." }]
+        }
+      },
+      {
+        "path": "/pt_clients/{clientId}/parqs/{parqId}",
+        "definition": {
+          "entityName": "PARQ",
+          "schema": { "$ref": "#/backend/entities/PARQ" },
+          "description": "Stores PAR-Q form data for a specific client.",
+          "params": [
+            { "name": "clientId", "description": "The parent client ID." },
+            { "name": "parqId", "description": "Unique ID for the PAR-Q form entry." }
+          ]
+        }
+      },
+      {
+        "path": "/pt_trainers/{trainerId}",
+        "definition": {
+          "entityName": "PTTrainer",
+          "schema": { "$ref": "#/backend/entities/PTTrainer" },
+          "description": "Stores personal trainer profiles.",
+          "params": [{ "name": "trainerId", "description": "Unique ID for the PT trainer." }]
+        }
+      },
+      {
+        "path": "/pt_packages/{packageId}",
+        "definition": {
+          "entityName": "PTPackage",
+          "schema": { "$ref": "#/backend/entities/PTPackage" },
+          "description": "Stores purchased PT packages for clients.",
+          "params": [{ "name": "packageId", "description": "Unique ID for the package." }]
+        }
+      },
+      {
+        "path": "/pt_sessions/{sessionId}",
+        "definition": {
+          "entityName": "PTSession",
+          "schema": { "$ref": "#/backend/entities/PTSession" },
+          "description": "Stores records of individual PT sessions.",
+          "params": [{ "name": "sessionId", "description": "Unique ID for the session." }]
+        }
+      },
+      {
+        "path": "/pt_sessions/{sessionId}/personalTable/{entryId}",
+        "definition": {
+          "entityName": "PersonalTableEntry",
+          "schema": { "$ref": "#/backend/entities/PersonalTableEntry" },
+          "description": "Stores the workout program for a specific session.",
+          "params": [
+            { "name": "sessionId", "description": "The parent session ID." },
+            { "name": "entryId", "description": "Unique ID for the personal table entry." }
+          ]
+        }
+      },
+      {
         "path": "/pt_commission_plans/{planId}",
         "definition": {
           "entityName": "PTCommissionPlan",
           "schema": { "$ref": "#/backend/entities/PTCommissionPlan" },
           "description": "Stores the different commission plans for personal trainers.",
           "params": [{ "name": "planId", "description": "Unique ID for the commission plan." }]
+        }
+      },
+      {
+        "path": "/pt_commissions/{commissionId}",
+        "definition": {
+          "entityName": "PTCommission",
+          "schema": { "$ref": "#/backend/entities/PTCommission" },
+          "description": "Stores individual commission records for each session.",
+          "params": [{ "name": "commissionId", "description": "Unique ID for the commission record." }]
         }
       }
     ],
