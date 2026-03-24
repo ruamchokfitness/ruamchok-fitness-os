@@ -2086,8 +2086,6 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                             <th>Client</th>
                             <th>Package Name</th>
                             <th>Hrs Purchased</th>
-                            <th>Plan Type</th>
-                            <th>Hours</th>
                             <th>Rate/Hour</th>
                             <th>Cumulative</th>
                             <th style="text-align: right;">Commission</th>
@@ -2112,8 +2110,6 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <td>${client?.name || '-'}</td>
                         <td>${pkg?.package_name || '-'}</td>
                         <td>${pkg?.hours_purchased ? `${pkg.hours_purchased}h` : '-'}</td>
-                        <td>${comm.commission_type}</td>
-                        <td>${comm.duration_hours || 0}h</td>
                         <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
                         <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
                         <td class="amount">${formatCurrency(comm.commission_amount || 0)}</td>
@@ -2125,7 +2121,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
 
             htmlContent += `
                     <tr class="total-row">
-                        <td colspan="8" style="text-align: right;">TOTAL:</td>
+                        <td colspan="6" style="text-align: right;">TOTAL:</td>
                         <td class="amount">${formatCurrency(totalEarned)}</td>
                         <td colspan="2"></td>
                     </tr>
