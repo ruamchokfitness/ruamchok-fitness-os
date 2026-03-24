@@ -38,16 +38,20 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0, 23, 59, 59);
 
+    // Simplified query to avoid composite index
     const sessionsQuery = query(
         collection(db, "pt_sessions"),
-        where("trainer_id", "==", trainerId),
-        where("session_datetime", ">=", firstDay.toISOString()),
-        where("session_datetime", "<=", lastDay.toISOString())
+        where("trainer_id", "==", trainerId)
     );
     const sessionsSnapshot = await getDocs(sessionsQuery);
-    const sessionsThisMonth = sessionsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as PTSession))
-        .filter(session => session.session_status === 'completed')
+    const allTrainerSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
+
+    // Filter by date range and status in-memory
+    const sessionsThisMonth = allTrainerSessions
+        .filter(session => {
+            const sessionDate = new Date(session.session_datetime);
+            return session.session_status === 'completed' && sessionDate >= firstDay && sessionDate <= lastDay;
+        })
         .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
 
     const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
@@ -1411,7 +1415,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         const hours = parseFloat(formData.get('hours_purchased') as string);
         const price = parseFloat(formData.get('price_paid') as string);
         const clientIdFromForm = selectedClientId;
-        const hoursUsed = pkg ? (parseFloat((formData.get('hours_used') as HTMLInputElement).value) || 0) : 0;
+        const hoursUsed = pkg ? (parseFloat((formData.get('hours_used') as HTMLInputElement)?.value) || 0) : 0;
         
         if (!clientIdFromForm) {
              toast({title: "No client selected.", variant: "destructive"});
