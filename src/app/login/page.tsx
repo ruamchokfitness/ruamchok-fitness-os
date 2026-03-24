@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +32,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    if (!username.trim() || !password.trim()) {
-      setError("Username and Password are required.");
+    const loginIdentifier = emailOrUsername.trim();
+
+    if (!loginIdentifier || !password.trim()) {
+      setError("Username/Email and Password are required.");
       return;
     }
 
-    const email = `${username.trim()}@rcf.system`;
+    const email = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@rcf.system`;
 
     startTransition(async () => {
       try {
@@ -68,15 +70,15 @@ export default function LoginPage() {
         let errorMessage = "An unexpected error occurred.";
         switch (err.code) {
           case 'auth/invalid-email':
-            errorMessage = "Invalid username format. Avoid special characters.";
+            errorMessage = "Invalid email or username format. Usernames cannot contain spaces.";
             break;
           case 'auth/user-not-found':
           case 'auth/wrong-password':
           case 'auth/invalid-credential':
-            errorMessage = "Invalid username or password.";
+            errorMessage = "Invalid username/email or password.";
             break;
           case 'auth/email-already-in-use':
-            errorMessage = "This username is already taken. Please choose another.";
+            errorMessage = "This email or username is already taken. Please choose another.";
             break;
           case 'auth/weak-password':
             errorMessage = "Password should be at least 6 characters.";
@@ -91,15 +93,19 @@ export default function LoginPage() {
   };
 
   const handleForgotPassword = () => {
-    const promptedUsername = prompt("Please enter the username to reset the password for:");
-    if (promptedUsername) {
-      const fullEmail = `${promptedUsername.trim()}@rcf.system`;
+    const promptedInput = prompt("Please enter your username or email to reset the password:");
+    if (promptedInput) {
+      const loginIdentifier = promptedInput.trim();
+      const fullEmail = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@rcf.system`;
+      
       sendPasswordResetEmail(auth, fullEmail)
         .then(() => {
-          toast({ title: "Password Reset Email Sent", description: `If a user with username "${promptedUsername}" exists, a password reset link has been sent to their registered email address.` });
+          toast({ title: "Password Reset Email Sent", description: `If a user with identifier "${promptedInput}" exists, a password reset link has been sent.` });
         })
         .catch((error) => {
-          toast({ title: "Error", description: "Could not send password reset email.", variant: "destructive" });
+          console.error("Forgot password error:", error);
+          // Don't reveal if user exists or not
+          toast({ title: "Password Reset Email Sent", description: `If a user with identifier "${promptedInput}" exists, a password reset link has been sent.` });
         });
     }
   };
@@ -108,7 +114,7 @@ export default function LoginPage() {
     setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
     setError(null);
     setName('');
-    setUsername('');
+    setEmailOrUsername('');
     setPassword('');
   }
 
@@ -138,14 +144,14 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="emailOrUsername">Username or Email</Label>
               <Input
-                id="username"
+                id="emailOrUsername"
                 type="text"
-                placeholder="Enter your username"
+                placeholder="Enter your username or email"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
               />
             </div>
             <div className="space-y-2">
