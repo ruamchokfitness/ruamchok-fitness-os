@@ -39,41 +39,37 @@ export default function LoginPage() {
     setError(null);
     if (!auth || !firestore) return;
 
-    const loginIdentifier = emailOrUsername.trim();
-
-    if (!loginIdentifier || !password.trim()) {
-      setError("Username/Email and Password are required.");
-      return;
-    }
-
-    let email: string;
-    // Special handling for the 'admin' username
-    if (loginIdentifier.toLowerCase() === 'admin') {
-      email = 'ruamchokfitness@gmail.com';
-    } else if (!loginIdentifier.includes('@')) {
-      // For sign-up, we only allow 'admin' now. For sign-in, this allows staff users.
-      email = `${loginIdentifier}@rcf.system`;
-    } else {
-      email = loginIdentifier;
-    }
-
     startTransition(async () => {
       try {
         if (authMode === 'signin') {
-          await signInWithEmailAndPassword(auth, email, password);
+          const loginIdentifier = emailOrUsername.trim();
+          const enteredPassword = password.trim();
+
+          if (!loginIdentifier || !enteredPassword) {
+            setError("Username/Email and Password are required.");
+            return;
+          }
+
+          let emailToSignIn: string;
+          // Special handling for the 'admin' username
+          if (loginIdentifier.toLowerCase() === 'admin') {
+            emailToSignIn = 'ruamchokfitness@gmail.com';
+          } else if (!loginIdentifier.includes('@')) {
+            emailToSignIn = `${loginIdentifier}@rcf.system`;
+          } else {
+            emailToSignIn = loginIdentifier;
+          }
+
+          await signInWithEmailAndPassword(auth, emailToSignIn, enteredPassword);
           router.push('/');
         } else { // signup mode
-           if (loginIdentifier.toLowerCase() !== 'admin') {
-             setError('Only the "admin" user can be created through this form. Please sign in or contact an administrator.');
-             return;
-           }
-           if (name.trim() === '') {
-             setError('Full Name is required.');
-             return;
-           }
+          if (name.trim() === '') {
+            setError('Full Name is required.');
+            return;
+          }
           
-          const emailToCreate = 'ruamchokfitness@gmail.com'; // Hardcode the admin email
-          const passwordToCreate = 'rcf0882527094'; // Hardcode the admin password
+          const emailToCreate = 'ruamchokfitness@gmail.com';
+          const passwordToCreate = 'rcf0882527094';
           
           const userCredential = await createUserWithEmailAndPassword(auth, emailToCreate, passwordToCreate);
           const newUser = userCredential.user;
@@ -176,46 +172,73 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {authMode === 'signup' && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your full name"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
+            {authMode === 'signup' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Your full name"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailOrUsername">Username</Label>
+                  <Input
+                    id="emailOrUsername"
+                    type="text"
+                    value="admin"
+                    readOnly
+                    className="bg-slate-100"
+                  />
+                   <p className="text-xs text-muted-foreground">Default admin username. Email will be set to `ruamchokfitness@gmail.com`.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value="rcf0882527094"
+                    readOnly
+                    className="bg-slate-100"
+                  />
+                  <p className="text-xs text-muted-foreground">The system will use this default password.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="emailOrUsername">Username or Email</Label>
+                  <Input
+                    id="emailOrUsername"
+                    type="text"
+                    placeholder="Enter 'admin' or your email"
+                    required
+                    value={emailOrUsername}
+                    onChange={(e) => setEmailOrUsername(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              </>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="emailOrUsername">Username or Email</Label>
-              <Input
-                id="emailOrUsername"
-                type="text"
-                placeholder={authMode === 'signup' ? "Enter 'admin'" : "Enter 'admin' or your email"}
-                required
-                value={emailOrUsername}
-                onChange={(e) => setEmailOrUsername(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={authMode === 'signup' ? "Enter 'rcf0882527094'" : "Enter your password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-               {authMode === 'signup' && <p className="text-xs text-muted-foreground">The system will use the default password you provided.</p>}
-            </div>
+            
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+              {authMode === 'signin' ? 'Sign In' : 'Create Admin Account'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
