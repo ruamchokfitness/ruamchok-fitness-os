@@ -255,7 +255,7 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                         <div>
                             <Label htmlFor="trainer-notes">Note</Label>
-                            <Textarea id="trainer-notes" placeholder="เทรนเนอร์กรอกข้อมูลอื่นๆเพิ่มเติม..." {...register('parq.trainerNotes')} />
+                            <Textarea id="trainer-notes" placeholder="เทรนเนอร์กรอกข้อมูลอื่นๆ เพิ่มเติม / Trainer to add other notes" {...register('parq.trainerNotes')} />
                         </div>
                         <div>
                             <Controller name="parq.clientSignature" control={control} render={({ field }) => (
@@ -324,5 +324,3 @@ const GoalForm = ({ register }: { register: any }) => (
         ))}
     </div>
 );
-
-    
