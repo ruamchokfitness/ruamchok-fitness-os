@@ -733,7 +733,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                         <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
                         <p className="text-sm text-gray-500 mt-2">{currentMonth}</p>
                          <div id="monthly-targets-display" className="mt-4 space-y-2">
-                            {Object.entries(monthlyTargets).map(([key, value]) => {
+                            {Object.entries(monthlyTargets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([key, value]) => {
                                 if (!value) return null;
                                 const targetAmount = value as number;
                                 const progress = Math.min((monthlySales / targetAmount) * 100, 100);
