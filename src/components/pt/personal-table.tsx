@@ -8,8 +8,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, BookOpen, Edit } from 'lucide-react';
 import { PersonalTableForm } from './personal-table-form';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 interface PersonalTableProps {
   clientId: string;
@@ -107,51 +108,59 @@ export function PersonalTable({ clientId, trainers }: PersonalTableProps) {
   const sessionsQuery = useMemoFirebase(() => firestore ? query(
     collection(firestore, 'pt_sessions'),
     where('client_id', '==', clientId),
-    where('session_status', '==', 'completed')
+    orderBy('session_datetime', 'desc')
   ) : null, [firestore, clientId]);
   const { data: sessions, isLoading } = useCollection<PTSession>(sessionsQuery);
-
-  const sortedSessions = useMemo(() => {
-    if (!sessions) return [];
-    return [...sessions].sort((a, b) => {
-        const dateA = a.session_datetime ? new Date(a.session_datetime).getTime() : 0;
-        const dateB = b.session_datetime ? new Date(b.session_datetime).getTime() : 0;
-        return dateB - dateA;
-    });
-  }, [sessions]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>;
   }
 
-  if (!sortedSessions || sortedSessions.length === 0) {
+  if (!sessions || sessions.length === 0) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Personal Table / Workout History</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-8">No completed sessions found for this client.</p>
+          <p className="text-muted-foreground text-center py-8">No sessions found for this client.</p>
         </CardContent>
       </Card>
     );
   }
 
+  const getStatusProps = (status: 'completed' | 'scheduled' | 'cancelled' | string): { className: string } => {
+    switch (status) {
+        case 'completed':
+            return { className: 'bg-green-100 text-green-800 border-transparent hover:bg-green-200' };
+        case 'scheduled':
+            return { className: 'bg-blue-100 text-blue-800 border-transparent hover:bg-blue-200' };
+        case 'cancelled':
+            return { className: 'bg-red-100 text-red-800 border-transparent hover:bg-red-200' };
+        default:
+            return { className: 'bg-gray-100 text-gray-800 border-transparent hover:bg-gray-200' };
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><BookOpen className="w-6 h-6"/>Personal Table / Workout History</CardTitle>
-        <CardDescription>A record of all completed training sessions. Click on a session to view or add workout details.</CardDescription>
+        <CardDescription>A record of all training sessions. Click on a session to view or edit workout details.</CardDescription>
       </CardHeader>
       <CardContent>
         <Accordion type="single" collapsible className="w-full">
-            {sortedSessions.map(session => {
+            {sessions.map(session => {
                 const trainerName = trainers.find(t => t.id === session.trainer_id)?.name || 'Unknown Trainer';
+                const statusProps = getStatusProps(session.session_status);
                 return (
                     <AccordionItem value={session.id} key={session.id}>
                         <AccordionTrigger className="p-4 hover:bg-slate-50">
                             <div className="flex justify-between items-center w-full">
-                                <span className="font-semibold text-primary">{formatDateTime(session.session_datetime)}</span>
+                                <div className="flex items-center gap-4">
+                                  <span className="font-semibold text-primary">{formatDateTime(session.session_datetime)}</span>
+                                  <Badge variant="secondary" className={cn('capitalize', statusProps.className)}>{session.session_status}</Badge>
+                                </div>
                                 <span className="text-sm text-muted-foreground">with {trainerName}</span>
                             </div>
                         </AccordionTrigger>
