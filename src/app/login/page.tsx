@@ -15,6 +15,10 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
+function isValidEmail(email: string) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(String(email).toLowerCase());
+}
 
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
@@ -40,46 +44,56 @@ export default function LoginPage() {
             return;
         }
 
-        const isAdminLogin = loginIdentifier.toLowerCase() === 'admin' && enteredPassword === 'rcf0882527094';
-        const emailToUse = isAdminLogin ? 'admin@rcf.system' : loginIdentifier;
+        const isSpecialAdminLogin = loginIdentifier.toLowerCase() === 'admin';
+        let emailToUse: string;
 
-        try {
-            // First, always try to sign in.
-            await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
-            router.push('/');
-        } catch (signInError: any) {
-            // If sign-in fails specifically for the initial admin setup, try creating the account.
-            if (isAdminLogin && (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential')) {
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
-                    const newUser = userCredential.user;
+        if (isSpecialAdminLogin) {
+            emailToUse = 'admin@rcf.system';
+        } else if (isValidEmail(loginIdentifier)) {
+            emailToUse = loginIdentifier;
+        } else {
+            setError("Invalid input. Please enter 'admin' or a valid email address.");
+            return;
+        }
 
-                    // Create the user profile document in Firestore with the admin role
-                    await setDoc(doc(firestore, 'users', newUser.uid), {
-                        uid: newUser.uid,
-                        email: emailToUse,
-                        name: 'Admin', // Default name for the first admin
-                        role: 'admin'
-                    });
-                    
-                    // createUserWithEmailAndPassword automatically signs in the new user, so we can redirect.
-                    router.push('/');
+        if (isSpecialAdminLogin && enteredPassword === 'rcf0882527094') {
+             try {
+                await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
+                router.push('/');
+            } catch (signInError: any) {
+                if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
+                    try {
+                        const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
+                        const newUser = userCredential.user;
 
-                } catch (creationError: any) {
-                    // If the creation attempt *also* fails, it's a definitive problem.
-                    let creationErrorMessage = "An unexpected error occurred during admin setup.";
-                    if (creationError.code === 'auth/email-already-in-use') {
-                        creationErrorMessage = "The admin account exists but the password you entered is incorrect. Please try again or reset the password if needed.";
-                    } else {
-                        creationErrorMessage = `Admin account setup failed: ${creationError.message}`;
+                        await setDoc(doc(firestore, 'users', newUser.uid), {
+                            uid: newUser.uid,
+                            email: emailToUse,
+                            name: 'Admin',
+                            role: 'admin'
+                        });
+                        
+                        router.push('/');
+
+                    } catch (creationError: any) {
+                        let creationErrorMessage = "An unexpected error occurred during admin setup.";
+                        if (creationError.code === 'auth/email-already-in-use') {
+                            creationErrorMessage = "The admin account exists, but the password you entered is incorrect.";
+                        } else {
+                            creationErrorMessage = `Admin account setup failed: ${creationError.message}`;
+                        }
+                        setError(creationErrorMessage);
                     }
-                    setError(creationErrorMessage);
-                    console.error("Admin creation error:", creationError);
+                } else {
+                    setError("The password you entered is incorrect. Please try again.");
                 }
-            } else {
-                // For any other user or any other type of error, show a generic invalid credential message.
-                setError("Invalid username or password. Please try again.");
-                console.error("Sign-in error:", signInError);
+            }
+        } else {
+            try {
+                await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
+                router.push('/');
+            } catch (error: any) {
+                setError("Invalid email or password. Please try again.");
             }
         }
     });
@@ -102,7 +116,7 @@ export default function LoginPage() {
               <Input
                 id="emailOrUsername"
                 type="text"
-                placeholder="Enter username or email"
+                placeholder="Enter 'admin' or your email"
                 required
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
@@ -128,13 +142,10 @@ export default function LoginPage() {
             </Button>
           </form>
           <p className="text-xs text-center text-muted-foreground mt-4">
-              For initial setup, use the provided admin credentials. The system will create the account if it doesn't exist.
+              For initial setup, use username 'admin'. The system will create the account if it doesn't exist.
           </p>
         </CardContent>
       </Card>
-      <footer className="absolute bottom-4 text-center text-sm text-gray-500">
-        &copy; {new Date().getFullYear()} Ruamchok Fitness. All rights reserved.
-      </footer>
     </div>
   );
 }
