@@ -1,18 +1,26 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
 import { useFirebase } from '@/firebase';
 import type { Firestore } from 'firebase/firestore';
-import type { PTClient, PTPackage, PTTrainer, PTSession, PTCommission, PTCommissionPlan } from '@/lib/types';
-import { doc, addDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import type { PTClient, PTPackage, PTTrainer, PTSession, PTCommission, PTCommissionPlan, PersonalTableEntry } from '@/lib/types';
+import { doc, addDoc, updateDoc, collection, getDocs, query, where, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { SignaturePad } from '@/components/ui/signature-pad';
+import { ScrollArea } from '../ui/scroll-area';
+import { Separator } from '../ui/separator';
 
 interface SessionSigningDialogProps {
   client: PTClient;
@@ -25,27 +33,47 @@ interface SessionSigningDialogProps {
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+const exerciseSchema = z.object({
+    name: z.string().min(1, "Exercise name is required."),
+    sets: z.string().optional(),
+    reps: z.string().optional(),
+    weight: z.string().optional(),
+    rest: z.string().optional(),
+});
+
+const formSchema = z.object({
+    trainerId: z.string().min(1, "Trainer is required."),
+    duration: z.string(),
+    focus: z.string().optional(),
+    exercises: z.array(exerciseSchema).min(1, "At least one exercise is required."),
+    trainerNotes: z.string().optional(),
+    clientFeedback: z.string().optional(),
+    clientSignature: z.string().min(1, { message: "Client signature is required." }),
+    trainerSignature: z.string().min(1, { message: "Trainer signature is required." }),
+});
+
 export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, children }: SessionSigningDialogProps) {
     const { firestore: db } = useFirebase();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
-    
-    const [trainerId, setTrainerId] = useState('');
-    const [duration, setDuration] = useState('1');
-    const [clientSignature, setClientSignature] = useState('');
-    const [trainerSignature, setTrainerSignature] = useState('');
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        if (!trainerId || !duration || !clientSignature || !trainerSignature) {
-            toast({ title: "Information Missing", description: "Please select a trainer, duration, and provide both signatures.", variant: "destructive" });
-            return;
+    const { register, control, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            duration: '1',
+            exercises: [{ name: '', sets: '', reps: '', weight: '', rest: '' }],
         }
+    });
 
-        const sessionDuration = parseFloat(duration);
-        const trainer = trainers.find(t => t.id === trainerId);
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "exercises"
+    });
+
+    const processSubmit = async (data: z.infer<typeof formSchema>) => {
+        const sessionDuration = parseFloat(data.duration);
+        const trainer = trainers.find(t => t.id === data.trainerId);
 
         if (!trainer) {
             toast({ title: "Trainer not found", variant: "destructive"});
@@ -63,21 +91,31 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                 const sessionDateTime = new Date();
 
                 // 1. Create Session
-                const sessionData: Partial<PTSession> = {
+                const sessionData: Omit<PTSession, 'id'> = {
                     client_id: client.id,
                     purchase_id: pkg.id,
-                    trainer_id: trainerId,
+                    trainer_id: data.trainerId,
                     session_datetime: sessionDateTime.toISOString(),
                     duration_hours: sessionDuration,
                     session_status: 'completed',
                     completed_by: trainer.name,
                     completion_timestamp: sessionDateTime.toISOString(),
-                    clientSignature: clientSignature,
-                    trainerSignature: trainerSignature
+                    clientSignature: data.clientSignature,
+                    trainerSignature: data.trainerSignature
                 };
                 const newSessionRef = await addDoc(collection(db, 'pt_sessions'), sessionData);
                 
-                // 2. Update Package
+                // 2. Create Personal Table Entry
+                const tableData: Omit<PersonalTableEntry, 'id'> = {
+                    sessionId: newSessionRef.id,
+                    focus: data.focus,
+                    exercises: data.exercises,
+                    trainerNotes: data.trainerNotes,
+                    clientFeedback: data.clientFeedback,
+                };
+                await setDoc(doc(db, `pt_sessions/${newSessionRef.id}/personalTable`, newSessionRef.id), tableData);
+
+                // 3. Update Package
                 const newHoursUsed = (pkg.hours_used || 0) + sessionDuration;
                 const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
                 await updateDoc(doc(db, "pt_packages", pkg.id), {
@@ -86,9 +124,9 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                     status: newHoursRemaining <= 0 ? 'completed' : 'active'
                 });
 
-                // 3. Calculate and Create Commission
+                // 4. Calculate and Create Commission
                 const monthRef = getMonthReference(sessionDateTime);
-                const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef)));
+                const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", data.trainerId), where("month_reference", "==", monthRef)));
                 const commissionsInMonth = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
                 const cumulativeHoursBefore = commissionsInMonth.reduce((sum, c) => sum + c.duration_hours, 0);
 
@@ -133,7 +171,7 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                 }
                 
                 const commissionData: Omit<PTCommission, 'id'> = {
-                    trainer_id: trainerId,
+                    trainer_id: data.trainerId,
                     session_id: newSessionRef.id,
                     duration_hours: sessionDuration,
                     hourly_rate_applied: Math.round(rate),
@@ -147,7 +185,17 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                 await addDoc(collection(db, "pt_commissions"), commissionData);
 
                 toast({title: "Session Completed Successfully!", description: `Commission of ${formatCurrency(commission)} created for ${trainer.name}.`});
-                setOpen(false); // Close dialog on success
+                reset({
+                    duration: '1',
+                    exercises: [{ name: '', sets: '', reps: '', weight: '', rest: '' }],
+                    focus: '',
+                    trainerId: '',
+                    trainerNotes: '',
+                    clientFeedback: '',
+                    clientSignature: '',
+                    trainerSignature: ''
+                });
+                setOpen(false);
             } catch (error) {
                 console.error("Error completing session:", error);
                 toast({ title: "Error", description: "Failed to complete the session.", variant: "destructive" });
@@ -158,42 +206,119 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Start New Session: {client.name}</DialogTitle>
                     <DialogDescription>Package: {pkg.package_name} ({pkg.hours_remaining} hours remaining)</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="session-trainer">Trainer</Label>
-                            <Select name="trainer_id" required value={trainerId} onValueChange={setTrainerId}>
-                                <SelectTrigger id="session-trainer"><SelectValue placeholder="Select Trainer"/></SelectTrigger>
-                                <SelectContent>
-                                    {trainers.filter(t => t.status === 'active').map(t=> <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                <form onSubmit={handleSubmit(processSubmit)}>
+                    <ScrollArea className="h-[70vh] pr-6">
+                        <div className="space-y-6 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="session-trainer">Trainer</Label>
+                                    <Controller
+                                        name="trainerId"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <SelectTrigger id="session-trainer"><SelectValue placeholder="Select Trainer"/></SelectTrigger>
+                                                <SelectContent>
+                                                    {trainers.filter(t => t.status === 'active').map(t=> <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
+                                    {errors.trainerId && <p className="text-xs text-destructive mt-1">{errors.trainerId.message}</p>}
+                                </div>
+                                <div>
+                                    <Label htmlFor="session-duration">Duration</Label>
+                                    <Controller
+                                        name="duration"
+                                        control={control}
+                                        defaultValue="1"
+                                        render={({ field }) => (
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <SelectTrigger id="session-duration"><SelectValue/></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="1">1 hour</SelectItem>
+                                                    <SelectItem value="1.5">1.5 hours</SelectItem>
+                                                    <SelectItem value="2">2 hours</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
+                                </div>
+                            </div>
+
+                            <Separator/>
+
+                            <h4 className="font-semibold text-lg">Workout Details</h4>
+                            
+                            <div>
+                                <Label htmlFor="focus">Workout Focus</Label>
+                                <Input id="focus" {...register('focus')} placeholder="e.g., Upper Body Strength" />
+                            </div>
+
+                            <div className="space-y-4">
+                                <Label>Exercises</Label>
+                                {fields.map((field, index) => (
+                                    <div key={field.id} className="grid grid-cols-5 gap-2 items-end p-2 border rounded-md relative">
+                                        <Input placeholder="Exercise Name" {...register(`exercises.${index}.name`)} className="col-span-5 md:col-span-1" />
+                                        <Input placeholder="Sets" {...register(`exercises.${index}.sets`)} className="col-span-2 md:col-span-1" />
+                                        <Input placeholder="Reps" {...register(`exercises.${index}.reps`)} className="col-span-2 md:col-span-1" />
+                                        <Input placeholder="Weight" {...register(`exercises.${index}.weight`)} className="col-span-2 md:col-span-1" />
+                                        <Input placeholder="Rest" {...register(`exercises.${index}.rest`)} className="col-span-2 md:col-span-1" />
+                                        {fields.length > 1 && (
+                                            <Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6 text-destructive" onClick={() => remove(index)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                        {errors.exercises?.[index]?.name && <p className="text-xs text-destructive col-span-5 mt-1">{errors.exercises[index]?.name?.message}</p>}
+                                    </div>
+                                ))}
+                                {errors.exercises?.root && <p className="text-xs text-destructive">{errors.exercises.root.message}</p>}
+                                <Button type="button" variant="outline" size="sm" onClick={() => append({ name: '', sets: '', reps: '', weight: '', rest: '' })}>
+                                    <Plus className="mr-2 h-4 w-4"/> Add Exercise
+                                </Button>
+                            </div>
+                            
+                            <div>
+                                <Label htmlFor="trainerNotes">Trainer Notes</Label>
+                                <Textarea id="trainerNotes" {...register('trainerNotes')} placeholder="Notes on client's performance, form, etc."/>
+                            </div>
+                            <div>
+                                <Label htmlFor="clientFeedback">Client Feedback</Label>
+                                <Textarea id="clientFeedback" {...register('clientFeedback')} placeholder="Any feedback from the client."/>
+                            </div>
+
+                            <Separator/>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Controller
+                                    name="clientSignature"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <SignaturePad label="Client Signature" onSignatureChange={field.onChange} />
+                                    )}
+                                />
+                                 {errors.clientSignature && <p className="text-xs text-destructive mt-1">{errors.clientSignature.message}</p>}
+
+                                <Controller
+                                    name="trainerSignature"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <SignaturePad label="Trainer Signature" onSignatureChange={field.onChange} />
+                                    )}
+                                />
+                                {errors.trainerSignature && <p className="text-xs text-destructive mt-1">{errors.trainerSignature.message}</p>}
+                            </div>
                         </div>
-                        <div>
-                            <Label htmlFor="session-duration">Duration</Label>
-                            <Select name="duration_hours" defaultValue="1" required value={duration} onValueChange={setDuration}>
-                            <SelectTrigger id="session-duration"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1">1 hour</SelectItem>
-                                <SelectItem value="1.5">1.5 hours</SelectItem>
-                                <SelectItem value="2">2 hours</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <SignaturePad label="Client Signature" onSignatureChange={setClientSignature} />
-                        <SignaturePad label="Trainer Signature" onSignatureChange={setTrainerSignature} />
-                    </div>
-                    <DialogFooter>
+                    </ScrollArea>
+                    <DialogFooter className="mt-4 pt-4 border-t">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending}>
-                            {isPending ? <Loader2 className="animate-spin mr-2" /> : null}
+                            {isPending ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4"/>}
                             Confirm & Complete Session
                         </Button>
                     </DialogFooter>
