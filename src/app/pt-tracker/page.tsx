@@ -843,6 +843,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 open={editModalOpen}
                 onOpenChange={setEditModalOpen}
                 session={sessionToEdit}
+                clients={clients}
                 trainers={trainers}
                 packages={packages}
                 commissionPlans={commissionPlans}
@@ -1775,7 +1776,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
     )
 }
 
-function SessionEditModal({ open, onOpenChange, session: sessionToEdit, trainers, packages, db, commissionPlans }: { open: boolean, onOpenChange: (open: boolean) => void, session: PTSession | null, trainers: PTTrainer[], packages: PTPackage[], db: Firestore, commissionPlans: PTCommissionPlan[] }) {
+function SessionEditModal({ open, onOpenChange, session: sessionToEdit, clients, trainers, packages, db, commissionPlans }: { open: boolean, onOpenChange: (open: boolean) => void, session: PTSession | null, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], db: Firestore, commissionPlans: PTCommissionPlan[] }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
