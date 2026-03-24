@@ -1,15 +1,17 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, User, FileSignature, Dumbbell, History, FileText } from 'lucide-react';
+import { Loader2, User, FileSignature, History, FileText, ChevronsUpDown } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SessionSigningDialog } from '@/components/pt/session-signing-dialog';
+import { SessionHistoryTable } from '@/components/pt/session-history-table';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 
 function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: string }> }) {
@@ -73,25 +75,42 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {activePackages && activePackages.length > 0 ? activePackages.map(pkg => (
-                                     <Card key={pkg.id} className="p-4">
-                                         <div className="flex justify-between items-center">
-                                             <div>
-                                                 <p className="font-semibold">{pkg.package_name}</p>
-                                                 <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining} hours remaining</p>
-                                                 <p className="text-xs text-muted-foreground">Expires: {new Date(pkg.expiry_date).toLocaleDateString()}</p>
-                                             </div>
-                                             
-                                            <SessionSigningDialog
-                                                client={client}
-                                                pkg={pkg}
-                                                trainers={trainers || []}
-                                                commissionPlans={commissionPlans || []}
-                                            >
-                                                <Button>Start Session</Button>
-                                            </SessionSigningDialog>
+                                     <Card key={pkg.id} className="p-0 overflow-hidden">
+                                        <div className="p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold text-xl">{pkg.package_name}</p>
+                                                    <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining} hours remaining</p>
+                                                    <p className="text-xs text-muted-foreground">Expires: {new Date(pkg.expiry_date).toLocaleDateString()}</p>
+                                                </div>
+                                                
+                                                <SessionSigningDialog
+                                                    client={client}
+                                                    pkg={pkg}
+                                                    trainers={trainers || []}
+                                                    commissionPlans={commissionPlans || []}
+                                                >
+                                                    <Button>Start Session</Button>
+                                                </SessionSigningDialog>
+                                            </div>
+                                        </div>
 
-                                         </div>
-                                     </Card>
+                                        <Collapsible>
+                                            <CollapsibleTrigger asChild>
+                                                <div className="bg-slate-50 hover:bg-slate-100 cursor-pointer p-2 border-t text-center text-sm font-medium text-muted-foreground">
+                                                    <div className="flex items-center justify-center">
+                                                        <ChevronsUpDown className="h-4 w-4 mr-2"/>
+                                                        View Session History
+                                                    </div>
+                                                </div>
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent>
+                                                <div className="p-4 bg-slate-50">
+                                                    <SessionHistoryTable packageId={pkg.id} trainers={trainers || []} />
+                                                </div>
+                                            </CollapsibleContent>
+                                        </Collapsible>
+                                    </Card>
                                 )) : (
                                     <p className="text-center text-muted-foreground py-4">No active packages found.</p>
                                 )}

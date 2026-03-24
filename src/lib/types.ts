@@ -1,6 +1,7 @@
 
 
 
+
 export type Employee = {
   id: string;
   name: string;
@@ -148,6 +149,8 @@ export interface PTSession {
   session_status: 'completed' | 'scheduled' | 'cancelled';
   completed_by?: string;
   completion_timestamp?: string;
+  clientSignature?: string;
+  trainerSignature?: string;
 }
 
 export interface PTCommission {
