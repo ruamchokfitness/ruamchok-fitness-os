@@ -112,12 +112,12 @@ export function ParqForm({ client }: ParqFormProps) {
                 });
             }
 
-            for (const assessment of data.assessments) {
-                 if (assessment.id) {
-                    await updateDoc(doc(firestore, "pt_clients", client.id, "physicalAssessments", assessment.id), assessment);
-                 } else if (Object.values(assessment).some(v => v !== '' && v !== undefined && v !== null)) {
+            for (const assessment of Object.values(data.assessments)) {
+                 if (assessment && typeof assessment === 'object' && 'id' in assessment && (assessment as any).id) {
+                    await updateDoc(doc(firestore, "pt_clients", client.id, "physicalAssessments", (assessment as any).id), assessment);
+                 } else if (assessment && typeof assessment === 'object' && 'assessmentType' in assessment && Object.values(assessment).some(v => v !== '' && v !== undefined && v !== null && v !== (assessment as any).assessmentType)) {
                     await addDoc(collection(firestore, "pt_clients", client.id, "physicalAssessments"), {
-                        ...assessment,
+                        ...(assessment as object),
                         clientId: client.id,
                         createdAt: serverTimestamp()
                     });
@@ -148,6 +148,9 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                 otherMedicalCondition: existingParq?.otherMedicalCondition || '',
                 otherFitnessGoals: existingParq?.otherFitnessGoals || '',
                 clientSignature: existingParq?.clientSignature || '',
+                fitnessGoals: existingParq?.fitnessGoals || [],
+                medicalProfile: existingParq?.medicalProfile || {},
+                medicalReleaseRequired: existingParq?.medicalReleaseRequired || false,
             },
             assessments: {
                 Start: existingAssessments.find(a => a.assessmentType === 'Start') || { assessmentType: 'Start' },
@@ -228,10 +231,10 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                          <h3 className="font-semibold text-lg mb-2">การประเมินสภาพร่างกาย / PHYSICAL ASSESSMENT</h3>
                          <Tabs defaultValue="Start">
                             <TabsList>
-                                <TabsTrigger value="Start">เริ่มต้น/Start</TabsTrigger>
+                                <TabsTrigger value="Start">ประเมินผลครั้งที่ 1</TabsTrigger>
                                 <TabsTrigger value="Goal">เป้าหมาย/Goal</TabsTrigger>
-                                <TabsTrigger value="2 Week Reassessment">ประเมินผลสัปดาห์ที่ 2</TabsTrigger>
-                                <TabsTrigger value="6 Week Reassessment">ประเมินผลสัปดาห์ที่ 6</TabsTrigger>
+                                <TabsTrigger value="2 Week Reassessment">ประเมินผลครั้งที่ 2</TabsTrigger>
+                                <TabsTrigger value="6 Week Reassessment">ประเมินผลครั้งที่ 3</TabsTrigger>
                             </TabsList>
                             <TabsContent value="Start" className="mt-4"><AssessmentForm type="Start" register={register} /></TabsContent>
                             <TabsContent value="Goal" className="mt-4"><GoalForm register={register} /></TabsContent>
