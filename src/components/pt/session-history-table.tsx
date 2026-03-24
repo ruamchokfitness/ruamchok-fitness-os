@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import React, { useMemo } from 'react';
+import { collection, query, where } from 'firebase/firestore';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTSession, PTTrainer } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -29,13 +29,21 @@ export function SessionHistoryTable({ packageId, trainers }: SessionHistoryTable
         () => firestore 
             ? query(
                 collection(firestore, 'pt_sessions'), 
-                where('purchase_id', '==', packageId),
-                orderBy('session_datetime', 'asc')
+                where('purchase_id', '==', packageId)
               ) 
             : null,
         [firestore, packageId]
     );
-    const { data: sessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+    const { data: unsortedSessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+
+    const sessions = useMemo(() => {
+        if (!unsortedSessions) return null;
+        return [...unsortedSessions].sort((a, b) => {
+            const dateA = a.session_datetime ? new Date(a.session_datetime).getTime() : 0;
+            const dateB = b.session_datetime ? new Date(b.session_datetime).getTime() : 0;
+            return dateA - dateB;
+        });
+    }, [unsortedSessions]);
 
     if (isLoading) {
         return <div className="flex justify-center items-center p-4"><Loader2 className="h-6 w-6 animate-spin" /></div>;
