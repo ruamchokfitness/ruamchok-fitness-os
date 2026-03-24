@@ -821,9 +821,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                                                     <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
                                                 </>
                                             )}
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditSession(session)}>
-                                                <Edit className="h-4 w-4"/>
-                                            </Button>
+                                            <button onClick={() => handleEditSession(session)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
                                             <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
                                         </div>
                                     </TableCell>
