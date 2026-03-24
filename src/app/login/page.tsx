@@ -45,7 +45,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Special mapping for the admin user, and flexible handling for others.
     let email: string;
     if (loginIdentifier.toLowerCase() === 'admin') {
       email = 'ruamchokfitness@gmail.com';
@@ -61,34 +60,35 @@ export default function LoginPage() {
           await signInWithEmailAndPassword(auth, email, password);
           router.push('/');
         } else { // signup mode
-          if (loginIdentifier.toLowerCase() === 'admin') {
-            setError("The username 'admin' is reserved. Please choose another username or try signing in.");
-            return;
+          if (loginIdentifier.toLowerCase() !== 'admin') {
+             setError('Only the "admin" user can be created at this time. Please contact your system administrator if you need an account.');
+             return;
           }
-          if (!name.trim()) {
-            setError("Full Name is required.");
-            return;
+           if (name.trim() === '') {
+             setError('Full Name is required.');
+             return;
           }
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          
+          const emailToCreate = 'ruamchokfitness@gmail.com'; // Hardcode the admin email
+          
+          const userCredential = await createUserWithEmailAndPassword(auth, emailToCreate, password);
           const newUser = userCredential.user;
 
-          // Create the user profile document in Firestore
+          // Create the user profile document in Firestore with the admin role
           await setDoc(doc(firestore, 'users', newUser.uid), {
             uid: newUser.uid,
-            email: email,
+            email: emailToCreate,
             name: name.trim(),
-            role: 'staff' // Default role, AuthGate will promote if it's the first user.
+            role: 'admin' // Assign 'admin' role directly
           });
           
-          // Successful sign-up automatically signs the user in.
-          // The onAuthStateChanged listener and AuthGate will handle the redirect.
           router.push('/');
         }
       } catch (err: any) {
         let errorMessage = "An unexpected error occurred.";
         switch (err.code) {
           case 'auth/invalid-email':
-            errorMessage = "Invalid email or username format. Usernames cannot contain spaces.";
+            errorMessage = "Invalid email or username format.";
             break;
           case 'auth/user-not-found':
           case 'auth/wrong-password':
@@ -96,7 +96,7 @@ export default function LoginPage() {
             errorMessage = "Invalid username/email or password.";
             break;
           case 'auth/email-already-in-use':
-            errorMessage = "An account with this email or username already exists. Please try signing in instead.";
+            errorMessage = "This admin account already exists. Please try signing in instead.";
             break;
           case 'auth/weak-password':
             errorMessage = "Password should be at least 6 characters.";
@@ -132,11 +132,10 @@ export default function LoginPage() {
         await sendPasswordResetEmail(auth, fullEmail);
         toast({
           title: "Password Reset Email Sent",
-          description: `If an account for "${loginIdentifier}" exists, a password reset link has been sent to the associated email address.`,
+          description: `If an account exists, a password reset link has been sent to the associated email address.`,
         });
       } catch (error) {
         console.error("Forgot password error:", error);
-        // Do not reveal if user exists or not for security reasons
         toast({
           title: "Password Reset Email Sent",
           description: `If an account for "${loginIdentifier}" exists, a password reset link has been sent.`,
@@ -164,7 +163,7 @@ export default function LoginPage() {
           <div className="w-20 h-20 mx-auto bg-slate-900 rounded-full flex items-center justify-center">
             <span className="text-3xl font-bold text-white">RCF</span>
           </div>
-          <CardTitle className="text-2xl">{authMode === 'signin' ? 'Sign In' : 'Create Account'}</CardTitle>
+          <CardTitle className="text-2xl">{authMode === 'signin' ? 'Sign In' : 'Create Admin Account'}</CardTitle>
           <CardDescription>Welcome to Ruamchok Fitness OS</CardDescription>
         </CardHeader>
         <CardContent>
@@ -187,7 +186,7 @@ export default function LoginPage() {
               <Input
                 id="emailOrUsername"
                 type="text"
-                placeholder="Enter your username or email"
+                placeholder="Enter 'admin' or your email"
                 required
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
@@ -213,9 +212,9 @@ export default function LoginPage() {
           <div className="mt-4 text-center text-sm">
             {authMode === 'signin' ? (
               <>
-                Don&apos;t have an account?{" "}
+                First time setup?{" "}
                 <button onClick={toggleMode} className="underline">
-                  Sign up
+                  Create admin account
                 </button>
               </>
             ) : (
