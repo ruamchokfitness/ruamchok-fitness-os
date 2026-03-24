@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,13 @@ export default function Home() {
       description: 'Track personal training sessions and commissions.',
       href: '/pt-tracker',
       icon: <Trophy className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'Member Sign-in',
+      description: 'Sign in for personal training sessions.',
+      href: '/member-signin',
+      icon: <FileSignature className="w-8 h-8 text-primary" />,
       disabled: false,
     },
      {
