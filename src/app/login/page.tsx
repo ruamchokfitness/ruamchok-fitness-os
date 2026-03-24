@@ -44,56 +44,48 @@ export default function LoginPage() {
             return;
         }
 
-        const isSpecialAdminLogin = loginIdentifier.toLowerCase() === 'admin';
         let emailToUse: string;
 
-        if (isSpecialAdminLogin) {
-            emailToUse = 'admin@rcf.system';
-        } else if (isValidEmail(loginIdentifier)) {
-            emailToUse = loginIdentifier;
+        // If the identifier is not a valid email format, assume it's a username and append the system domain.
+        if (!isValidEmail(loginIdentifier)) {
+            emailToUse = `${loginIdentifier.toLowerCase()}@rcf.system`;
         } else {
-            setError("Invalid input. Please enter 'admin' or a valid email address.");
-            return;
+            // If it is a valid email, use it directly.
+            emailToUse = loginIdentifier;
         }
 
-        if (isSpecialAdminLogin && enteredPassword === 'rcf0882527094') {
-             try {
-                await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
-                router.push('/');
-            } catch (signInError: any) {
-                if (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential') {
-                    try {
-                        const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
-                        const newUser = userCredential.user;
+        try {
+            await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
+            router.push('/');
+        } catch (signInError: any) {
+            // Special case for initial admin setup: if the admin account doesn't exist, create it.
+            if (emailToUse === 'admin@rcf.system' && (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential')) {
+                try {
+                    const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
+                    const newUser = userCredential.user;
 
-                        await setDoc(doc(firestore, 'users', newUser.uid), {
-                            uid: newUser.uid,
-                            email: emailToUse,
-                            name: 'Admin',
-                            role: 'admin'
-                        });
-                        
-                        router.push('/');
-
-                    } catch (creationError: any) {
-                        let creationErrorMessage = "An unexpected error occurred during admin setup.";
-                        if (creationError.code === 'auth/email-already-in-use') {
-                            creationErrorMessage = "The admin account exists, but the password you entered is incorrect.";
-                        } else {
-                            creationErrorMessage = `Admin account setup failed: ${creationError.message}`;
-                        }
-                        setError(creationErrorMessage);
+                    await setDoc(doc(firestore, 'users', newUser.uid), {
+                        uid: newUser.uid,
+                        email: emailToUse,
+                        name: 'Admin',
+                        role: 'admin'
+                    });
+                    
+                    // After successful creation, sign in is implicit, so just redirect.
+                    router.push('/');
+                } catch (creationError: any) {
+                    let creationErrorMessage = "An unexpected error occurred during admin setup.";
+                     if (creationError.code === 'auth/email-already-in-use') {
+                        // This happens if the user-not-found check passed but creation fails, which implies wrong password for existing admin.
+                        creationErrorMessage = "The admin account exists but the password you entered is incorrect.";
+                    } else {
+                        creationErrorMessage = `Admin account setup failed: ${creationError.message}`;
                     }
-                } else {
-                    setError("The password you entered is incorrect. Please try again.");
+                    setError(creationErrorMessage);
                 }
-            }
-        } else {
-            try {
-                await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
-                router.push('/');
-            } catch (error: any) {
-                setError("Invalid email or password. Please try again.");
+            } else {
+                // For all other users or other types of admin errors (like wrong password)
+                setError("Invalid username/email or password. Please try again.");
             }
         }
     });
@@ -116,7 +108,7 @@ export default function LoginPage() {
               <Input
                 id="emailOrUsername"
                 type="text"
-                placeholder="Enter 'admin' or your email"
+                placeholder="Enter username or email"
                 required
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
@@ -141,8 +133,8 @@ export default function LoginPage() {
               Sign In
             </Button>
           </form>
-          <p className="text-xs text-center text-muted-foreground mt-4">
-              For initial setup, use username 'admin'. The system will create the account if it doesn't exist.
+           <p className="text-xs text-center text-muted-foreground mt-4">
+              Staff should enter their username. The 'admin' user is created on first login.
           </p>
         </CardContent>
       </Card>
