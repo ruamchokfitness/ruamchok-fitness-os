@@ -176,7 +176,7 @@ function UserManagementPage() {
             </div>
             <div>
               <Label htmlFor="username">Username</Label>
-              <Input id="username" name="username" defaultValue={editUser?.email.split('@')[0] || ''} required disabled={!!editUser} />
+              <Input id="username" name="username" defaultValue={editUser?.email?.split('@')[0] || ''} required disabled={!!editUser} />
               {!editUser && <p className="text-xs text-muted-foreground mt-1">Username cannot be changed later.</p>}
             </div>
             {!editUser && (
@@ -229,4 +229,3 @@ function UserManagementPage() {
 }
 
 export default UserManagementPage;
-    
