@@ -3,7 +3,7 @@
 import React from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { useFirebase } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { PTSession, PersonalTableEntry } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,14 +16,17 @@ import * as z from 'zod';
 import { Loader2 } from 'lucide-react';
 
 interface PersonalTableFormProps {
-  session: PTSession;
+  session?: PTSession | null;
   existingTable?: PersonalTableEntry | null;
+  clientId: string;
+  packageId: string;
   onSave: () => void;
   onCancel: () => void;
 }
 
+// Make all fields optional for flexibility
 const exerciseSchema = z.object({
-    name: z.string().min(1, "Exercise name is required."),
+    name: z.string().optional(),
     sets: z.string().optional(),
     reps: z.string().optional(),
     weight: z.string().optional(),
@@ -32,12 +35,12 @@ const exerciseSchema = z.object({
 
 const formSchema = z.object({
     focus: z.string().optional(),
-    exercises: z.array(exerciseSchema).min(1, "At least one exercise is required."),
+    exercises: z.array(exerciseSchema).optional(),
     trainerNotes: z.string().optional(),
     clientFeedback: z.string().optional(),
 });
 
-export function PersonalTableForm({ session, existingTable, onSave, onCancel }: PersonalTableFormProps) {
+export function PersonalTableForm({ session, existingTable, clientId, packageId, onSave, onCancel }: PersonalTableFormProps) {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     
@@ -59,15 +62,41 @@ export function PersonalTableForm({ session, existingTable, onSave, onCancel }: 
     const processSubmit = async (data: z.infer<typeof formSchema>) => {
         if (!firestore) return;
 
-        const tableId = existingTable?.id || session.id; // Use session ID as table ID if new
-        const tableRef = doc(firestore, `pt_sessions/${session.id}/personalTable`, tableId);
-        
-        const tableData: Omit<PersonalTableEntry, 'id'> = {
-            sessionId: session.id,
-            ...data
-        };
+        // Filter out any exercise rows where the name is empty
+        const nonEmptyExercises = data.exercises?.filter(ex => ex.name && ex.name.trim() !== '') || [];
 
+        let sessionId = session?.id;
+        
         try {
+            // If there's no session object, it means this is a placeholder slot.
+            // We need to create a session document first.
+            if (!sessionId) {
+                const newSessionData = {
+                    client_id: clientId,
+                    purchase_id: packageId,
+                    session_datetime: new Date().toISOString(), // Placeholder date, can be edited later
+                    duration_hours: 0, // Placeholder, this session hasn't been "used" yet
+                    session_status: 'scheduled',
+                    trainer_id: '',
+                };
+                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), newSessionData);
+                sessionId = newSessionRef.id;
+            }
+
+            if (!sessionId) {
+                throw new Error("Could not create or find session ID.");
+            }
+
+            const tableRef = doc(db, `pt_sessions/${sessionId}/personalTable`, sessionId);
+            
+            const tableData = {
+                sessionId: sessionId,
+                focus: data.focus,
+                exercises: nonEmptyExercises,
+                trainerNotes: data.trainerNotes,
+                clientFeedback: data.clientFeedback,
+            };
+
             await setDoc(tableRef, tableData, { merge: true });
             toast({ title: "Workout Saved!" });
             onSave();
@@ -80,8 +109,8 @@ export function PersonalTableForm({ session, existingTable, onSave, onCancel }: 
     return (
         <form onSubmit={handleSubmit(processSubmit)} className="space-y-6">
             <div className="flex justify-between items-center">
-                 <h4 className="font-semibold">{existingTable ? 'Edit Workout' : 'Add Workout Details'}</h4>
-                 {existingTable && <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>}
+                 <h4 className="font-semibold">{existingTable || session ? 'Edit Workout' : 'Add Workout Details'}</h4>
+                 {(existingTable || session) && <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>}
             </div>
             
             <div>
@@ -103,10 +132,8 @@ export function PersonalTableForm({ session, existingTable, onSave, onCancel }: 
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         )}
-                        {errors.exercises?.[index]?.name && <p className="text-xs text-destructive col-span-5">{errors.exercises[index]?.name?.message}</p>}
                     </div>
                 ))}
-                 {errors.exercises && <p className="text-xs text-destructive">{errors.exercises.message}</p>}
                 <Button type="button" variant="outline" size="sm" onClick={() => append({ name: '', sets: '', reps: '', weight: '', rest: '' })}>
                     <Plus className="mr-2 h-4 w-4"/> Add Exercise
                 </Button>

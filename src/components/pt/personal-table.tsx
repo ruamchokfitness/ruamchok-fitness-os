@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useMemo, useTransition } from 'react';
-import { collection, query, where, orderBy, doc, addDoc } from 'firebase/firestore';
+import React, { useState, useMemo } from 'react';
+import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTSession, PersonalTableEntry, PTTrainer, PTPackage } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, BookOpen, Edit, Plus } from 'lucide-react';
+import { Loader2, BookOpen } from 'lucide-react';
 import { PersonalTableForm } from './personal-table-form';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 
 // Props interface for the main component
@@ -20,169 +19,60 @@ interface PersonalTableProps {
   sessions: PTSession[];
 }
 
-// Props for an existing session item
-interface ExistingSessionItemProps {
-    session: PTSession;
-    trainers: PTTrainer[];
-    sessionNumber: number;
-}
-
-// Props for a planned session item
-interface PlannedSessionItemProps {
-    pkg: PTPackage;
-    clientId: string;
-    sessionNumber: number;
-}
-
-// Helper to format date and time
 const formatDateTime = (dateStr: string) => {
-    if (!dateStr) return 'Date not set';
+    if (!dateStr) return 'Not set';
     return new Date(dateStr).toLocaleString('en-GB', {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
 };
 
-// Component to display a single workout's details
-function SessionWorkout({ session, trainerName }: { session: PTSession, trainerName: string }) {
+
+function SessionWorkoutWrapper({ session, sessionNumber, clientId, packageId, trainers }: { session: PTSession | null, sessionNumber: number, clientId: string, packageId: string, trainers: PTTrainer[] }) {
     const { firestore } = useFirebase();
-    const [isEditing, setIsEditing] = useState(false);
+    const trainerName = session ? (trainers.find(t => t.id === session.trainer_id)?.name || 'Unassigned') : 'Not set';
 
-    const personalTableQuery = useMemoFirebase(() => firestore ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null, [firestore, session.id]);
-    const { data: personalTableEntries, isLoading } = useCollection<PersonalTableEntry>(personalTableQuery);
-    
-    const personalTable = useMemo(() => personalTableEntries?.[0], [personalTableEntries]);
-    
-    if (isLoading) {
-        return <div className="p-4 flex justify-center"><Loader2 className="animate-spin" /></div>;
-    }
-
-    if (isEditing || !personalTable) {
-        return (
-            <div className="p-4 bg-slate-100/50">
-                <PersonalTableForm
-                    session={session}
-                    existingTable={personalTable}
-                    onSave={() => setIsEditing(false)}
-                    onCancel={() => setIsEditing(false)}
-                />
-            </div>
-        );
-    }
-    
-    return (
-        <div className="p-4 bg-slate-100/50 space-y-4">
-             <div className="flex justify-between items-start">
-                 <div>
-                    {personalTable.focus && <Badge>{personalTable.focus}</Badge>}
-                    <p className="text-xs text-muted-foreground mt-2">Trainer: {trainerName}</p>
-                 </div>
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-3 w-3"/>Edit</Button>
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b">
-                            <th className="p-2 text-left font-semibold">Exercise</th>
-                            <th className="p-2 text-left font-semibold">Sets</th>
-                            <th className="p-2 text-left font-semibold">Reps</th>
-                            <th className="p-2 text-left font-semibold">Weight</th>
-                            <th className="p-2 text-left font-semibold">Rest</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {personalTable.exercises.map((ex, index) => (
-                            <tr key={index} className="border-b last:border-b-0">
-                                <td className="p-2">{ex.name}</td>
-                                <td className="p-2">{ex.sets || '-'}</td>
-                                <td className="p-2">{ex.reps || '-'}</td>
-                                <td className="p-2">{ex.weight || '-'}</td>
-                                <td className="p-2">{ex.rest || '-'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {personalTable.trainerNotes && (
-                <div>
-                    <h5 className="font-semibold text-xs text-muted-foreground">Trainer Notes</h5>
-                    <p className="text-sm p-2 bg-white rounded-md border">{personalTable.trainerNotes}</p>
-                </div>
-            )}
-             {personalTable.clientFeedback && (
-                <div>
-                    <h5 className="font-semibold text-xs text-muted-foreground">Client Feedback</h5>
-                    <p className="text-sm p-2 bg-white rounded-md border">{personalTable.clientFeedback}</p>
-                </div>
-            )}
-        </div>
+    const personalTableQuery = useMemoFirebase(
+      () => (firestore && session ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null),
+      [firestore, session]
     );
-}
-
-// Component for an existing session
-function ExistingSessionItem({ session, trainers, sessionNumber }: ExistingSessionItemProps) {
-    const trainerName = trainers.find(t => t.id === session.trainer_id)?.name || 'Unassigned';
+    const { data: personalTableEntries, isLoading } = useCollection<PersonalTableEntry>(personalTableQuery);
+    const personalTable = useMemo(() => personalTableEntries?.[0], [personalTableEntries]);
     
     return (
         <Accordion type="single" collapsible className="w-full bg-white rounded-lg border">
-          <AccordionItem value={session.id} className="border-b-0">
+          <AccordionItem value={`session-${sessionNumber}`} className="border-b-0">
             <AccordionTrigger className="p-4 hover:no-underline">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-4">
-                      <span className="font-semibold text-primary">Session {sessionNumber}</span>
-                      <Badge variant="secondary" className={cn('capitalize')}>{session.session_status}</Badge>
+                      <span className={cn("font-semibold", session ? "text-primary" : "text-slate-500")}>Session {sessionNumber}</span>
+                      {session && <Badge variant="secondary" className={cn('capitalize')}>{session.session_status}</Badge>}
                     </div>
                     <div>
-                        <p className="font-semibold text-sm">{session.session_status === 'scheduled' && !session.trainer_id ? "Planned" : formatDateTime(session.session_datetime)}</p>
-                        <p className="text-sm text-muted-foreground text-right">with {trainerName}</p>
+                        <p className="font-semibold text-sm">{session ? formatDateTime(session.session_datetime) : "Not yet occurred"}</p>
+                        {session && <p className="text-sm text-muted-foreground text-right">with {trainerName}</p>}
                     </div>
                 </div>
             </AccordionTrigger>
             <AccordionContent>
-                <SessionWorkout session={session} trainerName={trainerName} />
+                <div className="p-4 bg-slate-100/50">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center p-4"> <Loader2 className="animate-spin" /></div>
+                    ) : (
+                        <PersonalTableForm
+                            session={session}
+                            existingTable={personalTable}
+                            clientId={clientId}
+                            packageId={packageId}
+                            onSave={() => { /* Real-time updates will handle re-render */ }}
+                            onCancel={() => { /* Not needed in this accordion context */ }}
+                        />
+                    )}
+                </div>
             </AccordionContent>
           </AccordionItem>
         </Accordion>
     );
 }
-
-// Component for a planned (not yet created) session
-function PlannedSessionItem({ pkg, clientId, sessionNumber }: PlannedSessionItemProps) {
-  const { firestore } = useFirebase();
-  const [isPending, startTransition] = useTransition();
-
-  const handlePlanWorkout = () => {
-    startTransition(async () => {
-      if (!firestore) return;
-      
-      const newSessionData: Partial<PTSession> = {
-        client_id: clientId,
-        purchase_id: pkg.id,
-        session_datetime: new Date().toISOString(),
-        duration_hours: 1,
-        session_status: 'scheduled',
-        trainer_id: '', // Empty trainer ID signifies it's just planned
-      };
-
-      await addDoc(collection(firestore, 'pt_sessions'), newSessionData);
-    });
-  };
-
-  return (
-    <div className="flex justify-between items-center p-4 border-2 border-dashed rounded-lg bg-slate-50">
-      <div>
-        <p className="font-semibold text-slate-600">Session {sessionNumber}</p>
-        <p className="text-sm text-muted-foreground">Ready to be planned</p>
-      </div>
-      <Button onClick={handlePlanWorkout} disabled={isPending} variant="outline" size="sm">
-        {isPending ? <Loader2 className="animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-        Plan Workout
-      </Button>
-    </div>
-  );
-}
-
 
 // Main Component
 export function PersonalTable({ clientId, trainers, packages, sessions }: PersonalTableProps) {
@@ -235,11 +125,16 @@ export function PersonalTable({ clientId, trainers, packages, sessions }: Person
                         <div className="space-y-2 p-2 bg-slate-50 rounded-b-lg">
                            {sessionSlots.map((slotIndex) => {
                               const session = packageSessions[slotIndex];
-                              if (session) {
-                                return <ExistingSessionItem key={session.id} session={session} trainers={trainers} sessionNumber={slotIndex + 1} />;
-                              } else {
-                                return <PlannedSessionItem key={slotIndex} pkg={pkg} clientId={clientId} sessionNumber={slotIndex + 1} />;
-                              }
+                              return (
+                                <SessionWorkoutWrapper
+                                    key={session ? session.id : `slot-${pkg.id}-${slotIndex}`}
+                                    session={session || null}
+                                    sessionNumber={slotIndex + 1}
+                                    clientId={clientId}
+                                    packageId={pkg.id}
+                                    trainers={trainers}
+                                />
+                              );
                            })}
                         </div>
                     </AccordionContent>
