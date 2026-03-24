@@ -1,37 +1,55 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { collection, query, where, orderBy, doc } from 'firebase/firestore';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTSession, PersonalTableEntry, PTTrainer } from '@/lib/types';
+import React, { useState, useMemo, useTransition } from 'react';
+import { collection, query, where, orderBy, doc, addDoc } from 'firebase/firestore';
+import { useFirebase, useCollection } from '@/firebase';
+import type { PTSession, PersonalTableEntry, PTTrainer, PTPackage } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, BookOpen, Edit } from 'lucide-react';
+import { Loader2, BookOpen, Edit, Plus } from 'lucide-react';
 import { PersonalTableForm } from './personal-table-form';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 
+// Props interface for the main component
 interface PersonalTableProps {
   clientId: string;
   trainers: PTTrainer[];
+  packages: PTPackage[];
+  sessions: PTSession[];
 }
 
+// Props for an existing session item
+interface ExistingSessionItemProps {
+    session: PTSession;
+    trainers: PTTrainer[];
+    sessionNumber: number;
+}
+
+// Props for a planned session item
+interface PlannedSessionItemProps {
+    pkg: PTPackage;
+    clientId: string;
+    sessionNumber: number;
+}
+
+// Helper to format date and time
 const formatDateTime = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return 'Date not set';
     return new Date(dateStr).toLocaleString('en-GB', {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
 };
 
+// Component to display a single workout's details
 function SessionWorkout({ session, trainerName }: { session: PTSession, trainerName: string }) {
     const { firestore } = useFirebase();
     const [isEditing, setIsEditing] = useState(false);
 
-    // Assuming only one personal table entry per session for simplicity
-    const personalTableQuery = useMemoFirebase(() => firestore ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null, [firestore, session.id]);
+    const personalTableQuery = useMemo(() => firestore ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null, [firestore, session.id]);
     const { data: personalTableEntries, isLoading } = useCollection<PersonalTableEntry>(personalTableQuery);
-
+    
     const personalTable = useMemo(() => personalTableEntries?.[0], [personalTableEntries]);
     
     if (isLoading) {
@@ -102,83 +120,131 @@ function SessionWorkout({ session, trainerName }: { session: PTSession, trainerN
     );
 }
 
-export function PersonalTable({ clientId, trainers }: PersonalTableProps) {
+// Component for an existing session
+function ExistingSessionItem({ session, trainers, sessionNumber }: ExistingSessionItemProps) {
+    const trainerName = trainers.find(t => t.id === session.trainer_id)?.name || 'Unassigned';
+    
+    return (
+        <Accordion type="single" collapsible className="w-full bg-white rounded-lg border">
+          <AccordionItem value={session.id} className="border-b-0">
+            <AccordionTrigger className="p-4 hover:no-underline">
+                <div className="flex justify-between items-center w-full">
+                    <div className="flex items-center gap-4">
+                      <span className="font-semibold text-primary">Session {sessionNumber}</span>
+                      <Badge variant="secondary" className={cn('capitalize')}>{session.session_status}</Badge>
+                    </div>
+                    <div>
+                        <p className="font-semibold text-sm">{session.session_status === 'scheduled' && !session.trainer_id ? "Planned" : formatDateTime(session.session_datetime)}</p>
+                        <p className="text-sm text-muted-foreground text-right">with {trainerName}</p>
+                    </div>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent>
+                <SessionWorkout session={session} trainerName={trainerName} />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+    );
+}
+
+// Component for a planned (not yet created) session
+function PlannedSessionItem({ pkg, clientId, sessionNumber }: PlannedSessionItemProps) {
   const { firestore } = useFirebase();
+  const [isPending, startTransition] = useTransition();
 
-  // Remove orderBy from the query to avoid needing a composite index
-  const sessionsQuery = useMemoFirebase(() => firestore ? query(
-    collection(firestore, 'pt_sessions'),
-    where('client_id', '==', clientId)
-  ) : null, [firestore, clientId]);
-  const { data: unsortedSessions, isLoading } = useCollection<PTSession>(sessionsQuery);
+  const handlePlanWorkout = () => {
+    startTransition(async () => {
+      if (!firestore) return;
+      
+      const newSessionData: Partial<PTSession> = {
+        client_id: clientId,
+        purchase_id: pkg.id,
+        session_datetime: new Date().toISOString(),
+        duration_hours: 1,
+        session_status: 'scheduled',
+        trainer_id: '', // Empty trainer ID signifies it's just planned
+      };
 
-  // Sort the sessions on the client-side
-  const sessions = useMemo(() => {
-    if (!unsortedSessions) return null;
-    return [...unsortedSessions].sort((a, b) => {
-      const dateA = a.session_datetime ? new Date(a.session_datetime).getTime() : 0;
-      const dateB = b.session_datetime ? new Date(b.session_datetime).getTime() : 0;
-      return dateB - dateA; // Sort descending
+      await addDoc(collection(firestore, 'pt_sessions'), newSessionData);
     });
-  }, [unsortedSessions]);
+  };
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>;
-  }
+  return (
+    <div className="flex justify-between items-center p-4 border-2 border-dashed rounded-lg bg-slate-50">
+      <div>
+        <p className="font-semibold text-slate-600">Session {sessionNumber}</p>
+        <p className="text-sm text-muted-foreground">Ready to be planned</p>
+      </div>
+      <Button onClick={handlePlanWorkout} disabled={isPending} variant="outline" size="sm">
+        {isPending ? <Loader2 className="animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+        Plan Workout
+      </Button>
+    </div>
+  );
+}
 
-  if (!sessions || sessions.length === 0) {
+
+// Main Component
+export function PersonalTable({ clientId, trainers, packages, sessions }: PersonalTableProps) {
+  if (!packages || packages.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Personal Table / Workout History</CardTitle>
+          <CardTitle className="flex items-center gap-2"><BookOpen className="w-6 h-6"/>Personal Table / Workout History</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-8">No sessions found for this client.</p>
+          <p className="text-muted-foreground text-center py-8">No packages found for this client.</p>
         </CardContent>
       </Card>
     );
   }
 
-  const getStatusProps = (status: 'completed' | 'scheduled' | 'cancelled' | string): { className: string } => {
-    switch (status) {
-        case 'completed':
-            return { className: 'bg-green-100 text-green-800 border-transparent hover:bg-green-200' };
-        case 'scheduled':
-            return { className: 'bg-blue-100 text-blue-800 border-transparent hover:bg-blue-200' };
-        case 'cancelled':
-            return { className: 'bg-red-100 text-red-800 border-transparent hover:bg-red-200' };
-        default:
-            return { className: 'bg-gray-100 text-gray-800 border-transparent hover:bg-gray-200' };
-    }
-  };
-
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><BookOpen className="w-6 h-6"/>Personal Table / Workout History</CardTitle>
-        <CardDescription>A record of all training sessions. Click on a session to view or edit workout details.</CardDescription>
+        <CardDescription>A record of all training sessions per package. Click to expand and plan workouts.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Accordion type="single" collapsible className="w-full">
-            {sessions.map(session => {
-                const trainerName = trainers.find(t => t.id === session.trainer_id)?.name || 'Unknown Trainer';
-                const statusProps = getStatusProps(session.session_status);
+        <Accordion type="multiple" className="w-full space-y-4">
+            {packages.map(pkg => {
+                const packageSessions = sessions
+                  .filter(s => s.purchase_id === pkg.id)
+                  .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime()); // sort ascending by date
+
+                const totalSessionCount = Math.floor(pkg.hours_purchased); // Assuming 1 hour = 1 session
+                const sessionSlots = Array.from({ length: totalSessionCount }, (_, i) => i);
+
                 return (
-                    <AccordionItem value={session.id} key={session.id}>
-                        <AccordionTrigger className="p-4 hover:bg-slate-50">
-                            <div className="flex justify-between items-center w-full">
-                                <div className="flex items-center gap-4">
-                                  <span className="font-semibold text-primary">{formatDateTime(session.session_datetime)}</span>
-                                  <Badge variant="secondary" className={cn('capitalize', statusProps.className)}>{session.session_status}</Badge>
-                                </div>
-                                <span className="text-sm text-muted-foreground">with {trainerName}</span>
+                  <AccordionItem value={pkg.id} key={pkg.id} className="border-b-0">
+                    <AccordionTrigger className="p-4 rounded-lg border bg-white hover:bg-slate-50 hover:no-underline">
+                        <div className="flex justify-between items-center w-full">
+                            <div>
+                                <p className="font-bold text-lg">{pkg.package_name}</p>
+                                <p className="text-sm text-muted-foreground">{pkg.hours_used} / {pkg.hours_purchased} hours used</p>
                             </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <SessionWorkout session={session} trainerName={trainerName} />
-                        </AccordionContent>
-                    </AccordionItem>
-                )
+                             <Badge variant={pkg.status === 'active' ? 'default' : 'secondary'} className={cn(
+                                'capitalize',
+                                pkg.status === 'active' && 'bg-green-100 text-green-800',
+                                pkg.status === 'completed' && 'bg-blue-100 text-blue-800',
+                                pkg.status === 'expired' && 'bg-red-100 text-red-800'
+                             )}>{pkg.status}</Badge>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2">
+                        <div className="space-y-2 p-2 bg-slate-50 rounded-b-lg">
+                           {sessionSlots.map((slotIndex) => {
+                              const session = packageSessions[slotIndex];
+                              if (session) {
+                                return <ExistingSessionItem key={session.id} session={session} trainers={trainers} sessionNumber={slotIndex + 1} />;
+                              } else {
+                                return <PlannedSessionItem key={slotIndex} pkg={pkg} clientId={clientId} sessionNumber={slotIndex + 1} />;
+                              }
+                           })}
+                        </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
             })}
         </Accordion>
       </CardContent>

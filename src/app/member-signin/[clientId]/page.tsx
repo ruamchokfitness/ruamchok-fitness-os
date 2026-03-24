@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
+import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan, PTSession } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,13 +24,18 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const clientRef = useMemoFirebase(() => firestore ? doc(firestore, 'pt_clients', clientId) : null, [firestore, clientId]);
     const { data: client, isLoading: loadingClient } = useDoc<PTClient>(clientRef);
 
-    const packagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId), where('status', '==', 'active')) : null, [firestore, clientId]);
-    const { data: activePackages, isLoading: loadingPackages } = useCollection<PTPackage>(packagesQuery);
+    const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId), orderBy('purchase_date', 'desc')) : null, [firestore, clientId]);
+    const { data: allPackages, isLoading: loadingPackages } = useCollection<PTPackage>(allPackagesQuery);
+
+    const activePackages = useMemo(() => allPackages?.filter(p => p.status === 'active') || [], [allPackages]);
     
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]));
     const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]));
 
-    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans;
+    const sessionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_sessions'), where('client_id', '==', clientId)) : null, [firestore, clientId]);
+    const { data: sessions, isLoading: loadingSessions } = useCollection<PTSession>(sessionsQuery);
+
+    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans || loadingSessions;
     
     if (isLoading) {
         return (
@@ -123,7 +128,12 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                         <ParqForm client={client} />
                     </TabsContent>
                     <TabsContent value="history" className="mt-6">
-                         <PersonalTable clientId={client.id} trainers={trainers || []} />
+                         <PersonalTable
+                            clientId={client.id}
+                            trainers={trainers || []}
+                            packages={allPackages || []}
+                            sessions={sessions || []}
+                         />
                     </TabsContent>
                 </Tabs>
             </main>
