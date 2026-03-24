@@ -41,13 +41,13 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
     const sessionsQuery = query(
         collection(db, "pt_sessions"),
         where("trainer_id", "==", trainerId),
-        where("session_status", "==", "completed"),
         where("session_datetime", ">=", firstDay.toISOString()),
         where("session_datetime", "<=", lastDay.toISOString())
     );
     const sessionsSnapshot = await getDocs(sessionsQuery);
     const sessionsThisMonth = sessionsSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as PTSession))
+        .filter(session => session.session_status === 'completed')
         .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
 
     const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
