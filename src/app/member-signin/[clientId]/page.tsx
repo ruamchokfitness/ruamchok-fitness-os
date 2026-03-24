@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { doc, collection, query, where } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTClient, PTPackage } from '@/lib/types';
@@ -19,7 +19,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
-function ClientProfile({ params }: { params: { clientId: string } }) {
+function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: string }> }) {
+    const params = React.use(paramsPromise);
     const { firestore } = useFirebase();
     const { clientId } = params;
 
@@ -136,7 +137,7 @@ function ClientProfile({ params }: { params: { clientId: string } }) {
     );
 }
 
-export default function ClientProfilePage({ params }: { params: { clientId: string } }) {
+export default function ClientProfilePage({ params }: { params: Promise<{ clientId: string }> }) {
     return (
         <FirebaseClientProvider>
             <ClientProfile params={params} />
