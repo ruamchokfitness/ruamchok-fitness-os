@@ -2,7 +2,7 @@
 
 import { useUser, useFirestore } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { collection, query, getDocs, doc, setDoc } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -58,6 +58,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const firestore = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   useEffect(() => {
     if (!isUserLoading && !user && pathname !== '/login') {
@@ -66,12 +67,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     // Once the user and firestore are available, run the admin check.
     if (!isUserLoading && user && firestore) {
-      bootstrapAdmin(firestore, user);
+      bootstrapAdmin(firestore, user).finally(() => {
+        setIsBootstrapping(false);
+      });
+    } else if (!isUserLoading) {
+        // If not logged in, or no firestore, no bootstrap needed.
+        setIsBootstrapping(false);
     }
     
   }, [user, isUserLoading, router, pathname, firestore]);
 
-  if (isUserLoading) {
+  // Show loader while user is loading OR bootstrapping is in progress.
+  if (isUserLoading || isBootstrapping) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -80,7 +87,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!user && pathname !== '/login') {
-    // Still loading or redirecting
+    // This case handles the brief moment after loading but before the redirect effect has run.
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
