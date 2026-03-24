@@ -261,4 +261,17 @@ export interface GroupClassAttendance {
   created_at: any; // Firestore Timestamp
 }
 
-    
+export interface PersonalTableEntry {
+  id: string;
+  sessionId: string;
+  focus?: string;
+  exercises: {
+    name: string;
+    sets?: string;
+    reps?: string;
+    weight?: string;
+    rest?: string;
+  }[];
+  trainerNotes?: string;
+  clientFeedback?: string;
+}

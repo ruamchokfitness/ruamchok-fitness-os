@@ -13,6 +13,7 @@ import { SessionSigningDialog } from '@/components/pt/session-signing-dialog';
 import { SessionHistoryTable } from '@/components/pt/session-history-table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ParqForm } from '@/components/pt/parq-form';
+import { PersonalTable } from '@/components/pt/personal-table';
 
 
 function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: string }> }) {
@@ -122,14 +123,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                         <ParqForm client={client} />
                     </TabsContent>
                     <TabsContent value="history" className="mt-6">
-                         <Card>
-                            <CardHeader>
-                                <CardTitle>Personal Table / Workout History</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                 <p className="text-muted-foreground">A list of past sessions and their workout details will be shown here.</p>
-                            </CardContent>
-                        </Card>
+                         <PersonalTable clientId={client.id} trainers={trainers || []} />
                     </TabsContent>
                 </Tabs>
             </main>
@@ -144,4 +138,3 @@ export default function ClientProfilePage({ params }: { params: Promise<{ client
         </FirebaseClientProvider>
     );
 }
-    
