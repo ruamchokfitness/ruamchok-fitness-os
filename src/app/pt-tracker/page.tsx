@@ -253,7 +253,7 @@ function PTTrackerPageContent() {
                         <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} commissionPlans={commissionPlans || []} db={db} />
                     </TabsContent>
                     <TabsContent value="commissions">
-                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} />
+                        <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} packages={packages||[]} />
                     </TabsContent>
                 </div>
             </Tabs>
@@ -855,7 +855,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     )
 }
 
-function CommissionsTab({ commissions, trainers, sessions, clients, commissionPlans }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[] }) { 
+function CommissionsTab({ commissions, trainers, sessions, clients, commissionPlans, packages }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -1019,6 +1019,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 sessions={sessions}
                 clients={clients}
                 commissionPlans={commissionPlans}
+                packages={packages}
             />
         </div>
     )
@@ -1979,7 +1980,7 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
     )
 }
 
-function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[] }) {
+function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans, packages }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) {
     const { toast } = useToast();
 
     const generatePayoutsPDF = (e: React.FormEvent<HTMLFormElement>) => {
@@ -2029,7 +2030,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     h2 { font-size: 14px; font-weight: bold; margin-top: 18px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; }
                     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
                     th { background: #f0f0f0; color: #000; padding: 6px 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
-                    td { padding: 5px 8px; border: 1px solid #ccc; font-size: 11px; }
+                    td { padding: 5px 8px; border: 1px solid #ccc; font-size: 11px; vertical-align: middle; }
                     tr:nth-child(even) { background: #fafafa; }
                     .amount { text-align: right; font-weight: bold; }
                     .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
@@ -2039,6 +2040,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     .summary-card .value { font-size: 16px; font-weight: bold; }
                     .no-data { text-align: center; padding: 20px; color: #666; background: #f5f5f5; border: 1px solid #ccc; }
                     .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    .signature { max-height: 25px; width: auto; }
                     @media print {
                         body { margin: 0; padding: 0; }
                         .container { padding: 15px; }
@@ -2082,11 +2084,15 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <tr>
                             <th>Date</th>
                             <th>Client</th>
+                            <th>Package Name</th>
+                            <th>Hrs Purchased</th>
                             <th>Plan Type</th>
                             <th>Hours</th>
                             <th>Rate/Hour</th>
                             <th>Cumulative</th>
                             <th style="text-align: right;">Commission</th>
+                            <th>Client Sign</th>
+                            <th>Trainer Sign</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2095,25 +2101,33 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
             filteredCommissions.forEach(comm => {
                 const session = sessions.find(s => s.id === comm.session_id);
                 const client = clients.find(c => c.id === session?.client_id);
+                const pkg = packages.find(p => p.id === session?.purchase_id);
                 const dateStr = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+                const clientSignHTML = session?.clientSignature ? `<img src="${session.clientSignature}" class="signature" alt="Client Signature">` : '-';
+                const trainerSignHTML = session?.trainerSignature ? `<img src="${session.trainerSignature}" class="signature" alt="Trainer Signature">` : '-';
                 
                 htmlContent += `
                     <tr>
                         <td>${dateStr}</td>
                         <td>${client?.name || '-'}</td>
+                        <td>${pkg?.package_name || '-'}</td>
+                        <td>${pkg?.hours_purchased ? `${pkg.hours_purchased}h` : '-'}</td>
                         <td>${comm.commission_type}</td>
                         <td>${comm.duration_hours || 0}h</td>
                         <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
                         <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
                         <td class="amount">${formatCurrency(comm.commission_amount || 0)}</td>
+                        <td>${clientSignHTML}</td>
+                        <td>${trainerSignHTML}</td>
                     </tr>
                 `;
             });
 
             htmlContent += `
                     <tr class="total-row">
-                        <td colspan="6" style="text-align: right;">TOTAL:</td>
+                        <td colspan="8" style="text-align: right;">TOTAL:</td>
                         <td class="amount">${formatCurrency(totalEarned)}</td>
+                        <td colspan="2"></td>
                     </tr>
                 </tbody>
                 </table>
