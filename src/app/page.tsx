@@ -1,8 +1,23 @@
+'use client';
+
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2, Settings } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut } from 'lucide-react';
+import { useAuth, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { Button } from '@/components/ui/button';
 
 export default function Home() {
+  const auth = useAuth();
+  const { user } = useUser();
+
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      // The AuthGate will automatically handle redirection to /login
+    }
+  };
+
   const menuItems = [
     {
       title: 'RCF Sales Dashboard',
@@ -50,11 +65,23 @@ export default function Home() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <header className="text-center mb-12">
-        <h1 className="text-5xl font-extrabold text-gray-800 mb-2 font-headline">
-          Ruamchok Fitness OS
-        </h1>
-        <p className="text-lg text-gray-600">Your central hub for managing fitness center operations.</p>
+      <header className="mb-12">
+        <div className="flex justify-between items-start">
+          <div className="text-left">
+            <h1 className="text-5xl font-extrabold text-gray-800 mb-2 font-headline">
+              Ruamchok Fitness OS
+            </h1>
+            <p className="text-lg text-gray-600">Your central hub for managing fitness center operations.</p>
+          </div>
+          {user && (
+            <div>
+              <Button variant="outline" onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          )}
+        </div>
       </header>
       <main>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -79,5 +106,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
