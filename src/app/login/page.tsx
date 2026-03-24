@@ -41,7 +41,7 @@ export default function LoginPage() {
         }
 
         const isAdminLogin = loginIdentifier.toLowerCase() === 'admin' && enteredPassword === 'rcf0882527094';
-        const emailToUse = isAdminLogin ? 'ruamchokfitness@gmail.com' : loginIdentifier;
+        const emailToUse = isAdminLogin ? 'admin@rcf.system' : loginIdentifier;
 
         try {
             // First, always try to sign in.
