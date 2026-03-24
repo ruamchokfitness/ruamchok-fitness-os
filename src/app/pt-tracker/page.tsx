@@ -1792,10 +1792,16 @@ function SessionEditModal({ open, onOpenChange, session: sessionToEdit, clients,
         }
     }, [sessionToEdit]);
 
-    if (!sessionToEdit) return null;
+    const client = useMemo(() => {
+        if (!sessionToEdit) return null;
+        return clients.find(c => c.id === sessionToEdit.client_id);
+    }, [clients, sessionToEdit]);
+
+    if (!sessionToEdit) {
+        return null; 
+    }
 
     const pkg = packages.find(p => p.id === sessionToEdit.purchase_id);
-    const client = useMemo(() => clients.find(c => c.id === sessionToEdit.client_id), [clients, sessionToEdit]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
