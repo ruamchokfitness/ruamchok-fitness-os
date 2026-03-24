@@ -27,24 +27,24 @@ interface ParqFormProps {
 }
 
 const medicalQuestions = [
-  { id: 'heatCondition', label: 'สภาพหัวใจ' },
-  { id: 'diabetes', label: 'โรคเบาหวาน' },
-  { id: 'smoker', label: 'สูบบุหรี่' },
-  { id: 'angina', label: 'อาการปวดรุนแรงที่หัวใจ' },
-  { id: 'backProblems', label: 'ปัญหาเกี่ยวกับหลัง' },
-  { id: 'pregnancy', label: 'การตั้งครรภ์' },
-  { id: 'highBloodPressure', label: 'ความดันโลหิตสูง' },
-  { id: 'sciatica', label: 'ปวดรุนแรงที่เส้นประสาท' },
-  { id: 'hernia', label: 'ไส้เลื่อน' },
-  { id: 'asthma', label: 'โรคหอบหืด' },
-  { id: 'jointProblems', label: 'ปัญหาที่ข้อกระดูก' },
-  { id: 'recentSurgery', label: 'การผ่าตัดเมื่อเร็วๆนี้' },
+  { id: 'heatCondition', label: 'สภาพหัวใจ/Heart Condition' },
+  { id: 'diabetes', label: 'โรคเบาหวาน/Diabetes' },
+  { id: 'smoker', label: 'สูบบุหรี่/Smoker' },
+  { id: 'angina', label: 'อาการปวดรุนแรงที่หัวใจ/Angina' },
+  { id: 'backProblems', label: 'ปัญหาเกี่ยวกับหลัง/Back Problems' },
+  { id: 'pregnancy', label: 'การตั้งครรภ์/Pregnancy' },
+  { id: 'highBloodPressure', label: 'ความดันโลหิตสูง/High Blood Pressure' },
+  { id: 'sciatica', label: 'ปวดรุนแรงที่เส้นประสาท/Sciatica' },
+  { id: 'hernia', label: 'ไส้เลื่อน/Hernia' },
+  { id: 'asthma', label: 'โรคหอบหืด/Asthma' },
+  { id: 'jointProblems', label: 'ปัญหาที่ข้อกระดูก/Joint Problems' },
+  { id: 'recentSurgery', label: 'การผ่าตัดเมื่อเร็วๆนี้/Recent Surgery' },
 ];
 
 const fitnessGoals = [
-    { id: 'fatLoss', label: 'ลดไขมัน' },
-    { id: 'building', label: 'สร้างกล้ามเนื้อ' },
-    { id: 'toning', label: 'กระชับกล้ามเนื้อ' }
+    { id: 'fatLoss', label: 'ลดไขมัน/Fat Loss' },
+    { id: 'building', label: 'สร้างกล้ามเนื้อ/Building' },
+    { id: 'toning', label: 'กระชับสัดส่วน/Toning' }
 ]
 
 const assessmentFields = [
@@ -153,8 +153,8 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                 medicalReleaseRequired: existingParq?.medicalReleaseRequired || false,
             },
             assessments: {
-                Start: existingAssessments.find(a => a.assessmentType === 'Start') || { assessmentType: 'Start' },
-                Goal: existingParq?.assessmentGoals || {},
+                'Start': existingAssessments.find(a => a.assessmentType === 'Start') || { assessmentType: 'Start' },
+                'Goal': existingParq?.assessmentGoals || {},
                 '2 Week Reassessment': existingAssessments.find(a => a.assessmentType === '2 Week Reassessment') || { assessmentType: '2 Week Reassessment' },
                 '6 Week Reassessment': existingAssessments.find(a => a.assessmentType === '6 Week Reassessment') || { assessmentType: '6 Week Reassessment' },
             }
@@ -183,7 +183,7 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                     
                     {/* Medical Profile */}
                     <div>
-                        <h3 className="font-semibold text-lg mb-2">ประวัติสุขภาพร่างกาย MEDICAL PROFILE</h3>
+                        <h3 className="font-semibold text-lg mb-2">ประวัติสุขภาพร่างกาย/MEDICAL PROFILE</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
                             {medicalQuestions.map(q => (
                                 <Controller key={q.id} name={`parq.medicalProfile.${q.id}`} control={control} render={({ field }) => (
@@ -198,7 +198,7 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
 
                     {/* Fitness Profile */}
                     <div>
-                        <h3 className="font-semibold text-lg mb-2">ข้อมูลออกกำลังกาย / FITNESS PROFILE</h3>
+                        <h3 className="font-semibold text-lg mb-2">ข้อมูลออกกำลังกาย/FITNESS PROFILE</h3>
                         <div className="space-y-2">
                              <Label>เป้าหมายการออกกำลังกาย/Fitness Goals</Label>
                              <div className="flex gap-4">
@@ -228,13 +228,13 @@ function FullForm({ client, existingParq, existingAssessments, onSave }: { clien
                     
                     {/* Physical Assessment */}
                     <div>
-                         <h3 className="font-semibold text-lg mb-2">การประเมินสภาพร่างกาย / PHYSICAL ASSESSMENT</h3>
+                         <h3 className="font-semibold text-lg mb-2">การประเมินสภาพร่างกาย/PHYSICAL ASSESSMENT</h3>
                          <Tabs defaultValue="Start">
                             <TabsList>
-                                <TabsTrigger value="Start">ประเมินผลครั้งที่ 1</TabsTrigger>
+                                <TabsTrigger value="Start">ประเมินผลครั้งที่ 1/1st Assessment</TabsTrigger>
                                 <TabsTrigger value="Goal">เป้าหมาย/Goal</TabsTrigger>
-                                <TabsTrigger value="2 Week Reassessment">ประเมินผลครั้งที่ 2</TabsTrigger>
-                                <TabsTrigger value="6 Week Reassessment">ประเมินผลครั้งที่ 3</TabsTrigger>
+                                <TabsTrigger value="2 Week Reassessment">ประเมินผลครั้งที่ 2/2nd Assessment</TabsTrigger>
+                                <TabsTrigger value="6 Week Reassessment">ประเมินผลครั้งที่ 3/3rd Assessment</TabsTrigger>
                             </TabsList>
                             <TabsContent value="Start" className="mt-4"><AssessmentForm type="Start" register={register} /></TabsContent>
                             <TabsContent value="Goal" className="mt-4"><GoalForm register={register} /></TabsContent>
@@ -322,4 +322,3 @@ const GoalForm = ({ register }: { register: any }) => (
         ))}
     </div>
 );
-    
