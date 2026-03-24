@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useTransition } from 'react';
 import { collection, query, where, orderBy, doc, addDoc } from 'firebase/firestore';
-import { useFirebase, useCollection } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTSession, PersonalTableEntry, PTTrainer, PTPackage } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -47,7 +47,7 @@ function SessionWorkout({ session, trainerName }: { session: PTSession, trainerN
     const { firestore } = useFirebase();
     const [isEditing, setIsEditing] = useState(false);
 
-    const personalTableQuery = useMemo(() => firestore ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null, [firestore, session.id]);
+    const personalTableQuery = useMemoFirebase(() => firestore ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null, [firestore, session.id]);
     const { data: personalTableEntries, isLoading } = useCollection<PersonalTableEntry>(personalTableQuery);
     
     const personalTable = useMemo(() => personalTableEntries?.[0], [personalTableEntries]);
