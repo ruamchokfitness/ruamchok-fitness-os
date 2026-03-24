@@ -4,7 +4,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, limit } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 
