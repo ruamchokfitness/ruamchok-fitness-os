@@ -1,81 +1,87 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { collection, query, where, doc, getDocs } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTSession, PersonalTableEntry, PTTrainer, PTPackage } from '@/lib/types';
+import type { PTPackage, PTWorkout } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, BookOpen } from 'lucide-react';
-import { PersonalTableForm } from './personal-table-form';
+import { Loader2, BookOpen, Edit } from 'lucide-react';
+import { WorkoutForm } from './personal-table-form';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // Props interface for the main component
 interface PersonalTableProps {
   clientId: string;
-  trainers: PTTrainer[];
   packages: PTPackage[];
-  sessions: PTSession[];
 }
 
-const formatDateTime = (dateStr: string) => {
-    if (!dateStr) return 'Not set';
-    return new Date(dateStr).toLocaleString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'No date';
+    return new Date(dateStr).toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric'
     });
 };
 
 
-function SessionWorkoutWrapper({ session, sessionNumber, clientId, packageId, trainers }: { session: PTSession | null, sessionNumber: number, clientId: string, packageId: string, trainers: PTTrainer[] }) {
+function WorkoutAccordion({ sessionNumber, pkg, clientId }: { sessionNumber: number, pkg: PTPackage, clientId: string }) {
     const { firestore } = useFirebase();
-    const trainerName = session ? (trainers.find(t => t.id === session.trainer_id)?.name || 'Unassigned') : 'Not set';
-
-    const personalTableQuery = useMemoFirebase(
-      () => (firestore && session ? query(collection(firestore, `pt_sessions/${session.id}/personalTable`)) : null),
-      [firestore, session]
+    const [isEditing, setIsEditing] = useState(false);
+    
+    // We fetch the specific workout doc here to ensure real-time updates within the accordion
+    const workoutQuery = useMemoFirebase(
+      () => (firestore ? query(collection(firestore, 'pt_workouts'), where('packageId', '==', pkg.id), where('sessionNumber', '==', sessionNumber)) : null),
+      [firestore, pkg.id, sessionNumber]
     );
-    const { data: personalTableEntries, isLoading } = useCollection<PersonalTableEntry>(personalTableQuery);
-    const personalTable = useMemo(() => personalTableEntries?.[0], [personalTableEntries]);
+    const { data: workoutData, isLoading } = useCollection<PTWorkout>(workoutQuery);
+    const existingWorkout = useMemo(() => (workoutData && workoutData.length > 0 ? workoutData[0] : null), [workoutData]);
+
+    if (isLoading) {
+        return <div className="p-4 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto"/></div>
+    }
+
+    if (isEditing) {
+        return (
+            <div className="p-4 bg-slate-100/50">
+                <WorkoutForm
+                    clientId={clientId}
+                    packageId={pkg.id}
+                    sessionNumber={sessionNumber}
+                    existingWorkout={existingWorkout}
+                    onSave={() => setIsEditing(false)}
+                    onCancel={() => setIsEditing(false)}
+                />
+            </div>
+        );
+    }
     
     return (
-        <Accordion type="single" collapsible className="w-full bg-white rounded-lg border">
-          <AccordionItem value={`session-${sessionNumber}`} className="border-b-0">
-            <AccordionTrigger className="p-4 hover:no-underline">
-                <div className="flex justify-between items-center w-full">
-                    <div className="flex items-center gap-4">
-                      <span className={cn("font-semibold", session ? "text-primary" : "text-slate-500")}>Session {sessionNumber}</span>
-                      {session && <Badge variant="secondary" className={cn('capitalize')}>{session.session_status}</Badge>}
-                    </div>
-                    <div>
-                        <p className="font-semibold text-sm">{session ? formatDateTime(session.session_datetime) : "Not yet occurred"}</p>
-                        {session && <p className="text-sm text-muted-foreground text-right">with {trainerName}</p>}
-                    </div>
-                </div>
-            </AccordionTrigger>
-            <AccordionContent>
-                <div className="p-4 bg-slate-100/50">
-                    {isLoading ? (
-                        <div className="flex justify-center items-center p-4"> <Loader2 className="animate-spin" /></div>
-                    ) : (
-                        <PersonalTableForm
-                            session={session}
-                            existingTable={personalTable}
-                            clientId={clientId}
-                            packageId={packageId}
-                            onSave={() => { /* Real-time updates will handle re-render */ }}
-                            onCancel={() => { /* Not needed in this accordion context */ }}
-                        />
+        <div className="p-4 text-sm">
+            <div className="flex justify-between items-start">
+                <div className="space-y-2">
+                    <p><strong>Date:</strong> {formatDate(existingWorkout?.date)}</p>
+                    <p><strong>Focus:</strong> {existingWorkout?.focus || 'Not set'}</p>
+                     {existingWorkout?.exercises && existingWorkout.exercises.length > 0 && (
+                        <div>
+                            <strong>Exercises:</strong>
+                            <ul className="list-disc pl-5 mt-1 space-y-1">
+                                {existingWorkout.exercises.map((ex, i) => (
+                                    <li key={i}>{ex.name} ({ex.sets || '...'} sets, {ex.reps || '...'} reps)</li>
+                                ))}
+                            </ul>
+                        </div>
                     )}
                 </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="mr-2 h-4 w-4" />Edit</Button>
+            </div>
+        </div>
     );
 }
 
 // Main Component
-export function PersonalTable({ clientId, trainers, packages, sessions }: PersonalTableProps) {
+export function PersonalTable({ clientId, packages }: PersonalTableProps) {
   if (!packages || packages.length === 0) {
     return (
       <Card>
@@ -93,17 +99,13 @@ export function PersonalTable({ clientId, trainers, packages, sessions }: Person
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><BookOpen className="w-6 h-6"/>Personal Table / Workout History</CardTitle>
-        <CardDescription>A record of all training sessions per package. Click to expand and plan workouts.</CardDescription>
+        <CardDescription>A record of all training sessions per package. Click to expand and record workout details.</CardDescription>
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="w-full space-y-4">
             {packages.map(pkg => {
-                const packageSessions = sessions
-                  .filter(s => s.purchase_id === pkg.id)
-                  .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime()); // sort ascending by date
-
-                const totalSessionCount = Math.floor(pkg.hours_purchased); // Assuming 1 hour = 1 session
-                const sessionSlots = Array.from({ length: totalSessionCount }, (_, i) => i);
+                const totalSessionCount = Math.floor(pkg.hours_purchased);
+                const sessionSlots = Array.from({ length: totalSessionCount }, (_, i) => i + 1);
 
                 return (
                   <AccordionItem value={pkg.id} key={pkg.id} className="border-b-0">
@@ -123,19 +125,24 @@ export function PersonalTable({ clientId, trainers, packages, sessions }: Person
                     </AccordionTrigger>
                     <AccordionContent className="pt-2">
                         <div className="space-y-2 p-2 bg-slate-50 rounded-b-lg">
-                           {sessionSlots.map((slotIndex) => {
-                              const session = packageSessions[slotIndex];
-                              return (
-                                <SessionWorkoutWrapper
-                                    key={session ? session.id : `slot-${pkg.id}-${slotIndex}`}
-                                    session={session || null}
-                                    sessionNumber={slotIndex + 1}
-                                    clientId={clientId}
-                                    packageId={pkg.id}
-                                    trainers={trainers}
-                                />
-                              );
-                           })}
+                           {sessionSlots.map((sessionNumber) => (
+                             <Accordion key={sessionNumber} type="single" collapsible className="w-full bg-white rounded-lg border">
+                               <AccordionItem value={`session-${sessionNumber}`} className="border-b-0">
+                                 <AccordionTrigger className="p-4 hover:no-underline [&[data-state=open]]:border-b">
+                                   <div className="flex justify-between items-center w-full">
+                                     <span className="font-semibold text-primary">Session {sessionNumber}</span>
+                                   </div>
+                                 </AccordionTrigger>
+                                 <AccordionContent>
+                                    <WorkoutAccordion
+                                        sessionNumber={sessionNumber}
+                                        pkg={pkg}
+                                        clientId={clientId}
+                                    />
+                                 </AccordionContent>
+                               </AccordionItem>
+                             </Accordion>
+                           ))}
                         </div>
                     </AccordionContent>
                   </AccordionItem>
@@ -146,3 +153,4 @@ export function PersonalTable({ clientId, trainers, packages, sessions }: Person
     </Card>
   );
 }
+    

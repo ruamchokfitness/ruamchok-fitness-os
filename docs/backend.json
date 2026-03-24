@@ -415,17 +415,21 @@
       },
       "required": ["clientId", "assessmentDate", "assessmentType"]
     },
-    "PersonalTableEntry": {
+    "PTWorkout": {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "PersonalTableEntry",
+        "title": "PTWorkout",
         "type": "object",
-        "description": "A record of exercises for a single training session.",
+        "description": "Represents a workout plan and progress notes for a single session slot.",
         "properties": {
             "id": { "type": "string" },
-            "sessionId": { "type": "string" },
-            "focus": { "type": "string" },
+            "clientId": { "type": "string", "description": "The ID of the client." },
+            "packageId": { "type": "string", "description": "The ID of the purchased package." },
+            "sessionNumber": { "type": "number", "description": "The sequential number of the session within the package (e.g., 1, 2, 3...)." },
+            "date": { "type": "string", "format": "date", "description": "The date the workout was performed or planned for." },
+            "focus": { "type": "string", "description": "The main focus of the workout (e.g., Upper Body Strength)." },
             "exercises": {
                 "type": "array",
+                "description": "List of exercises for the workout.",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -434,14 +438,13 @@
                         "reps": { "type": "string" },
                         "weight": { "type": "string" },
                         "rest": { "type": "string" }
-                    },
-                    "required": ["name"]
+                    }
                 }
             },
             "trainerNotes": { "type": "string" },
             "clientFeedback": { "type": "string" }
         },
-        "required": ["sessionId"]
+        "required": ["clientId", "packageId", "sessionNumber"]
     }
   },
   "auth": {
@@ -665,15 +668,12 @@
         }
       },
       {
-        "path": "/pt_sessions/{sessionId}/personalTable/{entryId}",
+        "path": "/pt_workouts/{workoutId}",
         "definition": {
-          "entityName": "PersonalTableEntry",
-          "schema": { "$ref": "#/backend/entities/PersonalTableEntry" },
-          "description": "Stores the workout program for a specific session.",
-          "params": [
-            { "name": "sessionId", "description": "The parent session ID." },
-            { "name": "entryId", "description": "Unique ID for the personal table entry." }
-          ]
+          "entityName": "PTWorkout",
+          "schema": { "$ref": "#/backend/entities/PTWorkout" },
+          "description": "Stores workout plans and progress notes for individual training sessions.",
+          "params": [{ "name": "workoutId", "description": "Unique ID for the workout record." }]
         }
       },
       {

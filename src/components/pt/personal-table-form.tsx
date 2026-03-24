@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { useFirebase } from '@/firebase';
-import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { PTSession, PersonalTableEntry } from '@/lib/types';
+import type { PTWorkout } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,16 +15,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2 } from 'lucide-react';
 
-interface PersonalTableFormProps {
-  session?: PTSession | null;
-  existingTable?: PersonalTableEntry | null;
-  clientId: string;
-  packageId: string;
-  onSave: () => void;
-  onCancel: () => void;
+interface WorkoutFormProps {
+    clientId: string;
+    packageId: string;
+    sessionNumber: number;
+    existingWorkout: PTWorkout | null;
+    onSave: () => void;
+    onCancel: () => void;
 }
 
-// Make all fields optional for flexibility
 const exerciseSchema = z.object({
     name: z.string().optional(),
     sets: z.string().optional(),
@@ -34,23 +33,25 @@ const exerciseSchema = z.object({
 });
 
 const formSchema = z.object({
+    date: z.string().optional(),
     focus: z.string().optional(),
     exercises: z.array(exerciseSchema).optional(),
     trainerNotes: z.string().optional(),
     clientFeedback: z.string().optional(),
 });
 
-export function PersonalTableForm({ session, existingTable, clientId, packageId, onSave, onCancel }: PersonalTableFormProps) {
+export function WorkoutForm({ clientId, packageId, sessionNumber, existingWorkout, onSave, onCancel }: WorkoutFormProps) {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     
-    const { register, control, handleSubmit, formState: { errors, isSubmitting } } = useForm<z.infer<typeof formSchema>>({
+    const { register, control, handleSubmit, formState: { isSubmitting } } = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            focus: existingTable?.focus || '',
-            exercises: existingTable?.exercises?.length ? existingTable.exercises : [{ name: '', sets: '', reps: '', weight: '', rest: '' }],
-            trainerNotes: existingTable?.trainerNotes || '',
-            clientFeedback: existingTable?.clientFeedback || '',
+            date: existingWorkout?.date || '',
+            focus: existingWorkout?.focus || '',
+            exercises: existingWorkout?.exercises?.length ? existingWorkout.exercises : [{ name: '', sets: '', reps: '', weight: '', rest: '' }],
+            trainerNotes: existingWorkout?.trainerNotes || '',
+            clientFeedback: existingWorkout?.clientFeedback || '',
         }
     });
 
@@ -62,46 +63,28 @@ export function PersonalTableForm({ session, existingTable, clientId, packageId,
     const processSubmit = async (data: z.infer<typeof formSchema>) => {
         if (!firestore) return;
 
-        // Filter out any exercise rows where the name is empty
         const nonEmptyExercises = data.exercises?.filter(ex => ex.name && ex.name.trim() !== '') || [];
-
-        let sessionId = session?.id;
         
+        const docId = `${packageId}_${sessionNumber}`;
+        const workoutRef = doc(firestore, 'pt_workouts', docId);
+
+        const workoutData: Omit<PTWorkout, 'id'> = {
+            clientId,
+            packageId,
+            sessionNumber,
+            date: data.date,
+            focus: data.focus,
+            exercises: nonEmptyExercises,
+            trainerNotes: data.trainerNotes,
+            clientFeedback: data.clientFeedback,
+        };
+
         try {
-            // If there's no session object, it means this is a placeholder slot.
-            // We need to create a session document first.
-            if (!sessionId) {
-                const newSessionData = {
-                    client_id: clientId,
-                    purchase_id: packageId,
-                    session_datetime: new Date().toISOString(), // Placeholder date, can be edited later
-                    duration_hours: 0, // Placeholder, this session hasn't been "used" yet
-                    session_status: 'scheduled',
-                    trainer_id: '',
-                };
-                const newSessionRef = await addDoc(collection(firestore, 'pt_sessions'), newSessionData);
-                sessionId = newSessionRef.id;
-            }
-
-            if (!sessionId) {
-                throw new Error("Could not create or find session ID.");
-            }
-
-            const tableRef = doc(firestore, `pt_sessions/${sessionId}/personalTable`, sessionId);
-            
-            const tableData = {
-                sessionId: sessionId,
-                focus: data.focus,
-                exercises: nonEmptyExercises,
-                trainerNotes: data.trainerNotes,
-                clientFeedback: data.clientFeedback,
-            };
-
-            await setDoc(tableRef, tableData, { merge: true });
+            await setDoc(workoutRef, workoutData, { merge: true });
             toast({ title: "Workout Saved!" });
             onSave();
         } catch (error) {
-            console.error("Error saving personal table: ", error);
+            console.error("Error saving workout: ", error);
             toast({ title: "Error", description: "Could not save workout details.", variant: "destructive" });
         }
     };
@@ -109,19 +92,25 @@ export function PersonalTableForm({ session, existingTable, clientId, packageId,
     return (
         <form onSubmit={handleSubmit(processSubmit)} className="space-y-6">
             <div className="flex justify-between items-center">
-                 <h4 className="font-semibold">{existingTable || session ? 'Edit Workout' : 'Add Workout Details'}</h4>
-                 {(existingTable || session) && <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>}
+                 <h4 className="font-semibold">Edit Workout Details</h4>
+                 <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
             </div>
             
-            <div>
-                <Label htmlFor="focus">Workout Focus</Label>
-                <Input id="focus" {...register('focus')} placeholder="e.g., Upper Body Strength" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="date">Workout Date</Label>
+                    <Input id="date" type="date" {...register('date')} />
+                </div>
+                <div>
+                    <Label htmlFor="focus">Workout Focus</Label>
+                    <Input id="focus" {...register('focus')} placeholder="e.g., Upper Body Strength" />
+                </div>
             </div>
 
             <div className="space-y-4">
                 <Label>Exercises</Label>
                 {fields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-5 gap-2 items-end p-2 border rounded-md relative">
+                    <div key={field.id} className="grid grid-cols-5 gap-2 items-end p-2 border rounded-md relative bg-white">
                         <Input placeholder="Exercise Name" {...register(`exercises.${index}.name`)} className="col-span-5 md:col-span-1" />
                         <Input placeholder="Sets" {...register(`exercises.${index}.sets`)} className="col-span-2 md:col-span-1" />
                         <Input placeholder="Reps" {...register(`exercises.${index}.reps`)} className="col-span-2 md:col-span-1" />
@@ -155,3 +144,4 @@ export function PersonalTableForm({ session, existingTable, clientId, packageId,
         </form>
     );
 }
+    

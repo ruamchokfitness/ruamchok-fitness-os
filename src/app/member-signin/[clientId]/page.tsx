@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan, PTSession } from '@/lib/types';
+import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,31 +25,24 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const { data: client, isLoading: loadingClient } = useDoc<PTClient>(clientRef);
 
     // Fetch all packages and filter/sort on the client to avoid composite index errors
-    const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages')) : null, [firestore]);
+    const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId)) : null, [firestore, clientId]);
     const { data: allPackagesData, isLoading: loadingPackages } = useCollection<PTPackage>(allPackagesQuery);
 
     const allPackages = useMemo(() => {
         if (!allPackagesData) return [];
         return allPackagesData
-            .filter(p => p.client_id === clientId)
             .sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
-    }, [allPackagesData, clientId]);
+    }, [allPackagesData]);
 
     const activePackages = useMemo(() => allPackages.filter(p => p.status === 'active') || [], [allPackages]);
     
-    const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]));
-    const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]));
+    const trainersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]);
+    const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(trainersQuery);
+    
+    const commissionPlansQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]);
+    const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(commissionPlansQuery);
 
-    // Fetch all sessions and filter on the client to avoid index errors
-    const sessionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_sessions')) : null, [firestore]);
-    const { data: allSessionsData, isLoading: loadingSessions } = useCollection<PTSession>(sessionsQuery);
-
-    const sessions = useMemo(() => {
-        if (!allSessionsData) return [];
-        return allSessionsData.filter(s => s.client_id === clientId);
-    }, [allSessionsData, clientId]);
-
-    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans || loadingSessions;
+    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans;
     
     if (isLoading) {
         return (
@@ -144,9 +137,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                     <TabsContent value="history" className="mt-6">
                          <PersonalTable
                             clientId={client.id}
-                            trainers={trainers || []}
                             packages={allPackages || []}
-                            sessions={sessions || []}
                          />
                     </TabsContent>
                 </Tabs>
@@ -162,3 +153,4 @@ export default function ClientProfilePage({ params }: { params: Promise<{ client
         </FirebaseClientProvider>
     );
 }
+    
