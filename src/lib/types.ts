@@ -1,7 +1,3 @@
-
-
-
-
 export type Employee = {
   id: string;
   name: string;
@@ -179,6 +175,61 @@ export interface PTCommissionPlan {
   isDeletable?: boolean; // Default plans are not deletable
 }
 
+export type PARQ = {
+    id: string;
+    clientId: string;
+    date: string;
+    dob?: string;
+    emergencyTel?: string;
+    trainerToComplete?: string;
+    medicalProfile: {
+        [key: string]: boolean;
+    };
+    otherMedicalCondition?: string;
+    medicalReleaseRequired: boolean;
+    fitnessGoals: ('fatLoss' | 'building' | 'toning')[];
+    otherFitnessGoals?: string;
+    assessmentGoals?: {
+      bodyMass?: number,
+      bloodPressure?: string,
+      restingHR?: number,
+      bodyFat?: number,
+      shoulders?: number,
+      chest?: number,
+      arms?: string,
+      waist?: number,
+      hips?: number,
+      thighs?: string,
+      calves?: string,
+    }
+    clientSignature?: string;
+};
+
+
+export type PhysicalAssessment = {
+    id: string;
+    clientId: string;
+    assessmentDate: string;
+    trainerName: string;
+    assessmentType: 'Start' | '2 Week Reassessment' | '6 Week Reassessment';
+    height?: number;
+    bodyMass?: number;
+    bloodPressure?: string;
+    restingHR?: number;
+    bodyFat?: number;
+    shoulders?: number;
+    chest?: number;
+    arms?: string;
+    waist?: number;
+    hips?: number;
+    thighs?: string;
+    calves?: string;
+    fitTestScore?: number;
+    treadmillLevel?: number;
+    sitReachScore?: number;
+    bmi?: number;
+};
+
 
 // RCF Group Class Attendance Tracker
 export interface GroupClass {
@@ -208,5 +259,4 @@ export interface GroupClassAttendance {
   attendance: number;
   created_at: any; // Firestore Timestamp
 }
-
     

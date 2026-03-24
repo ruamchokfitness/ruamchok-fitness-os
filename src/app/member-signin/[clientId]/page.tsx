@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SessionSigningDialog } from '@/components/pt/session-signing-dialog';
 import { SessionHistoryTable } from '@/components/pt/session-history-table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ParqForm } from '@/components/pt/parq-form';
 
 
 function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: string }> }) {
@@ -118,14 +119,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                         </Card>
                     </TabsContent>
                     <TabsContent value="parq" className="mt-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Physical Activity Readiness Questionnaire (PAR-Q)</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground">The PAR-Q form will be displayed and can be filled out here.</p>
-                            </CardContent>
-                        </Card>
+                        <ParqForm client={client} />
                     </TabsContent>
                     <TabsContent value="history" className="mt-6">
                          <Card>

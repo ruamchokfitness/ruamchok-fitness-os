@@ -346,24 +346,73 @@
       "required": ["trainer_id", "session_id", "commission_amount", "month_reference"]
     },
     "PARQ": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "PAR-Q",
-        "type": "object",
-        "description": "Physical Activity Readiness Questionnaire for a client.",
-        "properties": {
-            "id": { "type": "string" },
-            "clientId": { "type": "string" },
-            "date": { "type": "string", "format": "date" },
-            "answers": {
-              "type": "object",
-              "properties": {
-                "q1": {"type": "boolean"}, "q2": {"type": "boolean"}, "q3": {"type": "boolean"}, "q4": {"type": "boolean"}, "q5": {"type": "boolean"}, "q6": {"type": "boolean"}, "q7": {"type": "boolean"}
-              }
-            },
-            "details": { "type": "string", "description": "If answered yes to any question, please provide details." },
-            "clientSignature": { "type": "string", "description": "Data URI of client's signature." }
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PAR-Q & Fitness Profile",
+      "type": "object",
+      "description": "Physical Activity Readiness Questionnaire and initial fitness profile for a client.",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "dob": { "type": "string", "format": "date", "description": "Date of Birth" },
+        "emergencyTel": { "type": "string" },
+        "trainerToComplete": { "type": "string", "description": "Name of the trainer who completed the form." },
+        "medicalProfile": {
+          "type": "object",
+          "properties": {
+            "heatCondition": { "type": "boolean" }, "diabetes": { "type": "boolean" }, "smoker": { "type": "boolean" },
+            "angina": { "type": "boolean" }, "backProblems": { "type": "boolean" }, "pregnancy": { "type": "boolean" },
+            "highBloodPressure": { "type": "boolean" }, "sciatica": { "type": "boolean" }, "hernia": { "type": "boolean" },
+            "asthma": { "type": "boolean" }, "jointProblems": { "type": "boolean" }, "recentSurgery": { "type": "boolean" }
+          }
         },
-        "required": ["clientId", "date", "answers"]
+        "otherMedicalCondition": { "type": "string" },
+        "medicalReleaseRequired": { "type": "boolean" },
+        "fitnessGoals": { "type": "array", "items": { "type": "string", "enum": ["fatLoss", "building", "toning"] } },
+        "otherFitnessGoals": { "type": "string" },
+        "assessmentGoals": {
+          "type": "object",
+          "description": "Client's physical assessment goals.",
+          "properties": {
+            "bodyMass": { "type": "number" }, "bloodPressure": { "type": "string" }, "restingHR": { "type": "number" },
+            "bodyFat": { "type": "number" }, "shoulders": { "type": "number" }, "chest": { "type": "number" },
+            "arms": { "type": "string" }, "waist": { "type": "number" }, "hips": { "type": "number" },
+            "thighs": { "type": "string" }, "calves": { "type": "string" }
+          }
+        },
+        "clientSignature": { "type": "string", "description": "Data URI of client's signature." }
+      },
+      "required": ["clientId", "date", "medicalProfile"]
+    },
+    "PhysicalAssessment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Physical Assessment",
+      "type": "object",
+      "description": "A record of a client's physical assessment at a point in time.",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "assessmentDate": { "type": "string", "format": "date" },
+        "trainerName": { "type": "string" },
+        "assessmentType": { "type": "string", "enum": ["Start", "2 Week Reassessment", "6 Week Reassessment"] },
+        "height": { "type": "number", "description": "in cm" },
+        "bodyMass": { "type": "number", "description": "in Kg" },
+        "bloodPressure": { "type": "string", "description": "e.g., 120/80 mmHg" },
+        "restingHR": { "type": "number", "description": "in bpm" },
+        "bodyFat": { "type": "number", "description": "in %" },
+        "shoulders": { "type": "number", "description": "in cm" },
+        "chest": { "type": "number", "description": "in cm" },
+        "arms": { "type": "string", "description": "L/R in cm, e.g., 30/31" },
+        "waist": { "type": "number", "description": "in cm" },
+        "hips": { "type": "number", "description": "in cm" },
+        "thighs": { "type": "string", "description": "L/R in cm, e.g., 50/51" },
+        "calves": { "type": "string", "description": "L/R in cm, e.g., 35/36" },
+        "fitTestScore": { "type": "number" },
+        "treadmillLevel": { "type": "number" },
+        "sitReachScore": { "type": "number", "description": "in inches" },
+        "bmi": { "type": "number" }
+      },
+      "required": ["clientId", "assessmentDate", "assessmentType"]
     },
     "PersonalTableEntry": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -572,6 +621,18 @@
           "params": [
             { "name": "clientId", "description": "The parent client ID." },
             { "name": "parqId", "description": "Unique ID for the PAR-Q form entry." }
+          ]
+        }
+      },
+      {
+        "path": "/pt_clients/{clientId}/physicalAssessments/{assessmentId}",
+        "definition": {
+          "entityName": "PhysicalAssessment",
+          "schema": { "$ref": "#/backend/entities/PhysicalAssessment" },
+          "description": "Stores a client's physical assessment records over time.",
+          "params": [
+            { "name": "clientId", "description": "The parent client ID." },
+            { "name": "assessmentId", "description": "Unique ID for the assessment record." }
           ]
         }
       },
