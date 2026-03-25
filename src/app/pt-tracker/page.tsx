@@ -1003,7 +1003,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                     <TableCell><Badge variant="outline" className={comm.commission_type === 'Boxing Package' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{comm.commission_type}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
-                                    <TableCell>{comm.cumulative_hours_before}h → {comm.cumulative_hours_after}h</TableCell>
+                                    <TableCell>{comm.cumulative_hours_before || 0}h → {comm.cumulative_hours_after || 0}h</TableCell>
                                     <TableCell className="text-right font-semibold text-green-600">{formatCurrency(comm.commission_amount)}</TableCell>
                                 </TableRow>
                             )
@@ -1729,7 +1729,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                         <Select name="purchase_id" required disabled={!selectedClientId}>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
                             <SelectContent>
-                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}h left)</SelectItem>)}
+                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}/{p.hours_purchased} hours left)</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
