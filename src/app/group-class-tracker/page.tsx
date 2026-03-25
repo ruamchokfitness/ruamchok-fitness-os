@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import { collection, addDoc, doc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import Link from 'next/link';
 
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { GroupClass, GroupClassInstructor, GroupClassTime, GroupClassAttendance } from '@/lib/types';
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 function GroupClassTrackerPageContent() {
@@ -120,9 +121,16 @@ function GroupClassTrackerPageContent() {
                             <p className="text-slate-300 text-sm md:text-base">Track and analyze group class attendance.</p>
                         </div>
                     </div>
-                    <Button onClick={() => setSettingsOpen(true)} variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
-                        <Settings className="w-5 h-5" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                         <Link href="/" className="md:hidden">
+                            <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Button>
+                        </Link>
+                        <Button onClick={() => setSettingsOpen(true)} variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                            <Settings className="w-5 h-5" />
+                        </Button>
+                    </div>
                 </div>
             </header>
 

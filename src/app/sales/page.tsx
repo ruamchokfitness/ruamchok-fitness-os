@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
+import Link from 'next/link';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, orderBy, where, setDoc, writeBatch } from 'firebase/firestore';
 import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid, Cell } from 'recharts';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartJsTooltip, Legend as ChartJsLegend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
+import { ArrowLeft, BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
@@ -354,14 +355,21 @@ function SalesPageContent() {
     return (
         <>
             <header className="bg-slate-900 text-white py-4 md:py-6">
-                <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <BarChart2 className="w-6 h-6 text-white" />
+                <div className="container mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <BarChart2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold">RCF Sales Dashboard</h1>
+                            <p className="text-slate-300 text-sm md:text-base">Dashboard for sales analytics.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold">RCF Sales Dashboard</h1>
-                        <p className="text-slate-300 text-sm md:text-base">Dashboard for sales analytics.</p>
-                    </div>
+                     <Link href="/" className="md:hidden">
+                        <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                            <ArrowLeft className="w-5 h-5" />
+                        </Button>
+                    </Link>
                 </div>
             </header>
 

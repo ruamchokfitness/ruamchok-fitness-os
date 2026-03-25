@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { collection, addDoc, orderBy, query, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, writeBatch, where, limit, setDoc, arrayUnion } from 'firebase/firestore';
-
+import Link from 'next/link';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 
 import type { MaintenanceReport, MaintenanceCategory, MaintenanceFollowUp } from '@/lib/types';
@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench, MessageSquarePlus, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench, MessageSquarePlus, History as HistoryIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Firestore } from 'firebase/firestore';
 
@@ -251,14 +251,21 @@ function MaintenancePageContent() {
     return (
         <>
             <header className="bg-slate-900 text-white py-4 md:py-6">
-                <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Wrench className="w-6 h-6 text-white" />
+                <div className="container mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <Wrench className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold">RCF Maintenance Log</h1>
+                            <p className="text-slate-300 text-sm md:text-base">Track and manage equipment maintenance.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold">RCF Maintenance Log</h1>
-                        <p className="text-slate-300 text-sm md:text-base">Track and manage equipment maintenance.</p>
-                    </div>
+                     <Link href="/" className="md:hidden">
+                        <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                            <ArrowLeft className="w-5 h-5" />
+                        </Button>
+                    </Link>
                 </div>
             </header>
 

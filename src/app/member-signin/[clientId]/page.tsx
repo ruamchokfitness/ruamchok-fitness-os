@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import Link from 'next/link';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, User, FileSignature, History, FileText, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Loader2, User, FileSignature, History, FileText, ChevronsUpDown } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SessionSigningDialog } from '@/components/pt/session-signing-dialog';
 import { SessionHistoryTable } from '@/components/pt/session-history-table';
@@ -65,14 +66,21 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     return (
         <>
              <header className="bg-slate-900 text-white py-4 md:py-6">
-                <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <User className="w-6 h-6 text-white" />
+                <div className="container mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <User className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold">{client.name}</h1>
+                            <p className="text-slate-300 text-sm md:text-base">Member ID: {client.member_id || 'N/A'}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold">{client.name}</h1>
-                        <p className="text-slate-300 text-sm md:text-base">Member ID: {client.member_id || 'N/A'}</p>
-                    </div>
+                     <Link href="/member-signin" className="md:hidden">
+                        <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                            <ArrowLeft className="w-5 h-5" />
+                        </Button>
+                    </Link>
                 </div>
             </header>
             

@@ -1,5 +1,5 @@
 'use client';
-import { UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive } from "lucide-react";
+import { ArrowLeft, UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive } from "lucide-react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { EmployeeGrid } from "@/components/employees/employee-grid";
@@ -19,14 +19,21 @@ function HrmHeader() {
 
     return (
         <header className="bg-slate-900 text-white py-4 md:py-6">
-            <div className="container mx-auto px-4 md:px-8 flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Users className="w-6 h-6 text-white" />
-            </div>
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold">{systemTitle}</h1>
-                <p className="text-slate-300 text-sm md:text-base">Employee leave management system.</p>
-            </div>
+            <div className="container mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold">{systemTitle}</h1>
+                        <p className="text-slate-300 text-sm md:text-base">Employee leave management system.</p>
+                    </div>
+                </div>
+                <Link href="/" className="md:hidden">
+                    <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                        <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                </Link>
             </div>
         </header>
     )
