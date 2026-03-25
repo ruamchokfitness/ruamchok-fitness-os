@@ -172,7 +172,7 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Start New Session: {client.name}</DialogTitle>
-                    <DialogDescription>Package: {pkg.package_name} ({pkg.hours_remaining} hours remaining)</DialogDescription>
+                    <DialogDescription>Package: {pkg.package_name} ({pkg.hours_remaining}/{pkg.hours_purchased} hours remaining)</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(processSubmit)}>
                     <div className="space-y-6 py-4">
