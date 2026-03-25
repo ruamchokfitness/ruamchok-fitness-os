@@ -68,6 +68,11 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
              <header className="bg-slate-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
+                        <Link href="/member-signin">
+                            <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Button>
+                        </Link>
                         <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
                             <User className="w-6 h-6 text-white" />
                         </div>
@@ -76,11 +81,6 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                             <p className="text-slate-300 text-sm md:text-base">Member ID: {client.member_id || 'N/A'}</p>
                         </div>
                     </div>
-                     <Link href="/member-signin" className="md:hidden">
-                        <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Button>
-                    </Link>
                 </div>
             </header>
             

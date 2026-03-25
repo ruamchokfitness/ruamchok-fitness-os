@@ -113,6 +113,11 @@ function GroupClassTrackerPageContent() {
             <header className="bg-slate-900 text-white py-4 md:py-6">
                 <div className="container mx-auto px-4 md:px-8 flex items-center justify-between">
                     <div className="flex items-center gap-4">
+                        <Link href="/">
+                            <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Button>
+                        </Link>
                         <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
                             <Users2 className="w-6 h-6 text-white" />
                         </div>
@@ -122,11 +127,6 @@ function GroupClassTrackerPageContent() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                         <Link href="/" className="md:hidden">
-                            <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
-                                <ArrowLeft className="w-5 h-5" />
-                            </Button>
-                        </Link>
                         <Button onClick={() => setSettingsOpen(true)} variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
                             <Settings className="w-5 h-5" />
                         </Button>
