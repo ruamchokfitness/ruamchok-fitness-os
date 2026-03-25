@@ -3,7 +3,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
 import type { User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,9 @@ function UserManagementPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  const [forceSignOutDialogOpen, setForceSignOutDialogOpen] = useState(false);
+  const [isRevokePending, startRevokeTransition] = useTransition();
+
   const openNewUserDialog = () => {
     setEditUser(null);
     setDialogOpen(true);
@@ -51,7 +54,7 @@ function UserManagementPage() {
     if (!firestore || !auth) return;
 
     const formData = new FormData(e.currentTarget);
-    const username = (formData.get('username') as string || '').trim();
+    const username = (formData.get('username') as string || '').trim().toLowerCase();
     const name = formData.get('name') as string;
     const role = formData.get('role') as 'admin' | 'staff';
     const password = formData.get('password') as string;
@@ -116,6 +119,25 @@ function UserManagementPage() {
     });
   };
 
+  const handleForceSignOut = () => {
+    startRevokeTransition(async () => {
+      if (!firestore) return;
+      try {
+        const settingsRef = doc(firestore, 'security', 'settings');
+        await setDoc(settingsRef, {
+          lastForcedSignOut: serverTimestamp()
+        }, { merge: true });
+        toast({
+          title: "Action Initiated",
+          description: "All users will be required to log in again shortly.",
+        });
+      } catch (error) {
+        toast({ title: "Error", description: "Could not force sign-out.", variant: "destructive" });
+      }
+      setForceSignOutDialogOpen(false);
+    });
+  };
+
   return (
     <>
       <header className="bg-slate-900 text-white py-4 md:py-6">
@@ -130,7 +152,7 @@ function UserManagementPage() {
         </div>
       </header>
 
-      <main className="container mx-auto py-8">
+      <main className="container mx-auto py-8 space-y-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -168,6 +190,22 @@ function UserManagementPage() {
               </Table>
             )}
           </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Security Settings</CardTitle>
+                <CardDescription>Manage application-wide security settings.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div>
+                        <h4 className="font-semibold">Force Re-Login for All Users</h4>
+                        <p className="text-sm text-muted-foreground">This will immediately sign out all active user sessions across all devices.</p>
+                    </div>
+                    <Button variant="destructive" onClick={() => setForceSignOutDialogOpen(true)}>Force Sign-out</Button>
+                </div>
+            </CardContent>
         </Card>
       </main>
 
@@ -231,8 +269,27 @@ function UserManagementPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={forceSignOutDialogOpen} onOpenChange={setForceSignOutDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action will force every user to sign in again. Active sessions will be terminated on their next action or page load.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleForceSignOut} disabled={isRevokePending} className="bg-destructive hover:bg-destructive/80">
+                    {isRevokePending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirm & Sign Out All
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
 
 export default UserManagementPage;
+

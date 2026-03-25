@@ -10,9 +10,10 @@ import { Loader2 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 function isValidEmail(email: string) {
@@ -26,7 +27,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -36,58 +37,67 @@ export default function LoginPage() {
     if (!auth || !firestore) return;
 
     startTransition(async () => {
-        const loginIdentifier = emailOrUsername.trim();
-        const enteredPassword = password.trim();
+      const identifier = loginIdentifier.trim();
+      const enteredPassword = password.trim();
 
-        if (!loginIdentifier || !enteredPassword) {
-            setError("Username/Email and Password are required.");
-            return;
-        }
+      if (!identifier || !enteredPassword) {
+        setError("Username/Email and Password are required.");
+        return;
+      }
 
-        let emailToUse: string;
+      let emailToUse: string;
 
-        // If the identifier is not a valid email format, assume it's a username and append the system domain.
-        if (!isValidEmail(loginIdentifier)) {
-            emailToUse = `${loginIdentifier.toLowerCase()}@rcf.system`;
-        } else {
-            // If it is a valid email, use it directly.
-            emailToUse = loginIdentifier;
-        }
+      // Handle the special 'admin' username
+      if (identifier.toLowerCase() === 'admin') {
+        emailToUse = 'admin@rcf.system';
+      } else if (isValidEmail(identifier)) {
+        emailToUse = identifier;
+      } else {
+        // Assume it's a staff username and append the system domain
+        emailToUse = `${identifier.toLowerCase()}@rcf.system`;
+      }
 
-        try {
-            await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
+      try {
+        // First, always try to sign in.
+        await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
+        
+        const securitySettingsRef = doc(firestore, 'security', 'settings');
+        const securitySettingsSnap = await getDoc(securitySettingsRef);
+        const lastForcedSignOut = securitySettingsSnap.data()?.lastForcedSignOut;
+        const loginTime = lastForcedSignOut ? lastForcedSignOut.toMillis() : Date.now();
+        localStorage.setItem('loginTimestamp', loginTime.toString());
+
+        router.push('/');
+      } catch (signInError: any) {
+        // If sign-in fails specifically for the initial admin setup, try creating the account.
+        if (emailToUse === 'admin@rcf.system' && (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential')) {
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
+            const newUser = userCredential.user;
+
+            await setDoc(doc(firestore, 'users', newUser.uid), {
+              uid: newUser.uid,
+              email: emailToUse,
+              name: 'Admin',
+              role: 'admin'
+            });
+
+            const securitySettingsRef = doc(firestore, 'security', 'settings');
+            const securitySettingsSnap = await getDoc(securitySettingsRef);
+            const lastForcedSignOut = securitySettingsSnap.data()?.lastForcedSignOut;
+            const loginTime = lastForcedSignOut ? lastForcedSignOut.toMillis() : Date.now();
+            localStorage.setItem('loginTimestamp', loginTime.toString());
+
+            // After successful creation, sign-in is implicit, so just redirect.
             router.push('/');
-        } catch (signInError: any) {
-            // Special case for initial admin setup: if the admin account doesn't exist, create it.
-            if (emailToUse === 'admin@rcf.system' && (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential')) {
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
-                    const newUser = userCredential.user;
-
-                    await setDoc(doc(firestore, 'users', newUser.uid), {
-                        uid: newUser.uid,
-                        email: emailToUse,
-                        name: 'Admin',
-                        role: 'admin'
-                    });
-                    
-                    // After successful creation, sign in is implicit, so just redirect.
-                    router.push('/');
-                } catch (creationError: any) {
-                    let creationErrorMessage = "An unexpected error occurred during admin setup.";
-                     if (creationError.code === 'auth/email-already-in-use') {
-                        // This happens if the user-not-found check passed but creation fails, which implies wrong password for existing admin.
-                        creationErrorMessage = "The admin account exists but the password you entered is incorrect.";
-                    } else {
-                        creationErrorMessage = `Admin account setup failed: ${creationError.message}`;
-                    }
-                    setError(creationErrorMessage);
-                }
-            } else {
-                // For all other users or other types of admin errors (like wrong password)
-                setError("Invalid username/email or password. Please try again.");
-            }
+          } catch (creationError: any) {
+            setError("The admin account exists but the password you entered is incorrect. Please try again or reset the password if needed.");
+          }
+        } else {
+          // For all other users or other types of admin errors
+          setError("Invalid username/email or password. Please try again.");
         }
+      }
     });
   };
 
@@ -110,8 +120,8 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Enter username or email"
                 required
-                value={emailOrUsername}
-                onChange={(e) => setEmailOrUsername(e.target.value)}
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -134,7 +144,7 @@ export default function LoginPage() {
             </Button>
           </form>
            <p className="text-xs text-center text-muted-foreground mt-4">
-              Staff should enter their username. The 'admin' user is created on first login.
+              Staff should enter their assigned username.
           </p>
         </CardContent>
       </Card>
