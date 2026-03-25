@@ -31,10 +31,12 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const allPackages = useMemo(() => {
         if (!allPackagesData) return [];
         return allPackagesData
-            .sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+            .sort((a, b) => {
+                if (a.status === 'active' && b.status !== 'active') return -1;
+                if (a.status !== 'active' && b.status === 'active') return 1;
+                return new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime();
+            });
     }, [allPackagesData]);
-
-    const activePackages = useMemo(() => allPackages.filter(p => p.status === 'active') || [], [allPackages]);
     
     const trainersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]);
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(trainersQuery);
@@ -84,28 +86,34 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                     <TabsContent value="signin" className="mt-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Active Packages</CardTitle>
-                                <CardDescription>Select a package to start a new training session.</CardDescription>
+                                <CardTitle>Client Packages</CardTitle>
+                                <CardDescription>Select an active package to start a new session, or view history for any package.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {activePackages && activePackages.length > 0 ? activePackages.map(pkg => (
+                                {allPackages && allPackages.length > 0 ? allPackages.map(pkg => (
                                      <Card key={pkg.id} className="p-0 overflow-hidden">
                                         <div className="p-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <p className="font-semibold text-xl">{pkg.package_name}</p>
-                                                    <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining} hours remaining</p>
+                                                    {pkg.status === 'active' ? (
+                                                        <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining} hours remaining</p>
+                                                    ) : (
+                                                        <p className="text-sm text-red-600 font-bold capitalize">{pkg.status}</p>
+                                                    )}
                                                     <p className="text-xs text-muted-foreground">Expires: {new Date(pkg.expiry_date).toLocaleDateString()}</p>
                                                 </div>
                                                 
-                                                <SessionSigningDialog
-                                                    client={client}
-                                                    pkg={pkg}
-                                                    trainers={trainers || []}
-                                                    commissionPlans={commissionPlans || []}
-                                                >
-                                                    <Button>Start Session</Button>
-                                                </SessionSigningDialog>
+                                                {pkg.status === 'active' && (
+                                                    <SessionSigningDialog
+                                                        client={client}
+                                                        pkg={pkg}
+                                                        trainers={trainers || []}
+                                                        commissionPlans={commissionPlans || []}
+                                                    >
+                                                        <Button>Start Session</Button>
+                                                    </SessionSigningDialog>
+                                                )}
                                             </div>
                                         </div>
 
@@ -126,7 +134,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                                         </Collapsible>
                                     </Card>
                                 )) : (
-                                    <p className="text-center text-muted-foreground py-4">No active packages found.</p>
+                                    <p className="text-center text-muted-foreground py-4">No packages found for this client.</p>
                                 )}
                             </CardContent>
                         </Card>
