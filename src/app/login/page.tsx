@@ -11,7 +11,8 @@ import { useFirebase } from '@/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -47,7 +48,6 @@ export default function LoginPage() {
 
       let emailToUse: string;
 
-      // Handle the special 'admin' username
       if (identifier.toLowerCase() === 'admin') {
         emailToUse = 'admin@rcf.system';
       } else if (isValidEmail(identifier)) {
@@ -58,7 +58,8 @@ export default function LoginPage() {
       }
 
       try {
-        // First, always try to sign in.
+        await setPersistence(auth, browserLocalPersistence);
+        // Persistence is set, now try to sign in.
         await signInWithEmailAndPassword(auth, emailToUse, enteredPassword);
         
         const securitySettingsRef = doc(firestore, 'security', 'settings');
@@ -69,9 +70,11 @@ export default function LoginPage() {
 
         router.push('/');
       } catch (signInError: any) {
-        // If sign-in fails specifically for the initial admin setup, try creating the account.
+        // If sign-in fails, maybe the account doesn't exist.
+        // Specifically for the initial admin setup, try creating the account.
         if (emailToUse === 'admin@rcf.system' && (signInError.code === 'auth/user-not-found' || signInError.code === 'auth/invalid-credential')) {
           try {
+            await setPersistence(auth, browserLocalPersistence);
             const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, enteredPassword);
             const newUser = userCredential.user;
 
@@ -87,11 +90,11 @@ export default function LoginPage() {
             const lastForcedSignOut = securitySettingsSnap.data()?.lastForcedSignOut;
             const loginTime = lastForcedSignOut ? lastForcedSignOut.toMillis() : Date.now();
             localStorage.setItem('loginTimestamp', loginTime.toString());
-
+            
             // After successful creation, sign-in is implicit, so just redirect.
             router.push('/');
           } catch (creationError: any) {
-            setError("The admin account exists but the password you entered is incorrect. Please try again or reset the password if needed.");
+             setError("The admin account exists but the password you entered is incorrect. Please try again or reset the password if needed.");
           }
         } else {
           // For all other users or other types of admin errors
@@ -102,7 +105,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-100">
+    <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm mx-auto shadow-2xl">
         <CardHeader className="text-center space-y-2">
           <div className="w-20 h-20 mx-auto bg-slate-900 rounded-full flex items-center justify-center">
