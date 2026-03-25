@@ -108,7 +108,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="text-center mt-12 text-gray-500">
-        <p>&copy; ${new Date().getFullYear()} Ruamchok Fitness. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Ruamchok Fitness. All rights reserved.</p>
       </footer>
     </div>
   );
