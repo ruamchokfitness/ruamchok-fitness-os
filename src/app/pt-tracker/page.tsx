@@ -285,7 +285,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
         const thisMonthCommissions = commissions.filter(c => c.month_reference === thisMonthRef);
         const totalCommission = thisMonthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
         const totalHoursThisMonth = thisMonthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-        const totalRevenue = packages.reduce((sum, p) => sum + (p.price_paid || 0), 0);
+        const totalRevenue = packages.reduce((sum, p => sum + (p.price_paid || 0)), 0);
         const totalHoursRemaining = activePackages.reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
         const completedSessionsCount = sessions.filter(s => s.session_status === 'completed').length;
 
@@ -959,7 +959,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 {filteredTrainersForCards.map(trainer => {
                     const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (c.month_reference === monthFilter));
                     const totalHours = monthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-                    const totalEarnings = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+                    const totalEarned = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
                     const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
                      
                     return (
@@ -980,7 +980,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 </div>
                                 <div className="flex justify-between text-sm border-t border-slate-100 pt-2 mt-2">
                                     <span className="text-slate-500">Total Earnings</span>
-                                    <span className="font-bold text-green-600">{formatCurrency(totalEarnings)}</span>
+                                    <span className="font-bold text-green-600">{formatCurrency(totalEarned)}</span>
                                 </div>
                             </div>
                         </Card>
@@ -2192,7 +2192,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <p className="text-xs text-slate-500 mt-1">Select specific trainer to generate report</p>
                     </div>
                     <div>
-                        <Label htmlFor="pdf-period">Filter by Period (Optional)</Label>
+                        <Label htmlFor="pdf-period">Filter by Month</Label>
                         <Select name="period" defaultValue="all">
                             <SelectTrigger id="pdf-period">
                                 <SelectValue placeholder="All Periods" />
