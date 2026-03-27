@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
-import { collection, addDoc, doc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, deleteDoc, query, orderBy, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban, FileText, Edit } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { SignaturePad } from '@/components/ui/signature-pad';
@@ -32,6 +32,9 @@ function GroupClassTrackerPageContent() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ collection: string, id: string } | null>(null);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [recordToEdit, setRecordToEdit] = useState<GroupClassAttendance | null>(null);
+
 
     const { data: classes, isLoading: l1 } = useCollection<GroupClass>(useMemoFirebase(() => db ? query(collection(db, "groupClasses"), orderBy('name')) : null, [db]));
     const { data: instructors, isLoading: l2 } = useCollection<GroupClassInstructor>(useMemoFirebase(() => db ? query(collection(db, "groupClassInstructors"), orderBy('name')) : null, [db]));
@@ -39,6 +42,11 @@ function GroupClassTrackerPageContent() {
     const { data: attendances, isLoading: l4 } = useCollection<GroupClassAttendance>(useMemoFirebase(() => db ? query(collection(db, "groupClassAttendances"), orderBy('created_at', 'desc')) : null, [db]));
 
     const { toast } = useToast();
+
+    const handleEditRecord = (record: GroupClassAttendance) => {
+        setRecordToEdit(record);
+        setEditModalOpen(true);
+    }
 
     const handleDelete = (collectionName: string, id: string) => {
         setItemToDelete({ collection: collectionName, id });
@@ -108,6 +116,7 @@ function GroupClassTrackerPageContent() {
                                 classes={classes || []} 
                                 instructors={instructors || []}
                                 onDelete={handleDelete} 
+                                onEdit={handleEditRecord}
                             />
                         </TabsContent>
                          <TabsContent value="monthly">
@@ -123,6 +132,14 @@ function GroupClassTrackerPageContent() {
             </Tabs>
             
             <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} classes={classes || []} instructors={instructors || []} times={times || []} onDelete={handleDelete} />
+
+            <EditAttendanceDialog
+                open={editModalOpen}
+                onOpenChange={setEditModalOpen}
+                attendance={recordToEdit}
+                instructors={instructors || []}
+                times={times || []}
+            />
 
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>
@@ -187,7 +204,7 @@ function SigninTab({ classes, instructors, times }: { classes: GroupClass[], ins
     )
 }
 
-function HistoryTab({ attendances, classes, instructors, onDelete }: { attendances: GroupClassAttendance[], classes: GroupClass[], instructors: GroupClassInstructor[], onDelete: (collection: string, id: string) => void }) {
+function HistoryTab({ attendances, classes, instructors, onDelete, onEdit }: { attendances: GroupClassAttendance[], classes: GroupClass[], instructors: GroupClassInstructor[], onDelete: (collection: string, id: string) => void, onEdit: (attendance: GroupClassAttendance) => void }) {
     const [monthFilter, setMonthFilter] = useState('');
     const [classFilter, setClassFilter] = useState('all');
     const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
@@ -252,10 +269,13 @@ function HistoryTab({ attendances, classes, instructors, onDelete }: { attendanc
                                         <p className="text-xs text-center mt-1">{r.staffName}</p>
                                     </div>
                                 </div>
-                                <div className="mt-4 flex justify-end">
+                                <div className="mt-4 flex justify-end gap-2">
+                                     <Button variant="outline" size="sm" onClick={() => onEdit(r)}>
+                                        <Edit className="w-4 h-4 mr-2" />
+                                        Edit
+                                    </Button>
                                     <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete('groupClassAttendances', r.id)}>
-                                        <Trash2 className="w-4 h-4 mr-2" />
-                                        Delete Record
+                                        Delete
                                     </Button>
                                 </div>
                             </AccordionContent>
@@ -773,6 +793,129 @@ function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { o
                         <Button type="submit" disabled={isPending}>
                             {isPending ? <Loader2 className="animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
                             ยืนยันและบันทึก
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+const editAttendanceSchema = z.object({
+    instructor: z.string().min(1, "กรุณาเลือกครูผู้สอน"),
+    time: z.string().min(1, "กรุณาเลือกเวลา"),
+    attendance: z.coerce.number().min(0, "จำนวนต้องไม่ต่ำกว่า 0"),
+    staffName: z.string().min(1, "กรุณากรอกชื่อพนักงาน"),
+    instructorSignature: z.string().optional(),
+    staffSignature: z.string().optional(),
+});
+
+
+function EditAttendanceDialog({ open, onOpenChange, attendance, instructors, times }: { 
+    open: boolean, 
+    onOpenChange: (open: boolean) => void, 
+    attendance: GroupClassAttendance | null, 
+    instructors: GroupClassInstructor[], 
+    times: GroupClassTime[] 
+}) {
+    const { firestore: db } = useFirebase();
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const { control, handleSubmit, register, formState: { errors }, reset } = useForm<z.infer<typeof editAttendanceSchema>>({
+        resolver: zodResolver(editAttendanceSchema),
+    });
+
+    useEffect(() => {
+        if (attendance) {
+            reset({
+                instructor: attendance.instructor,
+                time: attendance.time,
+                attendance: attendance.attendance,
+                staffName: attendance.staffName || '',
+                instructorSignature: attendance.instructorSignature || '',
+                staffSignature: attendance.staffSignature || '',
+            });
+        }
+    }, [attendance, reset]);
+
+    const onSubmit = (data: z.infer<typeof editAttendanceSchema>) => {
+        if (!db || !attendance) return;
+
+        startTransition(async () => {
+            const updatedData = {
+                instructor: data.instructor,
+                time: data.time,
+                attendance: data.attendance,
+                staffName: data.staffName,
+                instructorSignature: data.instructorSignature,
+                staffSignature: data.staffSignature,
+            };
+
+            try {
+                await updateDoc(doc(db, "groupClassAttendances", attendance.id), updatedData as any);
+                toast({ title: 'บันทึกการแก้ไขสำเร็จ' });
+                onOpenChange(false);
+            } catch (error) {
+                console.error("Error updating attendance:", error)
+                toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถบันทึกข้อมูลได้', variant: 'destructive' });
+            }
+        });
+    };
+
+    if (!attendance) return null;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Attendance: {attendance.class_name}</DialogTitle>
+                    <DialogDescription>Date: {attendance.date}</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                             <div>
+                                <Label>ครูผู้สอน</Label>
+                                <Controller name="instructor" control={control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <SelectTrigger><SelectValue placeholder="เลือกครู" /></SelectTrigger>
+                                        <SelectContent><ScrollArea className="h-48">{instructors.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</ScrollArea></SelectContent>
+                                    </Select>
+                                )}/>
+                                {errors.instructor && <p className="text-xs text-destructive mt-1">{errors.instructor.message}</p>}
+                            </div>
+                             <div>
+                                <Label>เวลา</Label>
+                                <Controller name="time" control={control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <SelectTrigger><SelectValue placeholder="เลือกเวลา" /></SelectTrigger>
+                                        <SelectContent>{times.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                )}/>
+                                {errors.time && <p className="text-xs text-destructive mt-1">{errors.time.message}</p>}
+                            </div>
+                            <div>
+                                <Label>จำนวนผู้เข้าใช้ (คน)</Label>
+                                <Input type="number" {...register('attendance')} min="0" placeholder="0" />
+                                {errors.attendance && <p className="text-xs text-destructive mt-1">{errors.attendance.message}</p>}
+                            </div>
+                             <div>
+                                <Label>ชื่อพนักงาน</Label>
+                                <Input {...register('staffName')} placeholder="ชื่อพนักงานผู้ตรวจ" />
+                                {errors.staffName && <p className="text-xs text-destructive mt-1">{errors.staffName.message}</p>}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Controller name="instructorSignature" control={control} render={({ field }) => <SignaturePad label="ลายมือชื่อครูผู้สอน" onSignatureChange={field.onChange} initialSignature={attendance.instructorSignature} />} />
+                            <Controller name="staffSignature" control={control} render={({ field }) => <SignaturePad label="ลายมือชื่อพนักงาน" onSignatureChange={field.onChange} initialSignature={attendance.staffSignature} />} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">ยกเลิก</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending ? <Loader2 className="animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                            บันทึกการเปลี่ยนแปลง
                         </Button>
                     </DialogFooter>
                 </form>

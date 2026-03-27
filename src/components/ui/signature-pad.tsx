@@ -8,12 +8,13 @@ interface SignaturePadProps {
   onSignatureChange: (signature: string) => void;
   className?: string;
   label: string;
+  initialSignature?: string;
 }
 
-export function SignaturePad({ onSignatureChange, className, label }: SignaturePadProps) {
+export function SignaturePad({ onSignatureChange, className, label, initialSignature }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSigned, setHasSigned] = useState(false);
+  const [hasSigned, setHasSigned] = useState(!!initialSignature);
   
   const getCanvasCtx = () => canvasRef.current?.getContext('2d');
 
@@ -21,16 +22,30 @@ export function SignaturePad({ onSignatureChange, className, label }: SignatureP
     const canvas = canvasRef.current;
     if (canvas) {
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
+      if (canvas.width !== canvas.offsetWidth * ratio) canvas.width = canvas.offsetWidth * ratio;
+      if (canvas.height !== canvas.offsetHeight * ratio) canvas.height = canvas.offsetHeight * ratio;
+
       const ctx = getCanvasCtx();
       if (ctx) {
         ctx.scale(ratio, ratio);
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (initialSignature) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width / ratio, canvas.height / ratio);
+            };
+            img.src = initialSignature;
+            setHasSigned(true);
+        } else {
+            setHasSigned(false);
+        }
       }
     }
-  }, []);
+  }, [initialSignature]);
 
   const getCoords = (e: React.MouseEvent | React.TouchEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
