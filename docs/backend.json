@@ -235,6 +235,41 @@
         "staffSignature": { "type": "string", "description": "Data URL of the staff member's signature." }
       },
       "required": ["date", "month_year", "day_of_week", "time", "class_name", "instructor", "attendance", "created_at"]
+    },
+    "AssessmentServiceRecord": {
+      "title": "Assessment Service Record",
+      "type": "object",
+      "description": "Records a client's usage of a special assessment service package.",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "memberId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "trainingProgram": {
+          "type": "string",
+          "enum": ["Personal Training 1 Session", "Personal Training 3 Sessions", "Free Trial 1 Session"]
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sessionNumber": { "type": "number" },
+              "dateTime": { "type": "string", "format": "date-time" },
+              "trainerName": { "type": "string" },
+              "trainerSignature": { "type": "string", "description": "Data URL of the signature." }
+            },
+            "required": ["sessionNumber", "dateTime", "trainerName", "trainerSignature"]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed"]
+        },
+        "remark": { "type": "string" }
+      },
+      "required": ["clientId", "date", "trainingProgram", "status"]
     }
   },
   "auth": {
@@ -396,9 +431,17 @@
           "description": "Stores each attendance record for all group classes.",
           "params": [{ "name": "attendanceId", "description": "Unique ID for the attendance record." }]
         }
+      },
+      {
+        "path": "/assessmentServices/{recordId}",
+        "definition": {
+          "entityName": "AssessmentServiceRecord",
+          "schema": { "$ref": "#/backend/entities/AssessmentServiceRecord" },
+          "description": "Stores records of assessment service packages for clients.",
+          "params": [{"name": "recordId", "description": "Unique ID for the record."}]
+        }
       }
     ],
     "reasoning": "The recommended Firestore structure for the RuamChok Fitness HRM system prioritizes security, scalability, and debuggability by strictly adhering to the core design principles. The design segregates data into distinct collections based on their security posture and logical relationships, moving away from a single 'data' collection with a 'data_type' field as hinted in the client-side code, which is an anti-pattern for Firestore security and query efficiency.\n\n**Authorization Independence (CRITICAL):**\nThis design achieves authorization independence by ensuring that all necessary authorization context is either embedded within the document itself or derivable directly from its path, thus eliminating the need for `get()` calls in security rules. For employee-specific data (leave entries, quotas, holiday permissions), the `employeeId` is part of the document's path. While the current UI implies a single 'admin' user, this path-based structure inherently supports multi-user scenarios where employees might access their own data without needing to fetch parent employee details. For administrator authorization, a dedicated top-level `/admins/{adminId}` collection allows for a simple and atomic `exists()` check to determine admin status, ensuring the `isAdmin()` rule function does not create any hierarchical dependencies on business data.\n\n**QAPs (Rules are not Filters):**\nThis structure strongly supports QAPs by employing **Structural Segregation**. Each collection is designed to hold documents that share the same security requirements. For instance, all documents in `/employees/{employeeId}/leaveEntries` have the same access policy (admin-managed). When an administrator performs a `list` query (e.g., `db.collection('employees').get()`), the security rules can evaluate access for the entire collection. If the user is an admin, they get all relevant documents; if not, the query fails. This eliminates the need for complex, inefficient, and often error-prone `where` clauses within security rules to filter results, ensuring that security is enforced at the access layer rather than attempting to filter unauthorized data from query results. Global settings (`/customHolidays`, `/appSettings`) are also top-level collections with clear, uniform access policies.\n\n**Key Structural Decisions:**\n*   **Admin Role:** A dedicated `/admins/{adminId}` collection is introduced to store the `uid` of authorized administrators. This allows for a clean `isAdmin()` rule function using an `exists()` check, crucial for DBAC.\n*   **Hierarchical Paths for Employee Data:** Employee-specific data like `LeaveEntry`, `EmployeeQuota`, and `EmployeeHolidayPermission` are organized as subcollections under individual `/employees/{employeeId}` documents. This establishes clear ownership and context (`/employees/{employeeId}/leaveEntries/{leaveEntryId}`), making authorization rules for employee-specific operations straightforward.\n*   **Fixed Document IDs for 1:1 Relationships:** For entities like `EmployeeQuota` and `EmployeeHolidayPermission`, which have a 1:1 relationship with an `Employee`, fixed document IDs (e.g., `current`) are used within their subcollections (`/employees/{employeeId}/quotas/current`, `/employees/{employeeId}/holidayPermissions/current`). This simplifies access patterns for these unique child records.\n*   **Top-Level Collections for Global Data:** `CustomHoliday`, `AppSetting`, and all new `GroupClass...` collections are global configurations applicable to the entire system. They reside in dedicated top-level collections to clearly separate them from employee-specific data. This ensures their security rules are simple and only rely on the `isAdmin()` check.\n*   **Denormalization:** All subcollection documents (e.g., `LeaveEntry`, `EmployeeQuota`, `EmployeeHolidayPermission`) inherently include `employeeId`, which is denormalized from the parent `Employee` document's ID, thereby facilitating authorization independence for operations on these sub-entities."
   }
 }
-    

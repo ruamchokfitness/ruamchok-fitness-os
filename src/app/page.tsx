@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature, ClipboardCheck } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,13 @@ export default function Home() {
       disabled: false,
     },
     {
+      title: 'Assessment Service Record',
+      description: 'Record and track client assessment service usage.',
+      href: '/assessment-service',
+      icon: <ClipboardCheck className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
       title: 'Settings',
       description: 'Manage users and system settings.',
       href: '/settings',
@@ -113,3 +120,4 @@ export default function Home() {
     </div>
   );
 }
+

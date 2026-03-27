@@ -272,4 +272,23 @@ export interface PTWorkout {
     trainerNotes?: string;
     clientFeedback?: string;
 }
-    
+
+export interface AssessmentSession {
+  sessionNumber: number;
+  dateTime: string; // ISO string
+  trainerName: string;
+  trainerSignature: string; // Data URL
+}
+
+export interface AssessmentServiceRecord {
+  id: string;
+  clientId: string;
+  memberId: string;
+  fullName: string;
+  date: string; // YYYY-MM-DD
+  trainingProgram: 'Personal Training 1 Session' | 'Personal Training 3 Sessions' | 'Free Trial 1 Session';
+  sessions: AssessmentSession[];
+  status: 'active' | 'completed';
+  remark?: string;
+}
+
