@@ -829,7 +829,7 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
                 .header { text-align: center; margin-bottom: 20px; }
                 .header h1 { margin-bottom: 5px; font-size: 18px; }
                 .header .summary { font-size: 12px; margin-bottom: 5px; }
-                .header .generation-date { font-size: 10px; color: #888; }
+                .header .generation-date { font-size: 12px; color: #000; }
                 .signature { max-height: 40px; width: auto; vertical-align: middle; }
             </style>
             </head><body>
@@ -839,10 +839,11 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
                 <p class="generation-date">Generated on: ${generationDate}</p>
             </div>
             <table><thead><tr>
-                <th>Date</th><th>Time</th><th>Class</th><th>Instructor</th><th>Attendees</th><th>Staff</th><th>Instructor Sign</th><th>Staff Sign</th>
+                <th>No.</th><th>Date</th><th>Time</th><th>Class</th><th>Instructor</th><th>Attendees</th><th>Staff</th><th>Instructor Sign</th><th>Staff Sign</th>
             </tr></thead><tbody>
-            ${filtered.map(r => `
+            ${filtered.map((r, index) => `
                 <tr>
+                    <td>${index + 1}</td>
                     <td>${r.date}</td><td>${r.time}</td><td>${r.class_name}</td><td>${r.instructor}</td><td>${r.attendance}</td><td>${r.staffName || ''}</td>
                     <td>${r.instructorSignature ? `<img src="${r.instructorSignature}" class="signature"/>` : ''}</td>
                     <td>${r.staffSignature ? `<img src="${r.staffSignature}" class="signature"/>` : ''}</td>
