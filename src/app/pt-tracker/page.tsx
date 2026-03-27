@@ -1990,13 +1990,11 @@ function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: {
 
 function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans, packages }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) {
     const { toast } = useToast();
+    const [trainerId, setTrainerId] = useState('');
+    const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
 
-    const generatePayoutsPDF = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        const trainerId = formData.get('trainerId') as string;
-        const period = formData.get('period') as string;
 
+    const generatePayoutsPDF = () => {
         if (!trainerId) {
             toast({ title: "Please select a trainer", variant: "destructive" });
             return;
@@ -2009,10 +2007,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
         }
         const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
 
-        let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId);
-        if (period && period !== 'all') {
-            filteredCommissions = filteredCommissions.filter(c => c.month_reference === period);
-        }
+        let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId && c.month_reference === monthFilter);
         
         filteredCommissions.sort((a,b) => (a.cumulative_hours_after || 0) - (b.cumulative_hours_after || 0));
 
@@ -2079,7 +2074,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         </div>
                         <div class="summary-card">
                             <div class="label">Period</div>
-                            <div class="value">${period || 'All'}</div>
+                            <div class="value">${monthFilter}</div>
                         </div>
                     </div>
         `;
@@ -2169,7 +2164,6 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
         toast({ title: 'PDF ready!', description: 'Click "Save as PDF" in the print dialog to download.' });
     };
 
-    const months = [...new Set(commissions.map(c => c.month_reference))].sort().reverse();
     const activeTrainers = trainers.filter(t => t.status === 'active');
 
     return (
@@ -2178,10 +2172,10 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                 <DialogHeader>
                     <DialogTitle>Generate Payouts Report</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={generatePayoutsPDF} className="space-y-4">
+                <div className="space-y-4 pt-4">
                     <div>
                         <Label htmlFor="pdf-trainer">Select Trainer *</Label>
-                        <Select name="trainerId" required>
+                        <Select name="trainerId" required value={trainerId} onValueChange={setTrainerId}>
                             <SelectTrigger id="pdf-trainer">
                                 <SelectValue placeholder="Select a trainer to export" />
                             </SelectTrigger>
@@ -2193,23 +2187,15 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     </div>
                     <div>
                         <Label htmlFor="pdf-period">Filter by Month</Label>
-                        <Select name="period" defaultValue="all">
-                            <SelectTrigger id="pdf-period">
-                                <SelectValue placeholder="All Periods" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Periods</SelectItem>
-                                {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <Input id="pdf-period" type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
                             <Button type="button" variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button type="submit">Generate PDF</Button>
+                        <Button type="button" onClick={generatePayoutsPDF}>Generate PDF</Button>
                     </DialogFooter>
-                </form>
+                </div>
             </DialogContent>
         </Dialog>
     );
