@@ -232,18 +232,13 @@ function HistoryTab({ attendances, classes, instructors, onDelete }: { attendanc
                 <Accordion type="single" collapsible className="w-full space-y-2">
                     {filteredHistory.length > 0 ? filteredHistory.map(r => (
                          <AccordionItem value={r.id} key={r.id} className="border rounded-lg">
-                            <AccordionTrigger className="p-4 hover:no-underline">
-                                <div className="flex justify-between items-center w-full">
-                                    <div>
-                                        <div className="font-medium">{r.class_name} - {r.attendance} คน</div>
-                                        <div className="text-sm text-gray-500">{r.date} ({r.day_of_week}) • {r.time} • {r.instructor}</div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-100 mr-2" onClick={(e) => { e.stopPropagation(); onDelete('groupClassAttendances', r.id)}}>
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
+                            <AccordionTrigger className="p-4 hover:no-underline w-full text-left">
+                                <div>
+                                    <div className="font-medium">{r.class_name} - {r.attendance} คน</div>
+                                    <div className="text-sm text-gray-500">{r.date} ({r.day_of_week}) • {r.time} • {r.instructor}</div>
                                 </div>
                             </AccordionTrigger>
-                            <AccordionContent className="p-4 border-t">
+                            <AccordionContent className="px-4 pb-4 border-t">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <h4 className="font-semibold text-sm mb-2">ลายมือชื่อครูผู้สอน</h4>
@@ -255,6 +250,12 @@ function HistoryTab({ attendances, classes, instructors, onDelete }: { attendanc
                                         {r.staffSignature ? <img src={r.staffSignature} alt="Staff Signature" className="border rounded-md bg-white"/> : <p className="text-xs text-muted-foreground">ไม่มีลายมือชื่อ</p>}
                                         <p className="text-xs text-center mt-1">{r.staffName}</p>
                                     </div>
+                                </div>
+                                <div className="mt-4 flex justify-end">
+                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete('groupClassAttendances', r.id)}>
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete Record
+                                    </Button>
                                 </div>
                             </AccordionContent>
                          </AccordionItem>
