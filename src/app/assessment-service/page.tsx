@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -30,6 +30,7 @@ function AssessmentServicePageContent() {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<AssessmentServiceRecord | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [recordToEdit, setRecordToEdit] = useState<AssessmentServiceRecord | null>(null);
@@ -45,6 +46,15 @@ function AssessmentServicePageContent() {
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(trainersQuery);
 
     const isLoading = loadingRecords || loadingTrainers;
+
+    const filteredRecords = useMemo(() => {
+        if (!records) return [];
+        if (!searchQuery) return records;
+        return records.filter(record => 
+            record.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (record.memberId && record.memberId.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+    }, [records, searchQuery]);
 
     const handleViewDetails = (record: AssessmentServiceRecord) => {
         setSelectedRecord(record);
@@ -97,19 +107,30 @@ function AssessmentServicePageContent() {
 
             <main className="container mx-auto py-8">
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle>All Records</CardTitle>
-                            <CardDescription>A log of all assessment services provided to clients.</CardDescription>
+                    <CardHeader>
+                        <div className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>All Records</CardTitle>
+                                <CardDescription>A log of all assessment services provided to clients.</CardDescription>
+                            </div>
+                            <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
                         </div>
-                        <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
+                        <div className="relative pt-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by name or member ID..."
+                                className="pl-10"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {isLoading ? (
                             <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
                         ) : (
                             <RecordsTable 
-                                records={records || []} 
+                                records={filteredRecords} 
                                 onViewDetails={handleViewDetails}
                                 onEdit={handleEdit}
                                 onDelete={openDeleteDialog}
