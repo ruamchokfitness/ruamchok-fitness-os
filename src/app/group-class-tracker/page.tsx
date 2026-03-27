@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -814,7 +815,7 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
         const totalAttendance = filtered.reduce((sum, r) => sum + r.attendance, 0);
         const classCount = filtered.length;
         const averageAttendance = classCount > 0 ? Math.round(totalAttendance / classCount) : 0;
-        const generationDate = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+        const generationDate = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
 
         let htmlContent = `
@@ -827,14 +828,15 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
                 th { background-color: #f2f2f2; }
                 .header { text-align: center; margin-bottom: 20px; }
                 .header h1 { margin-bottom: 5px; font-size: 18px; }
-                .header p { margin: 0; color: #333; }
-                .footer { text-align: center; margin-top: 20px; font-size: 9px; color: #777; }
+                .header .summary { font-size: 12px; margin-bottom: 5px; }
+                .header .generation-date { font-size: 10px; color: #888; }
                 .signature { max-height: 40px; width: auto; vertical-align: middle; }
             </style>
             </head><body>
             <div class="header">
                 <h1>Group Class Attendance Report</h1>
-                <p>Total Attendance: ${totalAttendance} คน จำนวน ${classCount} คลาส เฉลี่ย ${averageAttendance} คนต่อคลาส</p>
+                <p class="summary">Total Attendance: ${totalAttendance} | Classes: ${classCount} | Average: ${averageAttendance} per class</p>
+                <p class="generation-date">Generated on: ${generationDate}</p>
             </div>
             <table><thead><tr>
                 <th>Date</th><th>Time</th><th>Class</th><th>Instructor</th><th>Attendees</th><th>Staff</th><th>Instructor Sign</th><th>Staff Sign</th>
@@ -847,9 +849,6 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
                 </tr>
             `).join('')}
             </tbody></table>
-            <div class="footer">
-                <p>Generated on: ${generationDate}</p>
-            </div>
             </body></html>
         `;
 
