@@ -88,7 +88,7 @@ function AssessmentServicePageContent() {
                             <ClipboardCheck className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-bold">Assessment Service Records</h1>
+                            <h1 className="text-2xl md:text-3xl font-bold">RCF Assessment Service Record</h1>
                             <p className="text-slate-300 text-sm md:text-base">Track and manage client assessment service usage.</p>
                         </div>
                     </div>

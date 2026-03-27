@@ -27,17 +27,31 @@ export default function Home() {
       disabled: false,
     },
     {
+      title: 'RCF Member Sign-in',
+      description: 'Sign in for personal training sessions.',
+      href: '/member-signin',
+      icon: <FileSignature className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'RCF Assessment Service Record',
+      description: 'Record and track client assessment service usage.',
+      href: '/assessment-service',
+      icon: <ClipboardCheck className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'RCF Group Class Attendance Tracker',
+      description: 'Track and analyze group class attendance.',
+      href: '/group-class-tracker',
+      icon: <Users2 className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
       title: 'RCF HRM',
       description: 'Employee leave management system.',
       href: '/hrm',
       icon: <Users className="w-8 h-8 text-primary" />,
-      disabled: false,
-    },
-    {
-      title: 'RCF Maintenance Log',
-      description: 'Track and manage equipment maintenance.',
-      href: '/maintenance',
-      icon: <Wrench className="w-8 h-8 text-primary" />,
       disabled: false,
     },
     {
@@ -48,24 +62,10 @@ export default function Home() {
       disabled: false,
     },
     {
-      title: 'Member Sign-in',
-      description: 'Sign in for personal training sessions.',
-      href: '/member-signin',
-      icon: <FileSignature className="w-8 h-8 text-primary" />,
-      disabled: false,
-    },
-     {
-      title: 'RCF Group Class Attendance Tracker',
-      description: 'Track and analyze group class attendance.',
-      href: '/group-class-tracker',
-      icon: <Users2 className="w-8 h-8 text-primary" />,
-      disabled: false,
-    },
-    {
-      title: 'Assessment Service Record',
-      description: 'Record and track client assessment service usage.',
-      href: '/assessment-service',
-      icon: <ClipboardCheck className="w-8 h-8 text-primary" />,
+      title: 'RCF Maintenance Log',
+      description: 'Track and manage equipment maintenance.',
+      href: '/maintenance',
+      icon: <Wrench className="w-8 h-8 text-primary" />,
       disabled: false,
     },
     {
@@ -120,4 +120,3 @@ export default function Home() {
     </div>
   );
 }
-

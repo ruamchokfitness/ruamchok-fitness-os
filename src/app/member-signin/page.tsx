@@ -39,7 +39,7 @@ function ClientSelectionPage() {
                             <User className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-bold">Member Sign-in</h1>
+                            <h1 className="text-2xl md:text-3xl font-bold">RCF Member Sign-in</h1>
                             <p className="text-slate-300 text-sm md:text-base">Select a client to start a session.</p>
                         </div>
                     </div>
