@@ -4,7 +4,7 @@ import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import Link from 'next/link';
 import { collection, query, orderBy, where, doc, addDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import type { AssessmentServiceRecord, AssessmentSession, PTClient, PTTrainer } from '@/lib/types';
+import type { AssessmentServiceRecord, AssessmentSession, PTTrainer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,13 +33,10 @@ function AssessmentServicePageContent() {
     const recordsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'assessmentServices'), orderBy('date', 'desc')) : null, [firestore]);
     const { data: records, isLoading: loadingRecords } = useCollection<AssessmentServiceRecord>(recordsQuery);
 
-    const clientsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'pt_clients') : null, [firestore]);
-    const { data: clients, isLoading: loadingClients } = useCollection<PTClient>(clientsQuery);
-    
     const trainersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]);
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(trainersQuery);
 
-    const isLoading = loadingRecords || loadingClients || loadingTrainers;
+    const isLoading = loadingRecords || loadingTrainers;
 
     const handleViewDetails = (record: AssessmentServiceRecord) => {
         setSelectedRecord(record);
@@ -89,7 +86,6 @@ function AssessmentServicePageContent() {
             <AddRecordDialog
                 open={addModalOpen}
                 onOpenChange={setAddModalOpen}
-                clients={clients || []}
             />
 
             {selectedRecord && (
@@ -173,31 +169,25 @@ const RecordsTable = ({ records, onViewDetails }: { records: AssessmentServiceRe
 
 // #region Add Record Dialog
 const addRecordSchema = z.object({
-    clientId: z.string().min(1, 'Client is required.'),
+    fullName: z.string().min(1, 'Full Name is required.'),
+    memberId: z.string().min(1, 'Member ID is required.'),
     date: z.string().min(1, 'Date is required.'),
     trainingProgram: z.enum(["Personal Training 1 Session", "Personal Training 3 Sessions", "Free Trial 1 Session"]),
     remark: z.string().optional(),
 });
 
-const AddRecordDialog = ({ open, onOpenChange, clients }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[] }) => {
+const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) => {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-    const { register, handleSubmit, control, formState: { errors }, reset, setValue, watch } = useForm<z.infer<typeof addRecordSchema>>({ resolver: zodResolver(addRecordSchema) });
-
-    const [clientSearch, setClientSearch] = useState('');
-    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
-    const selectedClientId = watch('clientId');
-    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const { register, handleSubmit, control, formState: { errors }, reset } = useForm<z.infer<typeof addRecordSchema>>({ resolver: zodResolver(addRecordSchema) });
 
     const onSubmit = (data: z.infer<typeof addRecordSchema>) => {
         startTransition(async () => {
-            if (!firestore || !selectedClient) return;
+            if (!firestore) return;
 
             const newRecord: Omit<AssessmentServiceRecord, 'id'> = {
                 ...data,
-                memberId: selectedClient.member_id || '',
-                fullName: selectedClient.name,
                 sessions: [],
                 status: 'active',
             };
@@ -220,13 +210,17 @@ const AddRecordDialog = ({ open, onOpenChange, clients }: { open: boolean, onOpe
                     <DialogTitle>Add Assessment Service Record</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                     <div className="space-y-2">
-                        <Label>Client *</Label>
-                        <div className="flex items-center gap-2">
-                           <Input readOnly value={selectedClient?.name || 'No client selected'} className="flex-1 bg-slate-100" />
-                            <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>Select Client</Button>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="fullName">Full Name *</Label>
+                            <Input id="fullName" {...register('fullName')} />
+                            {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
                         </div>
-                        {errors.clientId && <p className="text-xs text-destructive">{errors.clientId.message}</p>}
+                        <div>
+                            <Label htmlFor="memberId">Member ID *</Label>
+                            <Input id="memberId" {...register('memberId')} />
+                            {errors.memberId && <p className="text-xs text-destructive">{errors.memberId.message}</p>}
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -260,22 +254,6 @@ const AddRecordDialog = ({ open, onOpenChange, clients }: { open: boolean, onOpe
                     </DialogFooter>
                 </form>
             </DialogContent>
-
-             <Dialog open={clientSelectorOpen} onOpenChange={setClientSelectorOpen} modal={true}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>Select a Client</DialogTitle></DialogHeader>
-                    <Input placeholder="Search by name or ID..." value={clientSearch} onChange={e => setClientSearch(e.target.value)} autoFocus />
-                    <ScrollArea className="h-72 mt-4">
-                        <div className="space-y-1 p-1">
-                            {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.member_id?.toLowerCase().includes(clientSearch.toLowerCase())).map(client => (
-                                <Button key={client.id} type="button" variant="ghost" className="w-full justify-start text-left h-auto" onClick={() => { setValue('clientId', client.id); setClientSelectorOpen(false); }}>
-                                    <div><p className="font-medium">{client.name}</p><p className="text-xs text-slate-500">{client.member_id}</p></div>
-                                </Button>
-                            ))}
-                        </div>
-                    </ScrollArea>
-                </DialogContent>
-            </Dialog>
         </Dialog>
     );
 };

@@ -282,7 +282,6 @@ export interface AssessmentSession {
 
 export interface AssessmentServiceRecord {
   id: string;
-  clientId: string;
   memberId: string;
   fullName: string;
   date: string; // YYYY-MM-DD
@@ -291,4 +290,3 @@ export interface AssessmentServiceRecord {
   status: 'active' | 'completed';
   remark?: string;
 }
-
