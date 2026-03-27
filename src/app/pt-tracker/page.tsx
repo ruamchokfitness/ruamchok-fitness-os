@@ -285,7 +285,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
         const thisMonthCommissions = commissions.filter(c => c.month_reference === thisMonthRef);
         const totalCommission = thisMonthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
         const totalHoursThisMonth = thisMonthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-        const totalRevenue = packages.reduce((sum, p => sum + (p.price_paid || 0)), 0);
+        const totalRevenue = packages.reduce((sum, p) => sum + (p.price_paid || 0), 0);
         const totalHoursRemaining = activePackages.reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
         const completedSessionsCount = sessions.filter(s => s.session_status === 'completed').length;
 
