@@ -2,13 +2,14 @@
 
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, query, orderBy, where, doc, addDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, where, doc, addDoc, updateDoc, arrayUnion, setDoc, deleteDoc } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { AssessmentServiceRecord, AssessmentSession, PTTrainer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -30,6 +31,13 @@ function AssessmentServicePageContent() {
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<AssessmentServiceRecord | null>(null);
 
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [recordToEdit, setRecordToEdit] = useState<AssessmentServiceRecord | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [recordToDelete, setRecordToDelete] = useState<AssessmentServiceRecord | null>(null);
+    const [isDeletePending, startDeleteTransition] = useTransition();
+    const { toast } = useToast();
+
     const recordsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'assessmentServices'), orderBy('date', 'desc')) : null, [firestore]);
     const { data: records, isLoading: loadingRecords } = useCollection<AssessmentServiceRecord>(recordsQuery);
 
@@ -41,6 +49,29 @@ function AssessmentServicePageContent() {
     const handleViewDetails = (record: AssessmentServiceRecord) => {
         setSelectedRecord(record);
         setDetailsModalOpen(true);
+    };
+
+    const handleEdit = (record: AssessmentServiceRecord) => {
+        setRecordToEdit(record);
+        setEditModalOpen(true);
+    };
+
+    const openDeleteDialog = (record: AssessmentServiceRecord) => {
+        setRecordToDelete(record);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleConfirmDelete = () => {
+        if (!recordToDelete || !firestore) return;
+        startDeleteTransition(async () => {
+            try {
+                await deleteDoc(doc(firestore, 'assessmentServices', recordToDelete.id));
+                toast({ title: 'Success', description: 'Record deleted.' });
+                setDeleteDialogOpen(false);
+            } catch (error) {
+                toast({ title: 'Error', description: 'Failed to delete record.', variant: 'destructive' });
+            }
+        });
     };
     
     return (
@@ -77,7 +108,12 @@ function AssessmentServicePageContent() {
                         {isLoading ? (
                             <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
                         ) : (
-                            <RecordsTable records={records || []} onViewDetails={handleViewDetails} />
+                            <RecordsTable 
+                                records={records || []} 
+                                onViewDetails={handleViewDetails}
+                                onEdit={handleEdit}
+                                onDelete={openDeleteDialog}
+                            />
                         )}
                     </CardContent>
                 </Card>
@@ -87,6 +123,14 @@ function AssessmentServicePageContent() {
                 open={addModalOpen}
                 onOpenChange={setAddModalOpen}
             />
+            
+            {recordToEdit && (
+                <EditRecordDialog
+                    open={editModalOpen}
+                    onOpenChange={setEditModalOpen}
+                    record={recordToEdit}
+                />
+            )}
 
             {selectedRecord && (
                 <RecordDetailsDialog
@@ -96,6 +140,24 @@ function AssessmentServicePageContent() {
                     trainers={trainers || []}
                 />
             )}
+
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This will permanently delete the record for {recordToDelete?.fullName}. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/80" disabled={isDeletePending}>
+                            {isDeletePending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
@@ -104,7 +166,12 @@ function AssessmentServicePageContent() {
 type SortableKeys = keyof AssessmentServiceRecord;
 type SortConfig = { key: SortableKeys; direction: 'ascending' | 'descending' };
 
-const RecordsTable = ({ records, onViewDetails }: { records: AssessmentServiceRecord[], onViewDetails: (record: AssessmentServiceRecord) => void }) => {
+const RecordsTable = ({ records, onViewDetails, onEdit, onDelete }: { 
+    records: AssessmentServiceRecord[], 
+    onViewDetails: (record: AssessmentServiceRecord) => void,
+    onEdit: (record: AssessmentServiceRecord) => void,
+    onDelete: (record: AssessmentServiceRecord) => void
+}) => {
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'date', direction: 'descending' });
 
     const sortedRecords = useMemo(() => {
@@ -148,17 +215,30 @@ const RecordsTable = ({ records, onViewDetails }: { records: AssessmentServiceRe
                     <TableHead>Training Program</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Remark</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {sortedRecords.map((record) => (
-                    <TableRow key={record.id} onClick={() => onViewDetails(record)} className="cursor-pointer">
+                    <TableRow key={record.id}>
                         <TableCell>{record.date}</TableCell>
                         <TableCell>{record.memberId}</TableCell>
-                        <TableCell>{record.fullName}</TableCell>
+                        <TableCell>
+                            <Button variant="link" className="p-0 h-auto" onClick={() => onViewDetails(record)}>
+                                {record.fullName}
+                            </Button>
+                        </TableCell>
                         <TableCell>{record.trainingProgram}</TableCell>
                         <TableCell><Badge variant={record.status === 'completed' ? 'default' : 'secondary'} className={cn(record.status === 'completed' && 'bg-green-600')}>{record.status}</Badge></TableCell>
                         <TableCell className="max-w-xs truncate">{record.remark}</TableCell>
+                        <TableCell className="text-right">
+                             <Button variant="ghost" size="icon" onClick={() => onEdit(record)}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => onDelete(record)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </TableCell>
                     </TableRow>
                 ))}
             </TableBody>
@@ -257,7 +337,112 @@ const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: 
         </Dialog>
     );
 };
+// #endregion
 
+// #region Edit Record Dialog
+const editRecordSchema = z.object({
+    fullName: z.string().min(1, 'Full Name is required.'),
+    memberId: z.string().min(1, 'Member ID is required.'),
+    date: z.string().min(1, 'Date is required.'),
+    trainingProgram: z.enum(["Personal Training 1 Session", "Personal Training 3 Sessions", "Free Trial 1 Session"]),
+    remark: z.string().optional(),
+});
+
+const EditRecordDialog = ({ open, onOpenChange, record }: { open: boolean, onOpenChange: (open: boolean) => void, record: AssessmentServiceRecord }) => {
+    const { firestore } = useFirebase();
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const { register, handleSubmit, control, formState: { errors }, reset } = useForm<z.infer<typeof editRecordSchema>>({ 
+        resolver: zodResolver(editRecordSchema),
+        defaultValues: {
+            fullName: record.fullName,
+            memberId: record.memberId,
+            date: record.date,
+            trainingProgram: record.trainingProgram,
+            remark: record.remark,
+        }
+    });
+
+    useEffect(() => {
+        if (record) {
+            reset({
+                fullName: record.fullName,
+                memberId: record.memberId,
+                date: record.date,
+                trainingProgram: record.trainingProgram,
+                remark: record.remark,
+            });
+        }
+    }, [record, reset]);
+
+    const onSubmit = (data: z.infer<typeof editRecordSchema>) => {
+        startTransition(async () => {
+            if (!firestore) return;
+
+            try {
+                await updateDoc(doc(firestore, 'assessmentServices', record.id), data as any);
+                toast({ title: 'Success', description: 'Record updated.' });
+                onOpenChange(false);
+            } catch (error) {
+                toast({ title: 'Error', description: 'Failed to update record.', variant: 'destructive' });
+            }
+        });
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); if (!isOpen) reset(); }}>
+            <DialogContent className="sm:max-w-[625px]">
+                <DialogHeader>
+                    <DialogTitle>Edit Assessment Service Record</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="edit-fullName">Full Name *</Label>
+                            <Input id="edit-fullName" {...register('fullName')} />
+                            {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-memberId">Member ID *</Label>
+                            <Input id="edit-memberId" {...register('memberId')} />
+                            {errors.memberId && <p className="text-xs text-destructive">{errors.memberId.message}</p>}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="edit-date">Date</Label>
+                            <Input id="edit-date" type="date" {...register('date')} />
+                            {errors.date && <p className="text-xs text-destructive">{errors.date.message}</p>}
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-trainingProgram">Training Program</Label>
+                             <Controller name="trainingProgram" control={control} render={({ field }) => (
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <SelectTrigger><SelectValue placeholder="Select a program" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Personal Training 1 Session">Personal Training 1 Session</SelectItem>
+                                        <SelectItem value="Personal Training 3 Sessions">Personal Training 3 Sessions</SelectItem>
+                                        <SelectItem value="Free Trial 1 Session">Free Trial 1 Session</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                             )}/>
+                            {errors.trainingProgram && <p className="text-xs text-destructive">{errors.trainingProgram.message}</p>}
+                        </div>
+                    </div>
+                     <div>
+                        <Label htmlFor="edit-remark">Remark</Label>
+                        <Textarea id="edit-remark" {...register('remark')} />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Changes</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+};
 // #endregion
 
 // #region Details & Signing Dialogs
