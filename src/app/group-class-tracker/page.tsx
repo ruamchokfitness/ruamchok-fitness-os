@@ -1,28 +1,33 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
-import { collection, addDoc, doc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import Link from 'next/link';
+import { collection, addDoc, doc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import type { GroupClass, GroupClassInstructor, GroupClassTime, GroupClassAttendance } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { SignaturePad } from '@/components/ui/signature-pad';
 
 function GroupClassTrackerPageContent() {
     const { firestore: db } = useFirebase();
-    const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState("record");
+    const [activeTab, setActiveTab] = useState("signin");
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ collection: string, id: string } | null>(null);
@@ -32,62 +37,7 @@ function GroupClassTrackerPageContent() {
     const { data: times, isLoading: l3 } = useCollection<GroupClassTime>(useMemoFirebase(() => db ? query(collection(db, "groupClassTimes"), orderBy('name')) : null, [db]));
     const { data: attendances, isLoading: l4 } = useCollection<GroupClassAttendance>(useMemoFirebase(() => db ? query(collection(db, "groupClassAttendances"), orderBy('created_at', 'desc')) : null, [db]));
 
-    const [date, setDate] = useState('');
-    const [time, setTime] = useState('');
-    const [className, setClassName] = useState('');
-    const [instructor, setInstructor] = useState('');
-    const [attendance, setAttendance] = useState('');
-    
-    useEffect(() => {
-        setDate(new Date().toISOString().split('T')[0]);
-    }, []);
-
-    const handleSaveAttendance = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!db) return;
-
-        const dateVal = date;
-        const timeVal = time;
-        const classVal = className;
-        const instructorVal = instructor;
-        const attendanceVal = parseInt(attendance);
-
-        if (!dateVal || !timeVal || !classVal || !instructorVal || isNaN(attendanceVal)) {
-            toast({ title: 'ข้อมูลไม่ครบถ้วน', description: 'กรุณากรอกข้อมูลให้ครบทุกช่อง', variant: 'destructive' });
-            return;
-        }
-        
-        const dateObj = new Date(dateVal);
-        const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-        const dayOfWeek = days[dateObj.getDay()];
-        const monthYear = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
-        const formattedDate = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
-
-        startTransition(async () => {
-             try {
-                await addDoc(collection(db, "groupClassAttendances"), {
-                    type: 'attendance',
-                    date: formattedDate,
-                    month_year: monthYear,
-                    day_of_week: dayOfWeek,
-                    time: timeVal,
-                    class_name: classVal,
-                    instructor: instructorVal,
-                    attendance: attendanceVal,
-                    created_at: serverTimestamp()
-                });
-                toast({ title: 'บันทึกสำเร็จ' });
-                setDate(new Date().toISOString().split('T')[0]);
-                setTime('');
-                setClassName('');
-                setInstructor('');
-                setAttendance('');
-
-            } catch (error) {
-                toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถบันทึกข้อมูลได้', variant: 'destructive' });
-            }
-        });
-    };
+    const { toast } = useToast();
 
     const handleDelete = (collectionName: string, id: string) => {
         setItemToDelete({ collection: collectionName, id });
@@ -138,7 +88,7 @@ function GroupClassTrackerPageContent() {
                 <div className="sticky top-0 z-30 bg-white shadow-md">
                     <div className="container mx-auto">
                         <TabsList className="grid w-full grid-cols-5">
-                            <TabsTrigger value="record">บันทึกข้อมูล</TabsTrigger>
+                            <TabsTrigger value="signin">ลงชื่อเข้าคลาส</TabsTrigger>
                             <TabsTrigger value="history">ประวัติ</TabsTrigger>
                             <TabsTrigger value="monthly">สถิติรายเดือน</TabsTrigger>
                             <TabsTrigger value="yearly">สถิติรายปี</TabsTrigger>
@@ -148,65 +98,16 @@ function GroupClassTrackerPageContent() {
                 </div>
                 
                 <main className="container mx-auto py-8">
-                        <TabsContent value="record">
-                             <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <FilePenLine className="w-6 h-6 text-primary" />
-                                        บันทึกข้อมูลการเข้าใช้คลาส
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <form onSubmit={handleSaveAttendance} className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">วันที่</label>
-                                                <Input type="date" name="date" value={date} onChange={e => setDate(e.target.value)} required />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">เวลา</label>
-                                                <Select name="time" required value={time} onValueChange={setTime}>
-                                                    <SelectTrigger><SelectValue placeholder="เลือกเวลา" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {(times || []).map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อคลาส</label>
-                                                 <Select name="class_name" required value={className} onValueChange={setClassName}>
-                                                    <SelectTrigger><SelectValue placeholder="เลือกคลาส" /></SelectTrigger>
-                                                    <SelectContent>
-                                                         {(classes || []).map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">ครูผู้สอน</label>
-                                                <Select name="instructor" required value={instructor} onValueChange={setInstructor}>
-                                                    <SelectTrigger><SelectValue placeholder="เลือกครูผู้สอน" /></SelectTrigger>
-                                                    <SelectContent>
-                                                         {(instructors || []).map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนผู้เข้าใช้ (คน)</label>
-                                            <Input type="number" name="attendance" min="0" placeholder="0" required value={attendance} onChange={e => setAttendance(e.target.value)} />
-                                        </div>
-                                        <Button type="submit" disabled={isPending} className="w-full">
-                                            {isPending ? <Loader2 className="animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                            บันทึกข้อมูล
-                                        </Button>
-                                    </form>
-                                </CardContent>
-                            </Card>
+                        <TabsContent value="signin">
+                            <SigninTab classes={classes || []} instructors={instructors || []} times={times || []} />
                         </TabsContent>
                         <TabsContent value="history">
-                            <HistoryTab attendances={attendances || []} classes={classes || []} onDelete={handleDelete} />
+                            <HistoryTab 
+                                attendances={attendances || []} 
+                                classes={classes || []} 
+                                instructors={instructors || []}
+                                onDelete={handleDelete} 
+                            />
                         </TabsContent>
                          <TabsContent value="monthly">
                             <MonthlyStatsTab attendances={attendances || []} />
@@ -240,10 +141,55 @@ function GroupClassTrackerPageContent() {
     );
 }
 
+function SigninTab({ classes, instructors, times }: { classes: GroupClass[], instructors: GroupClassInstructor[], times: GroupClassTime[] }) {
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [selectedClass, setSelectedClass] = useState<GroupClass | null>(null);
 
-function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClassAttendance[], classes: GroupClass[], onDelete: (collection: string, id: string) => void }) {
+    const handleClassClick = (cls: GroupClass) => {
+        setSelectedClass(cls);
+        setDialogOpen(true);
+    };
+
+    return (
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <FilePenLine className="w-6 h-6 text-primary" />
+                        ลงชื่อเข้าใช้คลาส
+                    </CardTitle>
+                    <CardDescription>เลือกคลาสเพื่อบันทึกข้อมูลการเข้าใช้และลงลายมือชื่อ</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {classes.length > 0 ? classes.map(cls => (
+                            <Button key={cls.id} variant="outline" className="h-20 justify-start p-4 text-left flex-col items-start gap-1" onClick={() => handleClassClick(cls)}>
+                                <Dumbbell className="w-5 h-5 text-muted-foreground" />
+                                <span className="font-semibold">{cls.name}</span>
+                            </Button>
+                        )) : (
+                            <p className="text-muted-foreground col-span-full text-center">ไม่มีคลาสในระบบ กรุณาเพิ่มคลาสในหน้าตั้งค่า</p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+            {selectedClass && (
+                <ClassSigningDialog 
+                    open={dialogOpen} 
+                    onOpenChange={setDialogOpen} 
+                    cls={selectedClass} 
+                    instructors={instructors}
+                    times={times}
+                />
+            )}
+        </>
+    )
+}
+
+function HistoryTab({ attendances, classes, instructors, onDelete }: { attendances: GroupClassAttendance[], classes: GroupClass[], instructors: GroupClassInstructor[], onDelete: (collection: string, id: string) => void }) {
     const [monthFilter, setMonthFilter] = useState('');
     const [classFilter, setClassFilter] = useState('all');
+    const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
 
     useEffect(() => {
         setMonthFilter(new Date().toISOString().slice(0, 7));
@@ -268,8 +214,8 @@ function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClas
                         <History className="w-6 h-6 text-primary"/>
                         ประวัติการบันทึก
                     </CardTitle>
-                    <div className="flex gap-2">
-                        <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} />
+                    <div className="flex flex-wrap gap-2">
+                        <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-auto" />
                         <Select value={classFilter} onValueChange={setClassFilter}>
                             <SelectTrigger className="w-[180px]"><SelectValue placeholder="ทุกคลาส" /></SelectTrigger>
                             <SelectContent>
@@ -277,25 +223,52 @@ function HistoryTab({ attendances, classes, onDelete }: { attendances: GroupClas
                                 {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        <Button onClick={() => setPdfDialogOpen(true)}><FileText className="mr-2 h-4 w-4"/>Generate PDF</Button>
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-96">
-                <div className="space-y-3">
+                <Accordion type="single" collapsible className="w-full space-y-2">
                     {filteredHistory.length > 0 ? filteredHistory.map(r => (
-                         <div key={r.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100">
-                             <div>
-                                 <div className="font-medium">{r.class_name} - {r.attendance} คน</div>
-                                 <div className="text-sm text-gray-500">{r.date} ({r.day_of_week}) • {r.time} • {r.instructor}</div>
-                             </div>
-                             <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-100" onClick={() => onDelete('groupClassAttendances', r.id)}>
-                                 <Trash2 className="w-4 h-4" />
-                             </Button>
-                         </div>
+                         <AccordionItem value={r.id} key={r.id} className="border rounded-lg">
+                            <AccordionTrigger className="p-4 hover:no-underline">
+                                <div className="flex justify-between items-center w-full">
+                                    <div>
+                                        <div className="font-medium">{r.class_name} - {r.attendance} คน</div>
+                                        <div className="text-sm text-gray-500">{r.date} ({r.day_of_week}) • {r.time} • {r.instructor}</div>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-100 mr-2" onClick={(e) => { e.stopPropagation(); onDelete('groupClassAttendances', r.id)}}>
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-4 border-t">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <h4 className="font-semibold text-sm mb-2">ลายมือชื่อครูผู้สอน</h4>
+                                        {r.instructorSignature ? <img src={r.instructorSignature} alt="Instructor Signature" className="border rounded-md bg-white"/> : <p className="text-xs text-muted-foreground">ไม่มีลายมือชื่อ</p>}
+                                        <p className="text-xs text-center mt-1">{r.instructor}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-semibold text-sm mb-2">ลายมือชื่อพนักงาน</h4>
+                                        {r.staffSignature ? <img src={r.staffSignature} alt="Staff Signature" className="border rounded-md bg-white"/> : <p className="text-xs text-muted-foreground">ไม่มีลายมือชื่อ</p>}
+                                        <p className="text-xs text-center mt-1">{r.staffName}</p>
+                                    </div>
+                                </div>
+                            </AccordionContent>
+                         </AccordionItem>
                     )) : <p className="text-center text-gray-500 py-8">ไม่พบข้อมูล</p>}
-                </div>
+                </Accordion>
                 </ScrollArea>
+                 <PDFExportDialog 
+                    open={pdfDialogOpen} 
+                    onOpenChange={setPdfDialogOpen}
+                    attendances={attendances}
+                    instructors={instructors}
+                    classes={classes}
+                    defaultFilters={{month: monthFilter, class: classFilter}}
+                />
             </CardContent>
         </Card>
     );
@@ -698,6 +671,222 @@ function SettingsList({ title, items, onAdd, onDelete, inputId, placeholder, inp
     )
 }
 
+const signinSchema = z.object({
+    instructor: z.string().min(1, "กรุณาเลือกครูผู้สอน"),
+    time: z.string().min(1, "กรุณาเลือกเวลา"),
+    attendance: z.coerce.number().min(0, "จำนวนต้องไม่ต่ำกว่า 0"),
+    staffName: z.string().min(1, "กรุณากรอกชื่อพนักงาน"),
+    instructorSignature: z.string().min(1, "ต้องมีลายเซ็นครูผู้สอน"),
+    staffSignature: z.string().min(1, "ต้องมีลายเซ็นพนักงาน"),
+});
+
+
+function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { open: boolean, onOpenChange: (open: boolean) => void, cls: GroupClass, instructors: GroupClassInstructor[], times: GroupClassTime[] }) {
+    const { firestore: db } = useFirebase();
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const { control, handleSubmit, register, formState: { errors } } = useForm<z.infer<typeof signinSchema>>({
+        resolver: zodResolver(signinSchema),
+        defaultValues: { instructor: '', time: '', attendance: 0, staffName: '', instructorSignature: '', staffSignature: '' }
+    });
+
+    const onSubmit = (data: z.infer<typeof signinSchema>) => {
+        if (!db) return;
+
+        startTransition(async () => {
+            const dateObj = new Date();
+            const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+            const dayOfWeek = days[dateObj.getDay()];
+            const monthYear = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
+            const formattedDate = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
+
+            try {
+                await addDoc(collection(db, "groupClassAttendances"), {
+                    ...data,
+                    class_name: cls.name,
+                    date: formattedDate,
+                    month_year: monthYear,
+                    day_of_week: dayOfWeek,
+                    created_at: serverTimestamp()
+                });
+                toast({ title: 'บันทึกสำเร็จ' });
+                onOpenChange(false);
+            } catch (error) {
+                toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถบันทึกข้อมูลได้', variant: 'destructive' });
+            }
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>ลงชื่อเข้าคลาส: {cls.name}</DialogTitle>
+                    <DialogDescription>วันที่: {new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                             <div>
+                                <Label>ครูผู้สอน</Label>
+                                <Controller name="instructor" control={control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <SelectTrigger><SelectValue placeholder="เลือกครู" /></SelectTrigger>
+                                        <SelectContent><ScrollArea className="h-48">{instructors.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</ScrollArea></SelectContent>
+                                    </Select>
+                                )}/>
+                                {errors.instructor && <p className="text-xs text-destructive mt-1">{errors.instructor.message}</p>}
+                            </div>
+                             <div>
+                                <Label>เวลา</Label>
+                                <Controller name="time" control={control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <SelectTrigger><SelectValue placeholder="เลือกเวลา" /></SelectTrigger>
+                                        <SelectContent>{times.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                )}/>
+                                {errors.time && <p className="text-xs text-destructive mt-1">{errors.time.message}</p>}
+                            </div>
+                            <div>
+                                <Label>จำนวนผู้เข้าใช้ (คน)</Label>
+                                <Input type="number" {...register('attendance')} min="0" placeholder="0" />
+                                {errors.attendance && <p className="text-xs text-destructive mt-1">{errors.attendance.message}</p>}
+                            </div>
+                             <div>
+                                <Label>ชื่อพนักงาน</Label>
+                                <Input {...register('staffName')} placeholder="ชื่อพนักงานผู้ตรวจ" />
+                                {errors.staffName && <p className="text-xs text-destructive mt-1">{errors.staffName.message}</p>}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Controller name="instructorSignature" control={control} render={({ field }) => <SignaturePad label="ลายมือชื่อครูผู้สอน" onSignatureChange={field.onChange} />} />
+                            <Controller name="staffSignature" control={control} render={({ field }) => <SignaturePad label="ลายมือชื่อพนักงาน" onSignatureChange={field.onChange} />} />
+                        </div>
+                         {errors.instructorSignature && <p className="text-xs text-center text-destructive">{errors.instructorSignature.message}</p>}
+                         {errors.staffSignature && <p className="text-xs text-center text-destructive">{errors.staffSignature.message}</p>}
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">ยกเลิก</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending ? <Loader2 className="animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                            ยืนยันและบันทึก
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes, defaultFilters }: { open: boolean, onOpenChange: (open: boolean) => void, attendances: GroupClassAttendance[], instructors: GroupClassInstructor[], classes: GroupClass[], defaultFilters: { month: string, class: string } }) {
+    const { toast } = useToast();
+    const [monthFilter, setMonthFilter] = useState(defaultFilters.month);
+    const [classFilter, setClassFilter] = useState(defaultFilters.class);
+    const [instructorFilter, setInstructorFilter] = useState('all');
+
+    useEffect(() => {
+        setMonthFilter(defaultFilters.month);
+        setClassFilter(defaultFilters.class);
+    }, [defaultFilters]);
+
+    const generatePDF = () => {
+        const filtered = attendances.filter(r => {
+            const [year, month] = monthFilter ? monthFilter.split('-') : ['', ''];
+            const targetMonthYear = monthFilter ? `${month}/${year}` : '';
+
+            const monthMatch = !targetMonthYear || r.month_year === targetMonthYear;
+            const classMatch = classFilter === 'all' || r.class_name === classFilter;
+            const instructorMatch = instructorFilter === 'all' || r.instructor === instructorFilter;
+            return monthMatch && classMatch && instructorMatch;
+        }).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        if (filtered.length === 0) {
+            toast({ title: "ไม่พบข้อมูล", description: "ไม่พบข้อมูลการเข้าคลาสตามเงื่อนไขที่เลือก", variant: "destructive" });
+            return;
+        }
+
+        const totalAttendance = filtered.reduce((sum, r) => sum + r.attendance, 0);
+
+        let htmlContent = `...`; // Similar to PT tracker PDF generation
+        
+         htmlContent = `
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"><title>Group Class Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; } table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
+                th { background-color: #f2f2f2; } .header { text-align: center; margin-bottom: 20px; }
+                .signature { max-height: 40px; width: auto; }
+            </style>
+            </head><body>
+            <div class="header"><h1>Group Class Attendance Report</h1><p>Total Attendance: ${totalAttendance}</p></div>
+            <table><thead><tr>
+                <th>Date</th><th>Time</th><th>Class</th><th>Instructor</th><th>Attendees</th><th>Staff</th><th>Instructor Sign</th><th>Staff Sign</th>
+            </tr></thead><tbody>
+            ${filtered.map(r => `
+                <tr>
+                    <td>${r.date}</td><td>${r.time}</td><td>${r.class_name}</td><td>${r.instructor}</td><td>${r.attendance}</td><td>${r.staffName || ''}</td>
+                    <td>${r.instructorSignature ? `<img src="${r.instructorSignature}" class="signature"/>` : ''}</td>
+                    <td>${r.staffSignature ? `<img src="${r.staffSignature}" class="signature"/>` : ''}</td>
+                </tr>
+            `).join('')}
+            </tbody></table></body></html>
+        `;
+
+        const printWindow = window.open('', '', 'width=1000,height=800');
+        if (!printWindow) {
+            toast({ title: 'Please allow pop-ups to download PDF', variant: 'destructive' });
+            return;
+        }
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.onafterprint = () => printWindow.close();
+        }, 300);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Generate Class Report PDF</DialogTitle></DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div>
+                        <Label>Filter by Month</Label>
+                        <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} />
+                    </div>
+                    <div>
+                        <Label>Filter by Class</Label>
+                         <Select value={classFilter} onValueChange={setClassFilter}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Classes</SelectItem>
+                                {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div>
+                        <Label>Filter by Instructor</Label>
+                         <Select value={instructorFilter} onValueChange={setInstructorFilter}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Instructors</SelectItem>
+                                {instructors.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                    <Button onClick={generatePDF}>Generate PDF</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function GroupClassTrackerPage() {
     return (
         <FirebaseClientProvider>
@@ -705,3 +894,4 @@ export default function GroupClassTrackerPage() {
         </FirebaseClientProvider>
     );
 }
+    

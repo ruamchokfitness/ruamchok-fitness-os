@@ -1,31 +1,5 @@
 {
   "entities": {
-    "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "User",
-      "type": "object",
-      "description": "Represents an authenticated user in the system.",
-      "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "name": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff"] }
-      },
-      "required": ["uid", "email", "name", "role"]
-    },
-    "SecuritySetting": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SecuritySetting",
-      "type": "object",
-      "description": "Stores global security-related settings.",
-      "properties": {
-        "lastForcedSignOut": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of the last time a global sign-out was forced for all users."
-        }
-      }
-    },
     "Employee": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Employee",
@@ -245,7 +219,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "GroupClassAttendance",
       "type": "object",
-      "description": "Records an attendance entry for a specific group class.",
+      "description": "Records an attendance entry for a specific group class, including signatures.",
       "properties": {
         "id": { "type": "string" },
         "date": { "type": "string", "format": "date" },
@@ -255,38 +229,22 @@
         "class_name": { "type": "string" },
         "instructor": { "type": "string" },
         "attendance": { "type": "number" },
-        "created_at": { "type": "string", "format": "date-time" }
+        "created_at": { "type": "string", "format": "date-time" },
+        "instructorSignature": { "type": "string", "description": "Data URL of the instructor's signature." },
+        "staffName": { "type": "string", "description": "Name of the staff member who signed." },
+        "staffSignature": { "type": "string", "description": "Data URL of the staff member's signature." }
       },
-      "required": ["id", "date", "month_year", "day_of_week", "time", "class_name", "instructor", "attendance", "created_at"]
+      "required": ["date", "month_year", "day_of_week", "time", "class_name", "instructor", "attendance", "created_at"]
     }
   },
   "auth": {
     "providers": [
-      "password"
+      "password",
+      "anonymous"
     ]
   },
   "firestore": {
     "structure": [
-       {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": { "$ref": "#/backend/entities/User" },
-          "description": "Stores user profiles and their assigned roles.",
-          "params": [{ "name": "userId", "description": "The Firebase Authentication UID of the user." }]
-        }
-      },
-      {
-        "path": "/security/settings",
-        "definition": {
-          "entityName": "SecuritySetting",
-          "schema": {
-            "$ref": "#/backend/entities/SecuritySetting"
-          },
-          "description": "A singleton document holding global security settings. The document ID should always be 'settings'. Used to force re-logins.",
-          "params": []
-        }
-      },
       {
         "path": "/admins/{adminId}",
         "definition": {
@@ -440,6 +398,7 @@
         }
       }
     ],
-    "reasoning": "The recommended Firestore structure for the RuamChok Fitness HRM system prioritizes security, scalability, and debuggability by strictly adhering to the core design principles. The design segregates data into distinct collections based on their security posture and logical relationships, moving away from a single 'data' collection with a 'data_type' field as hinted in the client-side code, which is an anti-pattern for Firestore security and query efficiency.\\n\\n**Authorization Independence (CRITICAL):**\\nThis design achieves authorization independence by ensuring that all necessary authorization context is either embedded within the document itself or derivable directly from its path, thus eliminating the need for `get()` calls in security rules. For employee-specific data (leave entries, quotas, holiday permissions), the `employeeId` is part of the document's path. While the current UI implies a single 'admin' user, this path-based structure inherently supports multi-user scenarios where employees might access their own data without needing to fetch parent employee details. For administrator authorization, a dedicated top-level `/admins/{adminId}` collection allows for a simple and atomic `exists()` check to determine admin status, ensuring the `isAdmin()` rule function does not create any hierarchical dependencies on business data.\\n\\n**QAPs (Rules are not Filters):**\\nThis structure strongly supports QAPs by employing **Structural Segregation**. Each collection is designed to hold documents that share the same security requirements. For instance, all documents in `/employees/{employeeId}/leaveEntries` have the same access policy (admin-managed). When an administrator performs a `list` query (e.g., `db.collection('employees').get()`), the security rules can evaluate access for the entire collection. If the user is an admin, they get all relevant documents; if not, the query fails. This eliminates the need for complex, inefficient, and often error-prone `where` clauses within security rules to filter results, ensuring that security is enforced at the access layer rather than attempting to filter unauthorized data from query results. Global settings (`/customHolidays`, `/appSettings`) are also top-level collections with clear, uniform access policies.\\n\\n**Key Structural Decisions:**\\n*   **Admin Role:** A dedicated `/admins/{adminId}` collection is introduced to store the `uid` of authorized administrators. This allows for a clean `isAdmin()` rule function using an `exists()` check, crucial for DBAC.\\n*   **Hierarchical Paths for Employee Data:** Employee-specific data like `LeaveEntry`, `EmployeeQuota`, and `EmployeeHolidayPermission` are organized as subcollections under individual `/employees/{employeeId}` documents. This establishes clear ownership and context (`/employees/{employeeId}/leaveEntries/{leaveEntryId}`), making authorization rules for employee-specific operations straightforward.\\n*   **Fixed Document IDs for 1:1 Relationships:** For entities like `EmployeeQuota` and `EmployeeHolidayPermission`, which have a 1:1 relationship with an `Employee`, fixed document IDs (e.g., `current`) are used within their subcollections (`/employees/{employeeId}/quotas/current`, `/employees/{employeeId}/holidayPermissions/current`). This simplifies access patterns for these unique child records.\\n*   **Top-Level Collections for Global Data:** `CustomHoliday`, `AppSetting`, and all new `GroupClass...` collections are global configurations applicable to the entire system. They reside in dedicated top-level collections to clearly separate them from employee-specific data. This ensures their security rules are simple and only rely on the `isAdmin()` check.\\n*   **Denormalization:** All subcollection documents (e.g., `LeaveEntry`, `EmployeeQuota`, `EmployeeHolidayPermission`) inherently include `employeeId`, which is denormalized from the parent `Employee` document's ID, thereby facilitating authorization independence for operations on these sub-entities. Added `/security/settings` collection as a singleton document to store a global timestamp. This enables an administrator to force all users to re-authenticate by updating this timestamp, which provides a robust mechanism for session invalidation across all devices."
+    "reasoning": "The recommended Firestore structure for the RuamChok Fitness HRM system prioritizes security, scalability, and debuggability by strictly adhering to the core design principles. The design segregates data into distinct collections based on their security posture and logical relationships, moving away from a single 'data' collection with a 'data_type' field as hinted in the client-side code, which is an anti-pattern for Firestore security and query efficiency.\n\n**Authorization Independence (CRITICAL):**\nThis design achieves authorization independence by ensuring that all necessary authorization context is either embedded within the document itself or derivable directly from its path, thus eliminating the need for `get()` calls in security rules. For employee-specific data (leave entries, quotas, holiday permissions), the `employeeId` is part of the document's path. While the current UI implies a single 'admin' user, this path-based structure inherently supports multi-user scenarios where employees might access their own data without needing to fetch parent employee details. For administrator authorization, a dedicated top-level `/admins/{adminId}` collection allows for a simple and atomic `exists()` check to determine admin status, ensuring the `isAdmin()` rule function does not create any hierarchical dependencies on business data.\n\n**QAPs (Rules are not Filters):**\nThis structure strongly supports QAPs by employing **Structural Segregation**. Each collection is designed to hold documents that share the same security requirements. For instance, all documents in `/employees/{employeeId}/leaveEntries` have the same access policy (admin-managed). When an administrator performs a `list` query (e.g., `db.collection('employees').get()`), the security rules can evaluate access for the entire collection. If the user is an admin, they get all relevant documents; if not, the query fails. This eliminates the need for complex, inefficient, and often error-prone `where` clauses within security rules to filter results, ensuring that security is enforced at the access layer rather than attempting to filter unauthorized data from query results. Global settings (`/customHolidays`, `/appSettings`) are also top-level collections with clear, uniform access policies.\n\n**Key Structural Decisions:**\n*   **Admin Role:** A dedicated `/admins/{adminId}` collection is introduced to store the `uid` of authorized administrators. This allows for a clean `isAdmin()` rule function using an `exists()` check, crucial for DBAC.\n*   **Hierarchical Paths for Employee Data:** Employee-specific data like `LeaveEntry`, `EmployeeQuota`, and `EmployeeHolidayPermission` are organized as subcollections under individual `/employees/{employeeId}` documents. This establishes clear ownership and context (`/employees/{employeeId}/leaveEntries/{leaveEntryId}`), making authorization rules for employee-specific operations straightforward.\n*   **Fixed Document IDs for 1:1 Relationships:** For entities like `EmployeeQuota` and `EmployeeHolidayPermission`, which have a 1:1 relationship with an `Employee`, fixed document IDs (e.g., `current`) are used within their subcollections (`/employees/{employeeId}/quotas/current`, `/employees/{employeeId}/holidayPermissions/current`). This simplifies access patterns for these unique child records.\n*   **Top-Level Collections for Global Data:** `CustomHoliday`, `AppSetting`, and all new `GroupClass...` collections are global configurations applicable to the entire system. They reside in dedicated top-level collections to clearly separate them from employee-specific data. This ensures their security rules are simple and only rely on the `isAdmin()` check.\n*   **Denormalization:** All subcollection documents (e.g., `LeaveEntry`, `EmployeeQuota`, `EmployeeHolidayPermission`) inherently include `employeeId`, which is denormalized from the parent `Employee` document's ID, thereby facilitating authorization independence for operations on these sub-entities."
   }
 }
+    

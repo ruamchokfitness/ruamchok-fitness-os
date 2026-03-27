@@ -128,7 +128,6 @@ export interface GroupClassTime {
 
 export interface GroupClassAttendance {
   id: string;
-  type: 'attendance';
   date: string; // "DD/MM/YYYY"
   month_year: string; // "MM/YYYY"
   day_of_week: string;
@@ -137,6 +136,9 @@ export interface GroupClassAttendance {
   instructor: string;
   attendance: number;
   created_at: any; // Firestore Timestamp
+  instructorSignature?: string;
+  staffName?: string;
+  staffSignature?: string;
 }
 
 
@@ -270,3 +272,4 @@ export interface PTWorkout {
     trainerNotes?: string;
     clientFeedback?: string;
 }
+    
