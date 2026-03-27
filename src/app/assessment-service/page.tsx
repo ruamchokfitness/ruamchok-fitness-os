@@ -282,6 +282,16 @@ const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: 
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const { register, handleSubmit, control, formState: { errors }, reset } = useForm<z.infer<typeof addRecordSchema>>({ resolver: zodResolver(addRecordSchema) });
+    const [memberIdMode, setMemberIdMode] = useState<'select' | 'custom'>('select');
+
+    const handleOpenChange = (isOpen: boolean) => {
+        onOpenChange(isOpen);
+        if (!isOpen) {
+            reset();
+            setMemberIdMode('select');
+        }
+    };
+
 
     const onSubmit = (data: z.infer<typeof addRecordSchema>) => {
         startTransition(async () => {
@@ -296,8 +306,7 @@ const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: 
             try {
                 await addDoc(collection(firestore, 'assessmentServices'), newRecord);
                 toast({ title: 'Success', description: 'New assessment service record created.' });
-                reset();
-                onOpenChange(false);
+                handleOpenChange(false);
             } catch (error) {
                 toast({ title: 'Error', description: 'Failed to create record.', variant: 'destructive' });
             }
@@ -305,7 +314,7 @@ const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: 
     };
     
     return (
-        <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); if (!isOpen) reset(); }}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-[625px]">
                 <DialogHeader>
                     <DialogTitle>Add Assessment Service Record</DialogTitle>
@@ -319,8 +328,54 @@ const AddRecordDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: 
                         </div>
                         <div>
                             <Label htmlFor="memberId">Member ID *</Label>
-                            <Input id="memberId" {...register('memberId')} />
-                            {errors.memberId && <p className="text-xs text-destructive">{errors.memberId.message}</p>}
+                             <Controller
+                                name="memberId"
+                                control={control}
+                                render={({ field }) => (
+                                    <>
+                                        {memberIdMode === 'select' ? (
+                                            <Select
+                                                onValueChange={(value) => {
+                                                    if (value === 'custom') {
+                                                        setMemberIdMode('custom');
+                                                        field.onChange('');
+                                                    } else {
+                                                        field.onChange(value);
+                                                    }
+                                                }}
+                                                value={field.value || ''}
+                                            >
+                                                <SelectTrigger id="memberId">
+                                                    <SelectValue placeholder="Select an ID" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="FT00001">FT00001</SelectItem>
+                                                    <SelectItem value="custom">Enter Custom ID...</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    {...field}
+                                                    placeholder="Enter custom ID"
+                                                    autoFocus
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        field.onChange('');
+                                                        setMemberIdMode('select');
+                                                    }}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            />
+                            {errors.memberId && <p className="text-xs text-destructive mt-1">{errors.memberId.message}</p>}
                         </div>
                     </div>
 
@@ -373,6 +428,8 @@ const EditRecordDialog = ({ open, onOpenChange, record }: { open: boolean, onOpe
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
+    const [memberIdMode, setMemberIdMode] = useState<'select' | 'custom'>('select');
+
     const { register, handleSubmit, control, formState: { errors }, reset } = useForm<z.infer<typeof editRecordSchema>>({ 
         resolver: zodResolver(editRecordSchema),
         defaultValues: {
@@ -393,8 +450,20 @@ const EditRecordDialog = ({ open, onOpenChange, record }: { open: boolean, onOpe
                 trainingProgram: record.trainingProgram,
                 remark: record.remark,
             });
+            if (record.memberId === 'FT00001' || !record.memberId) {
+                setMemberIdMode('select');
+            } else {
+                setMemberIdMode('custom');
+            }
         }
     }, [record, reset]);
+
+    const handleOpenChange = (isOpen: boolean) => {
+        onOpenChange(isOpen);
+        if (!isOpen) {
+            reset();
+        }
+    };
 
     const onSubmit = (data: z.infer<typeof editRecordSchema>) => {
         startTransition(async () => {
@@ -411,7 +480,7 @@ const EditRecordDialog = ({ open, onOpenChange, record }: { open: boolean, onOpe
     };
     
     return (
-        <Dialog open={open} onOpenChange={(isOpen) => { onOpenChange(isOpen); if (!isOpen) reset(); }}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-[625px]">
                 <DialogHeader>
                     <DialogTitle>Edit Assessment Service Record</DialogTitle>
@@ -425,8 +494,54 @@ const EditRecordDialog = ({ open, onOpenChange, record }: { open: boolean, onOpe
                         </div>
                         <div>
                             <Label htmlFor="edit-memberId">Member ID *</Label>
-                            <Input id="edit-memberId" {...register('memberId')} />
-                            {errors.memberId && <p className="text-xs text-destructive">{errors.memberId.message}</p>}
+                            <Controller
+                                name="memberId"
+                                control={control}
+                                render={({ field }) => (
+                                    <>
+                                        {memberIdMode === 'select' ? (
+                                            <Select
+                                                onValueChange={(value) => {
+                                                    if (value === 'custom') {
+                                                        setMemberIdMode('custom');
+                                                        field.onChange('');
+                                                    } else {
+                                                        field.onChange(value);
+                                                    }
+                                                }}
+                                                value={field.value || ''}
+                                            >
+                                                <SelectTrigger id="edit-memberId">
+                                                    <SelectValue placeholder="Select an ID" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="FT00001">FT00001</SelectItem>
+                                                    <SelectItem value="custom">Enter Custom ID...</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    {...field}
+                                                    placeholder="Enter custom ID"
+                                                    autoFocus
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        field.onChange('FT00001');
+                                                        setMemberIdMode('select');
+                                                    }}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            />
+                            {errors.memberId && <p className="text-xs text-destructive mt-1">{errors.memberId.message}</p>}
                         </div>
                     </div>
 
