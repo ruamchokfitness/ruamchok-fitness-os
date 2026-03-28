@@ -709,12 +709,26 @@ function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { o
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
-    const { control, handleSubmit, register, watch, formState: { errors } } = useForm<z.infer<typeof signinSchema>>({
+    const { control, handleSubmit, register, watch, formState: { errors }, reset } = useForm<z.infer<typeof signinSchema>>({
         resolver: zodResolver(signinSchema),
         defaultValues: { date: new Date().toISOString().split('T')[0], instructor: '', time: '', attendance: 0, staffName: '', instructorSignature: '', staffSignature: '' }
     });
 
     const selectedDate = watch("date");
+    
+    useEffect(() => {
+        if (open) {
+            reset({
+                date: new Date().toISOString().split('T')[0],
+                instructor: '',
+                time: '',
+                attendance: 0,
+                staffName: '',
+                instructorSignature: '',
+                staffSignature: ''
+            });
+        }
+    }, [open, reset]);
 
     const onSubmit = (data: z.infer<typeof signinSchema>) => {
         if (!db) return;
