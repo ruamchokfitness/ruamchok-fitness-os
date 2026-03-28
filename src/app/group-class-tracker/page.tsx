@@ -694,6 +694,7 @@ function SettingsList({ title, items, onAdd, onDelete, inputId, placeholder, inp
 }
 
 const signinSchema = z.object({
+    date: z.string().min(1, "กรุณาเลือกวันที่"),
     instructor: z.string().min(1, "กรุณาเลือกครูผู้สอน"),
     time: z.string().min(1, "กรุณาเลือกเวลา"),
     attendance: z.coerce.number().min(0, "จำนวนต้องไม่ต่ำกว่า 0"),
@@ -708,16 +709,18 @@ function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { o
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
-    const { control, handleSubmit, register, formState: { errors } } = useForm<z.infer<typeof signinSchema>>({
+    const { control, handleSubmit, register, watch, formState: { errors } } = useForm<z.infer<typeof signinSchema>>({
         resolver: zodResolver(signinSchema),
-        defaultValues: { instructor: '', time: '', attendance: 0, staffName: '', instructorSignature: '', staffSignature: '' }
+        defaultValues: { date: new Date().toISOString().split('T')[0], instructor: '', time: '', attendance: 0, staffName: '', instructorSignature: '', staffSignature: '' }
     });
+
+    const selectedDate = watch("date");
 
     const onSubmit = (data: z.infer<typeof signinSchema>) => {
         if (!db) return;
 
         startTransition(async () => {
-            const dateObj = new Date();
+            const dateObj = new Date(data.date);
             const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
             const dayOfWeek = days[dateObj.getDay()];
             const monthYear = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
@@ -725,7 +728,12 @@ function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { o
 
             try {
                 await addDoc(collection(db, "groupClassAttendances"), {
-                    ...data,
+                    instructor: data.instructor,
+                    time: data.time,
+                    attendance: data.attendance,
+                    staffName: data.staffName,
+                    instructorSignature: data.instructorSignature,
+                    staffSignature: data.staffSignature,
                     class_name: cls.name,
                     date: formattedDate,
                     month_year: monthYear,
@@ -745,11 +753,16 @@ function ClassSigningDialog({ open, onOpenChange, cls, instructors, times }: { o
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>ลงชื่อเข้าคลาส: {cls.name}</DialogTitle>
-                    <DialogDescription>วันที่: {new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</DialogDescription>
+                    <DialogDescription>วันที่: {selectedDate ? new Date(selectedDate).toLocaleDateString('th-TH', { dateStyle: 'full' }) : new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                             <div>
+                                <Label>วันที่</Label>
+                                <Input type="date" {...register('date')} />
+                                {errors.date && <p className="text-xs text-destructive mt-1">{errors.date.message}</p>}
+                            </div>
                              <div>
                                 <Label>ครูผู้สอน</Label>
                                 <Controller name="instructor" control={control} render={({ field }) => (
@@ -972,7 +985,7 @@ function PDFExportDialog({ open, onOpenChange, attendances, instructors, classes
                 .header { text-align: center; margin-bottom: 20px; }
                 .header h1 { margin-bottom: 5px; font-size: 18px; }
                 .header .summary { font-size: 12px; margin-bottom: 5px; }
-                .header .generation-date { font-size: 12px; color: #000; }
+                .header .generation-date { font-size: 12px; color: #000; font-weight: bold; }
                 .signature { max-height: 40px; width: auto; vertical-align: middle; }
             </style>
             </head><body>
