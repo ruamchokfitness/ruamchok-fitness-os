@@ -941,14 +941,12 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                             {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
-                     <Select value={monthFilter} onValueChange={setMonthFilter}>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="All Months" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                     <Input
+                        type="month"
+                        value={monthFilter}
+                        onChange={(e) => setMonthFilter(e.target.value)}
+                        className="w-[180px]"
+                    />
                 </div>
                  <Button onClick={() => setPdfModalOpen(true)}>
                     <Info className="mr-2 h-4 w-4" />
@@ -1737,7 +1735,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                         <Select name="purchase_id" required disabled={!selectedClientId}>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
                             <SelectContent>
-                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}/{p.hours_purchased} hours left)</SelectItem>)}
+                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_used || 0}/{p.hours_purchased} hours remaining)</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
