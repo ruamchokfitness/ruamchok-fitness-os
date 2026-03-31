@@ -26,6 +26,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Firestore } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 // Helper Functions
@@ -681,7 +682,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
     const [trainerFilter, setTrainerFilter] = useState('all');
     const { toast } = useToast();
-    const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName' | 'memberId', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
 
     const lastCompletedClientId = useMemo(() => {
         const completedSessions = sessions.filter(s => s.session_status === 'completed' && s.completion_timestamp);
@@ -696,7 +697,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
         return completedSessions[0]?.client_id || null;
     }, [sessions]);
 
-    const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName') => {
+    const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName' | 'memberId') => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
@@ -713,6 +714,9 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
             if (sortConfig.key === 'clientName') {
                 aValue = clients.find(c => c.id === a.client_id)?.name || '';
                 bValue = clients.find(c => c.id === b.client_id)?.name || '';
+            } else if (sortConfig.key === 'memberId') {
+                aValue = clients.find(c => c.id === a.client_id)?.member_id || '';
+                bValue = clients.find(c => c.id === b.client_id)?.member_id || '';
             } else if (sortConfig.key === 'trainerName') {
                 aValue = trainers.find(t => t.id === a.trainer_id)?.name || '';
                 bValue = trainers.find(t => t.id === b.trainer_id)?.name || '';
@@ -803,6 +807,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                     <TableHeader>
                         <TableRow>
                             <SortableHeader columnKey="session_datetime" sortConfig={sortConfig} requestSort={requestSort}>Date/Time</SortableHeader>
+                            <SortableHeader columnKey="memberId" sortConfig={sortConfig} requestSort={requestSort}>Member ID</SortableHeader>
                             <SortableHeader columnKey="clientName" sortConfig={sortConfig} requestSort={requestSort}>Client</SortableHeader>
                             <SortableHeader columnKey="trainerName" sortConfig={sortConfig} requestSort={requestSort}>Trainer</SortableHeader>
                             <SortableHeader columnKey="duration_hours" sortConfig={sortConfig} requestSort={requestSort}>Duration</SortableHeader>
@@ -817,6 +822,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                             return (
                                 <TableRow key={session.id}>
                                     <TableCell className="font-medium">{formatDateTime(session.session_datetime)}</TableCell>
+                                    <TableCell>{client?.member_id || 'N/A'}</TableCell>
                                     <TableCell>{client?.name || 'Unknown'}</TableCell>
                                     <TableCell>{trainer?.name || 'Unknown'}</TableCell>
                                     <TableCell>{session.duration_hours} hr</TableCell>
@@ -831,6 +837,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                                             )}
                                             <button onClick={() => handleEditSession(session)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
                                             <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
+                                            <Checkbox id={`session-check-${session.id}`} className="ml-2"/>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -1735,7 +1742,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                         <Select name="purchase_id" required disabled={!selectedClientId}>
                             <SelectTrigger><SelectValue placeholder="Select Package"/></SelectTrigger>
                             <SelectContent>
-                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_used || 0}/{p.hours_purchased} hours remaining)</SelectItem>)}
+                               {clientPackages.length === 0 ? <p className="p-2 text-sm text-slate-500">No active packages for this client.</p> : clientPackages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_used || 0}/{p.hours_purchased} hours used)</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -2437,3 +2444,5 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
         </Dialog>
     )
 }
+
+    
