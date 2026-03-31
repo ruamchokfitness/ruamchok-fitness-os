@@ -1388,18 +1388,19 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
-    const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
-    const [clientSearch, setClientSearch] = useState('');
-    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
 
-     const filteredClientsForSearch = useMemo(() => clientSearch
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [clientSearch, setClientSearch] = useState('');
+    const [isClientListOpen, setIsClientListOpen] = useState(false);
+    
+    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
+    
+    const filteredClientsForSearch = useMemo(() => clientSearch
         ? activeClients.filter(client =>
             client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
             (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
           )
         : activeClients, [activeClients, clientSearch]);
-
 
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
@@ -1414,17 +1415,19 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
             if(pkg) {
                 setPricePerHour(pkg.price_per_hour || 0);
                 setSelectedClientId(pkg.client_id);
+                const currentClient = clients.find(c => c.id === pkg.client_id);
+                setClientSearch(currentClient?.name || '');
             } else if (client) {
                 setSelectedClientId(client.id);
+                setClientSearch(client.name);
                 setPricePerHour(0);
             } else {
                 setSelectedClientId('');
+                setClientSearch('');
                 setPricePerHour(0);
             }
-        } else {
-            setClientSearch('');
         }
-    }, [pkg, client, open]);
+    }, [pkg, client, open, clients]);
     
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1469,72 +1472,55 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         });
     }
 
-    const currentClient = clients.find(c => c.id === selectedClientId);
+    const handleClientSelect = (clientId: string) => {
+        setSelectedClientId(clientId);
+        const client = clients.find(c => c.id === clientId);
+        setClientSearch(client?.name || '');
+        setIsClientListOpen(false);
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{pkg ? 'Edit Package' : 'Add New Package'}</DialogTitle>
-                    <DialogDescription>
-                        For client: {currentClient?.name || "Please select a client"}
-                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                      {!pkg && (
                         <div className="space-y-2">
                             <Label>Client *</Label>
-                            <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        aria-expanded={clientPopoverOpen}
-                                        className="w-full justify-between"
-                                    >
-                                        {currentClient
-                                            ? currentClient.name
-                                            : "Select a client..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                    <div className="p-2">
-                                        <Input
-                                            placeholder="Search by name or ID..."
-                                            value={clientSearch}
-                                            onChange={(e) => setClientSearch(e.target.value)}
-                                            autoFocus
-                                        />
-                                    </div>
-                                    <ScrollArea className="h-72">
-                                        {filteredClientsForSearch.length === 0 ? (
-                                            <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                                        ) : (
-                                            <div className="space-y-1 p-1">
+                            <div className="relative">
+                                <Input
+                                    placeholder="Search by name or ID..."
+                                    value={clientSearch}
+                                    onChange={(e) => {
+                                        setClientSearch(e.target.value);
+                                        setSelectedClientId('');
+                                        setIsClientListOpen(true);
+                                    }}
+                                    onFocus={() => setIsClientListOpen(true)}
+                                    onBlur={() => setTimeout(() => setIsClientListOpen(false), 150)}
+                                    autoComplete="off"
+                                />
+                                {isClientListOpen && filteredClientsForSearch.length > 0 && (
+                                    <Card className="absolute top-full mt-1 w-full z-50">
+                                        <CardContent className="p-0">
+                                            <ScrollArea className="h-48">
                                                 {filteredClientsForSearch.map((client) => (
-                                                    <Button
+                                                    <div
                                                         key={client.id}
-                                                        type="button"
-                                                        variant="ghost"
-                                                        className="w-full justify-start text-left h-auto"
-                                                        onClick={() => {
-                                                            setSelectedClientId(client.id);
-                                                            setClientPopoverOpen(false);
-                                                            setClientSearch('');
-                                                        }}
+                                                        className="p-2 hover:bg-accent cursor-pointer"
+                                                        onMouseDown={() => handleClientSelect(client.id)}
                                                     >
-                                                        <div>
-                                                            <p className="font-medium">{client.name}</p>
-                                                            <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                        </div>
-                                                    </Button>
+                                                        <p className="font-medium">{client.name}</p>
+                                                        <p className="text-xs text-muted-foreground">{client.member_id}</p>
+                                                    </div>
                                                 ))}
-                                            </div>
-                                        )}
-                                    </ScrollArea>
-                                </PopoverContent>
-                            </Popover>
+                                            </ScrollArea>
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </div>
                         </div>
                     )}
                      <div className="grid grid-cols-2 gap-4">
@@ -1609,9 +1595,10 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
+    
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
     const [clientSearch, setClientSearch] = useState('');
+    const [isClientListOpen, setIsClientListOpen] = useState(false);
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
     
     const filteredClientsForSearch = useMemo(() => clientSearch
@@ -1621,20 +1608,20 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
           )
         : activeClients, [activeClients, clientSearch]);
 
-
     const handleClientSelect = useCallback((clientId: string) => {
         setSelectedClientId(clientId);
+        const client = clients.find(c => c.id === clientId);
+        setClientSearch(client?.name || '');
+        setIsClientListOpen(false);
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
-        setClientPopoverOpen(false);
-        setClientSearch('');
-    }, [packages]);
+    }, [clients, packages]);
 
     useEffect(() => {
         if (!open) {
             setSelectedClientId('');
-            setClientPackages([]);
             setClientSearch('');
+            setClientPackages([]);
         }
     }, [open]);
 
@@ -1757,65 +1744,45 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl" onPointerDownOutside={(e) => {
-                const target = e.target as HTMLElement;
-                if (target.closest('[role="dialog"]') && (target.closest('[role="dialog"]') as HTMLElement).id === 'client-selector-dialog') {
-                    e.preventDefault();
-                }
-            }}>
+            <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Complete PT Session</DialogTitle>
                 </DialogHeader>
                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <Label>Client *</Label>
-                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={clientPopoverOpen}
-                                    className="w-full justify-between"
-                                >
-                                    {selectedClient
-                                        ? selectedClient.name
-                                        : "Select a client..."}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                <div className="p-2">
-                                    <Input
-                                        placeholder="Search by name or ID..."
-                                        value={clientSearch}
-                                        onChange={(e) => setClientSearch(e.target.value)}
-                                        autoFocus
-                                    />
-                                </div>
-                                <ScrollArea className="h-72">
-                                    {filteredClientsForSearch.length === 0 ? (
-                                        <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                                    ) : (
-                                        <div className="space-y-1 p-1">
+                        <div className="relative">
+                            <Input
+                                placeholder="Search by name or ID..."
+                                value={clientSearch}
+                                onChange={(e) => {
+                                    setClientSearch(e.target.value);
+                                    setSelectedClientId('');
+                                    setIsClientListOpen(true);
+                                }}
+                                onFocus={() => setIsClientListOpen(true)}
+                                onBlur={() => setTimeout(() => setIsClientListOpen(false), 150)} // Delay to allow click on results
+                                autoComplete="off"
+                            />
+                            {isClientListOpen && filteredClientsForSearch.length > 0 && (
+                                <Card className="absolute top-full mt-1 w-full z-50">
+                                    <CardContent className="p-0">
+                                        <ScrollArea className="h-48">
                                             {filteredClientsForSearch.map((client) => (
-                                                <Button
+                                                <div
                                                     key={client.id}
-                                                    type="button"
-                                                    variant="ghost"
-                                                    className="w-full justify-start text-left h-auto"
-                                                    onClick={() => handleClientSelect(client.id)}
+                                                    className="p-2 hover:bg-accent cursor-pointer"
+                                                    onMouseDown={() => handleClientSelect(client.id)}
                                                 >
-                                                    <div>
-                                                        <p className="font-medium">{client.name}</p>
-                                                        <p className="text-xs text-slate-500">{client.member_id}</p>
-                                                    </div>
-                                                </Button>
+                                                    <p className="font-medium">{client.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{client.member_id}</p>
+                                                </div>
                                             ))}
-                                        </div>
-                                    )}
-                                </ScrollArea>
-                            </PopoverContent>
-                        </Popover>
+                                        </ScrollArea>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
                     </div>
                     
                     <div>
@@ -2456,4 +2423,6 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
         </Dialog>
     )
 }
+    
+
     
