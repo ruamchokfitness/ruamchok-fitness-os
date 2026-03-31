@@ -277,7 +277,7 @@ export interface AssessmentSession {
   sessionNumber: number;
   dateTime: string; // ISO string
   trainerName: string;
-  trainerSignature: string; // Data URL
+  clientSignature: string; // Data URL
 }
 
 export interface AssessmentServiceRecord {
@@ -290,3 +290,5 @@ export interface AssessmentServiceRecord {
   status: 'active' | 'completed';
   remark?: string;
 }
+
+    

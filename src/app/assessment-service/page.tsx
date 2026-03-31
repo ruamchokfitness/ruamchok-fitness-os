@@ -623,8 +623,8 @@ const RecordDetailsDialog = ({ open, onOpenChange, record, trainers }: { open: b
                                                 <p className="text-sm"><strong>Trainer:</strong> {signedSession.trainerName}</p>
                                             </div>
                                             <div className="text-center">
-                                                <Label className="text-xs">Trainer Signature</Label>
-                                                <img src={signedSession.trainerSignature} alt={`Signature for session ${sessionNumber}`} className="border rounded-md bg-white mx-auto"/>
+                                                <Label className="text-xs">Client Signature</Label>
+                                                <img src={signedSession.clientSignature} alt={`Signature for session ${sessionNumber}`} className="border rounded-md bg-white mx-auto"/>
                                             </div>
                                         </CardContent>
                                     )}
@@ -650,7 +650,7 @@ const RecordDetailsDialog = ({ open, onOpenChange, record, trainers }: { open: b
 
 const signSessionSchema = z.object({
     trainerName: z.string().min(1, 'Trainer is required.'),
-    trainerSignature: z.string().min(1, 'Signature is required.'),
+    clientSignature: z.string().min(1, 'Signature is required.'),
 });
 
 const SignSessionDialog = ({ open, onOpenChange, record, sessionNumber, trainers }: { open: boolean, onOpenChange: (open: boolean) => void, record: AssessmentServiceRecord, sessionNumber: number, trainers: PTTrainer[] }) => {
@@ -666,7 +666,8 @@ const SignSessionDialog = ({ open, onOpenChange, record, sessionNumber, trainers
             const newSession: AssessmentSession = {
                 sessionNumber,
                 dateTime: new Date().toISOString(),
-                ...data,
+                trainerName: data.trainerName,
+                clientSignature: data.clientSignature,
             };
 
             const recordRef = doc(firestore, 'assessmentServices', record.id);
@@ -708,10 +709,10 @@ const SignSessionDialog = ({ open, onOpenChange, record, sessionNumber, trainers
                         {errors.trainerName && <p className="text-xs text-destructive">{errors.trainerName.message}</p>}
                     </div>
                     <div>
-                         <Controller name="trainerSignature" control={control} render={({ field }) => (
-                            <SignaturePad label="Trainer Signature" onSignatureChange={field.onChange} />
+                         <Controller name="clientSignature" control={control} render={({ field }) => (
+                            <SignaturePad label="Client Signature" onSignatureChange={field.onChange} />
                          )}/>
-                        {errors.trainerSignature && <p className="text-xs text-destructive">{errors.trainerSignature.message}</p>}
+                        {errors.clientSignature && <p className="text-xs text-destructive">{errors.clientSignature.message}</p>}
                     </div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
@@ -731,3 +732,5 @@ export default function AssessmentServicePage() {
         </FirebaseClientProvider>
     );
 }
+
+    
