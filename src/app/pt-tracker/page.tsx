@@ -693,19 +693,6 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
         );
     };
 
-    const lastCompletedClientId = useMemo(() => {
-        const completedSessions = sessions.filter(s => s.session_status === 'completed' && s.completion_timestamp);
-        if (completedSessions.length === 0) return null;
-    
-        completedSessions.sort((a, b) => {
-            const dateA = a.completion_timestamp ? new Date(a.completion_timestamp).getTime() : 0;
-            const dateB = b.completion_timestamp ? new Date(b.completion_timestamp).getTime() : 0;
-            return dateB - dateA;
-        });
-    
-        return completedSessions[0]?.client_id || null;
-    }, [sessions]);
-
     const requestSort = (key: keyof PTSession | 'clientName' | 'trainerName' | 'memberId') => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -863,7 +850,6 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 packages={packages} 
                 commissionPlans={commissionPlans} 
                 db={db}
-                initialClientId={lastCompletedClientId}
             />
             <SessionEditModal
                 open={editModalOpen}
@@ -1403,8 +1389,17 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     const [isPending, startTransition] = useTransition();
     const [pricePerHour, setPricePerHour] = useState(0);
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
+    const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+    const [clientSearch, setClientSearch] = useState('');
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
+
+     const filteredClientsForSearch = useMemo(() => clientSearch
+        ? activeClients.filter(client =>
+            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
+          )
+        : activeClients, [activeClients, clientSearch]);
+
 
     const calculatePricePerHour = (e: React.ChangeEvent<HTMLInputElement>) => {
         const form = e.target.form;
@@ -1426,6 +1421,8 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 setSelectedClientId('');
                 setPricePerHour(0);
             }
+        } else {
+            setClientSearch('');
         }
     }, [pkg, client, open]);
     
@@ -1486,17 +1483,58 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 <form onSubmit={handleSubmit} className="space-y-4">
                      {!pkg && (
                         <div className="space-y-2">
-                            <Label>Client</Label>
-                            <div className="flex items-center gap-2">
-                               <Input
-                                    readOnly
-                                    value={currentClient?.name || 'No client selected'}
-                                    className="flex-1 bg-slate-100"
-                                />
-                                <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
-                                    Select Client
-                                </Button>
-                            </div>
+                            <Label>Client *</Label>
+                            <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={clientPopoverOpen}
+                                        className="w-full justify-between"
+                                    >
+                                        {currentClient
+                                            ? currentClient.name
+                                            : "Select a client..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <div className="p-2">
+                                        <Input
+                                            placeholder="Search by name or ID..."
+                                            value={clientSearch}
+                                            onChange={(e) => setClientSearch(e.target.value)}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <ScrollArea className="h-72">
+                                        {filteredClientsForSearch.length === 0 ? (
+                                            <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
+                                        ) : (
+                                            <div className="space-y-1 p-1">
+                                                {filteredClientsForSearch.map((client) => (
+                                                    <Button
+                                                        key={client.id}
+                                                        type="button"
+                                                        variant="ghost"
+                                                        className="w-full justify-start text-left h-auto"
+                                                        onClick={() => {
+                                                            setSelectedClientId(client.id);
+                                                            setClientPopoverOpen(false);
+                                                            setClientSearch('');
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <p className="font-medium">{client.name}</p>
+                                                            <p className="text-xs text-slate-500">{client.member_id}</p>
+                                                        </div>
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </ScrollArea>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     )}
                      <div className="grid grid-cols-2 gap-4">
@@ -1562,46 +1600,43 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                         </Button>
                     </DialogFooter>
                 </form>
-                 <ClientSelectorDialog
-                    open={clientSelectorOpen}
-                    onOpenChange={setClientSelectorOpen}
-                    clients={activeClients}
-                    onClientSelect={(id) => {
-                        setSelectedClientId(id);
-                        setClientSelectorOpen(false);
-                    }}
-                 />
             </DialogContent>
         </Dialog>
     )
 }
 
-function SessionModal({ open, onOpenChange, clients, trainers, packages, commissionPlans, db, initialClientId }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore, initialClientId: string | null }) {
+function SessionModal({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [clientPackages, setClientPackages] = useState<PTPackage[]>([]);
     const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
+    const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+    const [clientSearch, setClientSearch] = useState('');
     const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
+    
+    const filteredClientsForSearch = useMemo(() => clientSearch
+        ? activeClients.filter(client =>
+            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
+          )
+        : activeClients, [activeClients, clientSearch]);
+
 
     const handleClientSelect = useCallback((clientId: string) => {
         setSelectedClientId(clientId);
         const pkgs = packages.filter(p => p.client_id === clientId && p.status === 'active' && (p.hours_remaining ?? 0) > 0);
         setClientPackages(pkgs);
-        setClientSelectorOpen(false);
+        setClientPopoverOpen(false);
+        setClientSearch('');
     }, [packages]);
 
     useEffect(() => {
-        if (open) {
-            if (initialClientId) {
-                handleClientSelect(initialClientId);
-            }
-        } else {
-            // Reset on close
+        if (!open) {
             setSelectedClientId('');
             setClientPackages([]);
+            setClientSearch('');
         }
-    }, [open, initialClientId, handleClientSelect]);
+    }, [open]);
 
     const selectedClient = clients.find(c => c.id === selectedClientId);
 
@@ -1734,16 +1769,53 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <Label>Client *</Label>
-                        <div className="flex items-center gap-2">
-                           <Input
-                                readOnly
-                                value={selectedClient?.name || 'No client selected'}
-                                className="flex-1 bg-slate-100"
-                            />
-                            <Button type="button" variant="outline" onClick={() => setClientSelectorOpen(true)}>
-                                Select Client
-                            </Button>
-                        </div>
+                        <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={clientPopoverOpen}
+                                    className="w-full justify-between"
+                                >
+                                    {selectedClient
+                                        ? selectedClient.name
+                                        : "Select a client..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <div className="p-2">
+                                    <Input
+                                        placeholder="Search by name or ID..."
+                                        value={clientSearch}
+                                        onChange={(e) => setClientSearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                                <ScrollArea className="h-72">
+                                    {filteredClientsForSearch.length === 0 ? (
+                                        <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
+                                    ) : (
+                                        <div className="space-y-1 p-1">
+                                            {filteredClientsForSearch.map((client) => (
+                                                <Button
+                                                    key={client.id}
+                                                    type="button"
+                                                    variant="ghost"
+                                                    className="w-full justify-start text-left h-auto"
+                                                    onClick={() => handleClientSelect(client.id)}
+                                                >
+                                                    <div>
+                                                        <p className="font-medium">{client.name}</p>
+                                                        <p className="text-xs text-slate-500">{client.member_id}</p>
+                                                    </div>
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </ScrollArea>
+                            </PopoverContent>
+                        </Popover>
                     </div>
                     
                     <div>
@@ -1789,13 +1861,6 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                         </Button>
                     </DialogFooter>
                 </form>
-                
-                 <ClientSelectorDialog
-                    open={clientSelectorOpen}
-                    onOpenChange={setClientSelectorOpen}
-                    clients={activeClients}
-                    onClientSelect={handleClientSelect}
-                 />
             </DialogContent>
         </Dialog>
     )
@@ -1935,68 +2000,6 @@ function SessionEditModal({ open, onOpenChange, session: sessionToEdit, clients,
                         </Button>
                     </DialogFooter>
                 </form>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-function ClientSelectorDialog({ open, onOpenChange, clients, onClientSelect }: { open: boolean, onOpenChange: (open: boolean) => void, clients: PTClient[], onClientSelect: (id: string) => void }) {
-    const [clientSearch, setClientSearch] = useState('');
-    const searchInputRef = useRef<HTMLInputElement>(null);
-
-    const filteredClientsForSearch = useMemo(() => clientSearch
-        ? clients.filter(client =>
-            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
-          )
-        : clients, [clients, clientSearch]);
-
-    useEffect(() => {
-        if (open) {
-            setClientSearch('');
-            setTimeout(() => {
-                searchInputRef.current?.focus();
-            }, 100);
-        }
-    }, [open]);
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
-            <DialogContent className="sm:max-w-md" id="client-selector-dialog">
-                <DialogHeader>
-                    <DialogTitle>Select a Client</DialogTitle>
-                </DialogHeader>
-                <div className="py-4">
-                    <Input
-                        ref={searchInputRef}
-                        placeholder="Search by name or ID..."
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        autoFocus
-                    />
-                    <ScrollArea className="h-72 mt-4">
-                        {filteredClientsForSearch.length === 0 ? (
-                            <p className="p-2 text-center text-sm text-slate-500">No client found.</p>
-                        ) : (
-                            <div className="space-y-1 p-1">
-                                {filteredClientsForSearch.map((client) => (
-                                    <Button
-                                        key={client.id}
-                                        type="button"
-                                        variant="ghost"
-                                        className="w-full justify-start text-left h-auto"
-                                        onClick={() => onClientSelect(client.id)}
-                                    >
-                                        <div>
-                                            <p className="font-medium">{client.name}</p>
-                                            <p className="text-xs text-slate-500">{client.member_id}</p>
-                                        </div>
-                                    </Button>
-                                ))}
-                            </div>
-                        )}
-                    </ScrollArea>
-                </div>
             </DialogContent>
         </Dialog>
     )
@@ -2453,5 +2456,4 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
         </Dialog>
     )
 }
-
     
