@@ -286,7 +286,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
         const thisMonthCommissions = commissions.filter(c => c.month_reference === thisMonthRef);
         const totalCommission = thisMonthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
         const totalHoursThisMonth = thisMonthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-        const totalRevenue = packages.reduce((sum, p) => sum + (p.price_paid || 0), 0);
+        const totalRevenue = packages.reduce((total, p) => total + (p.price_paid || 0), 0);
         const totalHoursRemaining = activePackages.reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
         const completedSessionsCount = sessions.filter(s => s.session_status === 'completed').length;
 
@@ -683,6 +683,15 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const [trainerFilter, setTrainerFilter] = useState('all');
     const { toast } = useToast();
     const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName' | 'memberId', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
+    const [checkedSessions, setCheckedSessions] = useState<string[]>([]);
+
+    const handleCheckChange = (sessionId: string) => {
+        setCheckedSessions(prev => 
+            prev.includes(sessionId)
+                ? prev.filter(id => id !== sessionId)
+                : [...prev, sessionId]
+        );
+    };
 
     const lastCompletedClientId = useMemo(() => {
         const completedSessions = sessions.filter(s => s.session_status === 'completed' && s.completion_timestamp);
@@ -820,24 +829,24 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                             const client = clients.find(c => c.id === session.client_id);
                             const trainer = trainers.find(t => t.id === session.trainer_id);
                             return (
-                                <TableRow key={session.id}>
+                                <TableRow key={session.id} data-state={checkedSessions.includes(session.id) ? "selected" : undefined}>
                                     <TableCell className="font-medium">{formatDateTime(session.session_datetime)}</TableCell>
                                     <TableCell>{client?.member_id || 'N/A'}</TableCell>
                                     <TableCell>{client?.name || 'Unknown'}</TableCell>
                                     <TableCell>{trainer?.name || 'Unknown'}</TableCell>
                                     <TableCell>{session.duration_hours} hr</TableCell>
                                     <TableCell><Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end items-center">
+                                    <TableCell>
+                                        <div className="flex justify-end items-center gap-2">
                                             {session.session_status === 'scheduled' && (
                                                 <>
-                                                    <button onClick={() => handleCompleteSession(session.id)} className="text-green-600 hover:text-green-800 mr-2" title="Mark Complete">✓</button>
-                                                    <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800 mr-2" title="Cancel">✕</button>
+                                                    <button onClick={() => handleCompleteSession(session.id)} className="text-green-600 hover:text-green-800" title="Mark Complete">✓</button>
+                                                    <button onClick={() => handleCancelSession(session.id)} className="text-orange-600 hover:text-orange-800" title="Cancel">✕</button>
                                                 </>
                                             )}
-                                            <button onClick={() => handleEditSession(session)} className="text-primary-600 hover:text-primary-800 mr-3">Edit</button>
+                                            <button onClick={() => handleEditSession(session)} className="text-primary-600 hover:text-primary-800">Edit</button>
                                             <DeleteButton type="session" name={`Session for ${client?.name}`} onConfirmDelete={() => handleDeleteSession(session)} />
-                                            <Checkbox id={`session-check-${session.id}`} className="ml-2"/>
+                                            <Checkbox id={`session-check-${session.id}`} checked={checkedSessions.includes(session.id)} onCheckedChange={() => handleCheckChange(session.id)} />
                                         </div>
                                     </TableCell>
                                 </TableRow>
