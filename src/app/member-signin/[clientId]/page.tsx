@@ -105,7 +105,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                                                 <div>
                                                     <p className="font-semibold text-xl">{pkg.package_name}</p>
                                                     {pkg.status === 'active' ? (
-                                                        <p className="text-sm text-green-600 font-bold">{pkg.hours_used || 0}/{pkg.hours_purchased} hours remaining</p>
+                                                        <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining || 0}/{pkg.hours_purchased} hours remaining</p>
                                                     ) : (
                                                         <p className="text-sm text-red-600 font-bold capitalize">{pkg.status}</p>
                                                     )}
@@ -169,4 +169,3 @@ export default function ClientProfilePage({ params }: { params: Promise<{ client
         </FirebaseClientProvider>
     );
 }
-    
