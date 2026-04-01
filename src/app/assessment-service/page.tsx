@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useTransition, useEffect } from 'react';
@@ -18,11 +19,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2, Search, List, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 function AssessmentServicePageContent() {
@@ -106,38 +108,49 @@ function AssessmentServicePageContent() {
             </header>
 
             <main className="container mx-auto py-8">
-                <Card>
-                    <CardHeader>
-                        <div className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle>All Records</CardTitle>
-                                <CardDescription>A log of all assessment services provided to clients.</CardDescription>
-                            </div>
-                            <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
-                        </div>
-                        <div className="relative pt-4">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search by name or member ID..."
-                                className="pl-10"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? (
-                            <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                        ) : (
-                            <RecordsTable 
-                                records={filteredRecords} 
-                                onViewDetails={handleViewDetails}
-                                onEdit={handleEdit}
-                                onDelete={openDeleteDialog}
-                            />
-                        )}
-                    </CardContent>
-                </Card>
+                 <Tabs defaultValue="records" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="records"><List className="mr-2 h-4 w-4"/>All Records</TabsTrigger>
+                        <TabsTrigger value="report"><BarChart3 className="mr-2 h-4 w-4"/>Session Report</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="records" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                    <div>
+                                        <CardTitle>All Records</CardTitle>
+                                        <CardDescription>A log of all assessment services provided to clients.</CardDescription>
+                                    </div>
+                                    <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
+                                </div>
+                                <div className="relative pt-4">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by name or member ID..."
+                                        className="pl-10"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {isLoading ? (
+                                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                                ) : (
+                                    <RecordsTable 
+                                        records={filteredRecords} 
+                                        onViewDetails={handleViewDetails}
+                                        onEdit={handleEdit}
+                                        onDelete={openDeleteDialog}
+                                    />
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="report" className="mt-4">
+                       <SessionReportTab records={records || []} trainers={trainers || []} />
+                    </TabsContent>
+                </Tabs>
             </main>
 
             <AddRecordDialog
@@ -266,6 +279,124 @@ const RecordsTable = ({ records, onViewDetails, onEdit, onDelete }: {
         </Table>
     );
 };
+// #endregion
+
+// #region Session Report Tab
+function SessionReportTab({ records, trainers }: { records: AssessmentServiceRecord[], trainers: PTTrainer[] }) {
+    const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
+    const [trainerFilter, setTrainerFilter] = useState('all');
+
+    // 1. Flatten all sessions from all records
+    const allSessions = useMemo(() => {
+        return records.flatMap(record =>
+            (record.sessions || []).map(session => ({
+                ...session,
+                recordId: record.id,
+                clientName: record.fullName,
+                memberId: record.memberId,
+                trainingProgram: record.trainingProgram,
+            }))
+        );
+    }, [records]);
+
+    // 2. Filter sessions based on UI controls
+    const filteredSessions = useMemo(() => {
+        if (!allSessions) return [];
+        return allSessions.filter(session => {
+            const sessionDate = new Date(session.dateTime);
+            const sessionMonth = sessionDate.toISOString().slice(0, 7);
+
+            const monthMatch = !monthFilter || sessionMonth === monthFilter;
+            const trainerMatch = trainerFilter === 'all' || session.trainerName === trainerFilter;
+
+            return monthMatch && trainerMatch;
+        });
+    }, [allSessions, monthFilter, trainerFilter]);
+
+    // 3. Calculate summary stats
+    const summaryStats = useMemo(() => {
+        const stats = filteredSessions.reduce((acc, session) => {
+            if (!acc[session.trainerName]) {
+                acc[session.trainerName] = 0;
+            }
+            acc[session.trainerName]++;
+            return acc;
+        }, {} as Record<string, number>);
+
+        return Object.entries(stats).sort(([, countA], [, countB]) => countB - countA);
+    }, [filteredSessions]);
+
+    // JSX for the new tab
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Session Report</CardTitle>
+                <CardDescription>Filter and view individual training sessions.</CardDescription>
+                <div className="flex gap-2 pt-4">
+                    <Input 
+                        type="month" 
+                        value={monthFilter} 
+                        onChange={e => setMonthFilter(e.target.value)}
+                        className="w-auto"
+                    />
+                    <Select value={trainerFilter} onValueChange={setTrainerFilter}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select Trainer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Trainers</SelectItem>
+                            {trainers.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <h3 className="font-semibold mb-4">Summary for {monthFilter}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {summaryStats.map(([trainerName, count]) => (
+                        <Card key={trainerName} className="p-4">
+                             <CardTitle className="text-lg">{trainerName}</CardTitle>
+                             <p className="text-2xl font-bold text-primary">{count}</p>
+                             <p className="text-sm text-muted-foreground">sessions</p>
+                        </Card>
+                    ))}
+                    {summaryStats.length === 0 && <p className="text-muted-foreground col-span-full">No sessions found for this period.</p>}
+                </div>
+                
+                <h3 className="font-semibold mb-4">Session Details</h3>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Member ID</TableHead>
+                            <TableHead>Trainer</TableHead>
+                            <TableHead>Program</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredSessions.map((session, index) => (
+                            <TableRow key={`${session.recordId}-${session.sessionNumber}-${index}`}>
+                                <TableCell>{new Date(session.dateTime).toLocaleDateString()}</TableCell>
+                                <TableCell>{session.clientName}</TableCell>
+                                <TableCell>{session.memberId}</TableCell>
+                                <TableCell>{session.trainerName}</TableCell>
+                                <TableCell>{session.trainingProgram}</TableCell>
+                            </TableRow>
+                        ))}
+                         {filteredSessions.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center h-24">
+                                    No sessions match the selected filters.
+                                </TableCell>
+                            </TableRow>
+                         )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
 // #endregion
 
 // #region Add Record Dialog
@@ -732,5 +863,3 @@ export default function AssessmentServicePage() {
         </FirebaseClientProvider>
     );
 }
-
-    
