@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useTransition } from 'react';
@@ -100,11 +101,14 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                 const monthRef = getMonthReference(sessionDateTime);
                 const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", data.trainerId), where("month_reference", "==", monthRef)));
                 const commissionsInMonth = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
-                const cumulativeHoursBefore = commissionsInMonth.reduce((sum, c) => sum + c.duration_hours, 0);
+                const cumulativeHoursBefore = commissionsInMonth
+                    .filter(c => c.commission_type !== 'Boxing Package')
+                    .reduce((sum, c) => sum + c.duration_hours, 0);
 
                 let rate = 0;
                 let commission = 0;
                 let commissionTypeName = '';
+                let cumulativeAfter = cumulativeHoursBefore;
                 
                 const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
                 const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
@@ -140,6 +144,7 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                             }
                         }
                     }
+                    cumulativeAfter += sessionDuration;
                 }
                 
                 const commissionData: Omit<PTCommission, 'id'> = {
@@ -149,7 +154,7 @@ export function SessionSigningDialog({ client, pkg, trainers, commissionPlans, c
                     hourly_rate_applied: Math.round(rate),
                     commission_amount: Math.round(commission),
                     cumulative_hours_before: cumulativeHoursBefore,
-                    cumulative_hours_after: cumulativeHoursBefore + sessionDuration,
+                    cumulative_hours_after: cumulativeAfter,
                     commission_plan: trainer.commission_plan,
                     commission_type: commissionTypeName,
                     month_reference: monthRef

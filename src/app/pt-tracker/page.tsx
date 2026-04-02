@@ -71,11 +71,11 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
         batch.delete(doc.ref);
     });
 
-    let cumulativeHoursInMonth = 0;
+    let cumulativeHoursInMonth = 0; // For tiered plans only
     const plan = allPlans.find(p => p.id === newPlanId);
     if (!plan) {
         console.error(`Commission plan with ID ${newPlanId} not found.`);
-        return;
+        // Not returning to avoid partial failure. It will just calculate 0 commission for tiered plans.
     }
     const boxingPlan = allPlans.find(p => p.id === 'BOXING');
 
@@ -92,12 +92,15 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
         let rate = 0;
         let commission = 0;
         let commissionTypeName = '';
+        
+        const cumulativeBefore = cumulativeHoursInMonth;
 
         if (isBoxingPackage && boxingPlan) {
             rate = boxingPlan.tiers[0].rate;
             commission = duration * rate;
             commissionTypeName = boxingPlan.name;
-        } else {
+            // DO NOT increment cumulativeHoursInMonth for boxing
+        } else if (plan) {
             commissionTypeName = plan.name;
             if (plan.tiers.length === 1) { // Fixed rate plan
                 rate = plan.tiers[0].rate;
@@ -125,6 +128,8 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
                     }
                 }
             }
+             // ONLY increment cumulative hours for non-boxing sessions
+            cumulativeHoursInMonth += duration;
         }
         
         const commissionData: Omit<PTCommission, 'id'> = {
@@ -133,17 +138,15 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
             duration_hours: duration,
             hourly_rate_applied: Math.round(rate),
             commission_amount: Math.round(commission),
-            cumulative_hours_before: cumulativeHoursInMonth,
-            cumulative_hours_after: cumulativeHoursInMonth + duration,
-            commission_plan: newPlanId,
+            cumulative_hours_before: cumulativeBefore,
+            cumulative_hours_after: cumulativeHoursInMonth, // The new total for tiered plan hours
+            commission_plan: isBoxingPackage ? 'BOXING' : newPlanId,
             commission_type: commissionTypeName,
             month_reference: monthRef
         };
 
         const newCommissionRef = doc(collection(db, "pt_commissions"));
         batch.set(newCommissionRef, commissionData);
-
-        cumulativeHoursInMonth += duration;
     }
 
     await batch.commit();
@@ -896,6 +899,12 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         );
 
         sortableItems.sort((a, b) => {
+            const aIsBoxing = a.commission_type === 'Boxing Package';
+            const bIsBoxing = b.commission_type === 'Boxing Package';
+    
+            if (aIsBoxing && !bIsBoxing) return 1;
+            if (!aIsBoxing && bIsBoxing) return -1;
+
             let aValue: any, bValue: any;
 
             if (sortConfig.key === 'sessionDate') {
@@ -1679,12 +1688,15 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
             // Calculate and create commission
             const monthRef = getMonthReference(sessionDateTime);
             const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef)));
-            const commissions = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
-            const cumulativeHoursBefore = commissions.reduce((sum, c) => sum + c.duration_hours, 0);
+            const commissionsInMonth = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
+            const cumulativeHoursBefore = commissionsInMonth
+                .filter(c => c.commission_type !== 'Boxing Package')
+                .reduce((sum, c) => sum + c.duration_hours, 0);
 
             let rate = 0;
             let commission = 0;
             let commissionTypeName = '';
+            let cumulativeAfter = cumulativeHoursBefore;
             
             const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
             const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
@@ -1720,6 +1732,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                         }
                     }
                 }
+                cumulativeAfter += duration;
             }
             
              const commissionData: Omit<PTCommission, 'id'> = {
@@ -1729,7 +1742,7 @@ function SessionModal({ open, onOpenChange, clients, trainers, packages, commiss
                 hourly_rate_applied: Math.round(rate),
                 commission_amount: Math.round(commission),
                 cumulative_hours_before: cumulativeHoursBefore,
-                cumulative_hours_after: cumulativeHoursBefore + duration,
+                cumulative_hours_after: cumulativeAfter,
                 commission_plan: trainer.commission_plan,
                 commission_type: commissionTypeName,
                 month_reference: monthRef
@@ -2174,9 +2187,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <Input id="pdf-period" type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
                     </div>
                     <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancel</Button>
-                        </DialogClose>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="button" onClick={generatePayoutsPDF}>Generate PDF</Button>
                     </DialogFooter>
                 </div>
@@ -2423,6 +2434,4 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
         </Dialog>
     )
 }
-    
-
     
