@@ -891,31 +891,70 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     };
 
     const sortedCommissions = useMemo(() => {
-        let sortableItems = commissions.filter(c => 
+        // 1. Initial Filtering
+        const filteredMonthCommissions = commissions.filter(c => 
             (trainerFilter === 'all' || c.trainer_id === trainerFilter) && 
             (c.month_reference === monthFilter)
         );
 
-        sortableItems.sort((a, b) => {
+        // Helper to get session date
+        const getSessionDate = (commission: PTCommission) => {
+            const session = sessions.find(s => s.id === commission.session_id);
+            return session ? new Date(session.session_datetime) : new Date(0);
+        };
+
+        // 2. Separate into boxing and non-boxing
+        const nonBoxingCommissions = filteredMonthCommissions
+            .filter(c => c.commission_type !== 'Boxing Package')
+            .sort((a, b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
+        
+        const boxingCommissions = filteredMonthCommissions
+            .filter(c => c.commission_type === 'Boxing Package')
+            .sort((a, b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
+
+        // 3. Recalculate cumulative hours for each group
+        let cumulativeHours = 0;
+        const recalculatedNonBoxing = nonBoxingCommissions.map(comm => {
+            const newComm = { ...comm };
+            newComm.cumulative_hours_before = cumulativeHours;
+            cumulativeHours += newComm.duration_hours;
+            newComm.cumulative_hours_after = cumulativeHours;
+            return newComm;
+        });
+
+        let cumulativeBoxingHours = 0;
+        const recalculatedBoxing = boxingCommissions.map(comm => {
+            const newComm = { ...comm };
+            newComm.cumulative_hours_before = cumulativeBoxingHours;
+            cumulativeBoxingHours += newComm.duration_hours;
+            newComm.cumulative_hours_after = cumulativeBoxingHours;
+            return newComm;
+        });
+        
+        // 4. Combine and apply final sort configuration
+        let combined = [...recalculatedNonBoxing, ...recalculatedBoxing];
+
+        combined.sort((a, b) => {
+            // Keep boxing at the end
             const aIsBoxing = a.commission_type === 'Boxing Package';
             const bIsBoxing = b.commission_type === 'Boxing Package';
-    
             if (aIsBoxing && !bIsBoxing) return 1;
             if (!aIsBoxing && bIsBoxing) return -1;
 
             let aValue: any, bValue: any;
-
+            
+            // The rest of the sorting logic from the original hook
             if (sortConfig.key === 'sessionDate') {
-                aValue = sessions.find(s => s.id === a.session_id)?.session_datetime || '';
-                bValue = sessions.find(s => s.id === b.session_id)?.session_datetime || '';
+                aValue = getSessionDate(a).getTime();
+                bValue = getSessionDate(b).getTime();
             } else if (sortConfig.key === 'trainerName') {
                 aValue = trainers.find(t => t.id === a.trainer_id)?.name || '';
                 bValue = trainers.find(t => t.id === b.trainer_id)?.name || '';
             } else {
-                aValue = a[sortConfig.key as keyof PTCommission];
-                bValue = b[sortConfig.key as keyof PTCommission];
+                 aValue = a[sortConfig.key as keyof PTCommission];
+                 bValue = b[sortConfig.key as keyof PTCommission];
             }
-
+            
             if (aValue < bValue) {
                 return sortConfig.direction === 'ascending' ? -1 : 1;
             }
@@ -925,7 +964,8 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             return 0;
         });
 
-        return sortableItems;
+        return combined;
+
     }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers]);
     
     const filteredTrainersForCards = useMemo(() => {
@@ -2413,3 +2453,5 @@ function SessionSigningDialog({ client, pkg, trainers, commissionPlans, children
         </Dialog>
     );
 }
+
+```
