@@ -872,7 +872,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof PTCommission | 'sessionDate' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'sessionDate', direction: 'descending' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof PTCommission | 'sessionDate' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'cumulative_hours_after', direction: 'ascending' });
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
