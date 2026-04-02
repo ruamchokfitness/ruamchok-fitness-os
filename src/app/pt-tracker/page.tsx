@@ -897,45 +897,87 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             (c.month_reference === monthFilter)
         );
 
-        // Helper to get session date
         const getSessionDate = (commission: PTCommission) => {
             const session = sessions.find(s => s.id === commission.session_id);
             return session ? new Date(session.session_datetime) : new Date(0);
         };
 
-        // 2. Separate into boxing and non-boxing
-        const nonBoxingCommissions = filteredMonthCommissions
-            .filter(c => c.commission_type !== 'Boxing Package')
-            .sort((a, b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
+        const commissionsByTrainer = filteredMonthCommissions.reduce((acc, comm) => {
+            if (!acc[comm.trainer_id]) acc[comm.trainer_id] = [];
+            acc[comm.trainer_id].push(comm);
+            return acc;
+        }, {} as Record<string, PTCommission[]>);
         
-        const boxingCommissions = filteredMonthCommissions
-            .filter(c => c.commission_type === 'Boxing Package')
-            .sort((a, b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
+        const finalCommissions: PTCommission[] = [];
 
-        // 3. Recalculate cumulative hours for each group
-        let cumulativeHours = 0;
-        const recalculatedNonBoxing = nonBoxingCommissions.map(comm => {
-            const newComm = { ...comm };
-            newComm.cumulative_hours_before = cumulativeHours;
-            cumulativeHours += newComm.duration_hours;
-            newComm.cumulative_hours_after = cumulativeHours;
-            return newComm;
-        });
+        for (const trainerId in commissionsByTrainer) {
+            const trainer = trainers.find(t => t.id === trainerId);
+            if (!trainer) continue;
+            
+            const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
+            const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
+            
+            const trainerSessions = commissionsByTrainer[trainerId].sort((a,b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
 
-        let cumulativeBoxingHours = 0;
-        const recalculatedBoxing = boxingCommissions.map(comm => {
-            const newComm = { ...comm };
-            newComm.cumulative_hours_before = cumulativeBoxingHours;
-            cumulativeBoxingHours += newComm.duration_hours;
-            newComm.cumulative_hours_after = cumulativeBoxingHours;
-            return newComm;
-        });
+            let cumulativeHours = 0;
+            let cumulativeBoxingHours = 0;
+
+            const recalculated = trainerSessions.map(comm => {
+                const newComm = { ...comm };
+                const duration = newComm.duration_hours;
+                
+                let rate = 0;
+                let commissionAmount = 0;
+
+                if (newComm.commission_type === 'Boxing Package') {
+                    if (boxingPlan) {
+                        rate = boxingPlan.tiers[0].rate;
+                        commissionAmount = duration * rate;
+                    }
+                    newComm.cumulative_hours_before = cumulativeBoxingHours;
+                    cumulativeBoxingHours += duration;
+                    newComm.cumulative_hours_after = cumulativeBoxingHours;
+                } else if (plan) {
+                     if (plan.tiers.length === 1) { // Fixed rate
+                        rate = plan.tiers[0].rate;
+                        commissionAmount = duration * rate;
+                    } else { // Tiered rate
+                        const tier1 = plan.tiers.find(t => t.maxHours !== Infinity);
+                        const tier2 = plan.tiers.find(t => t.maxHours === Infinity);
+
+                        if (tier1 && tier2) {
+                            const { maxHours: tier1Max, rate: tier1Rate } = tier1;
+                            const { rate: tier2Rate } = tier2;
+
+                            if (cumulativeHours >= tier1Max) {
+                                rate = tier2Rate;
+                                commissionAmount = duration * rate;
+                            } else if ((cumulativeHours + duration) <= tier1Max) {
+                                rate = tier1Rate;
+                                commissionAmount = duration * tier1Rate;
+                            } else {
+                                const hoursAtTier1 = tier1Max - cumulativeHours;
+                                const hoursAtTier2 = duration - hoursAtTier1;
+                                commissionAmount = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                                rate = duration > 0 ? commissionAmount / duration : 0;
+                            }
+                        }
+                    }
+                    newComm.cumulative_hours_before = cumulativeHours;
+                    cumulativeHours += duration;
+                    newComm.cumulative_hours_after = cumulativeHours;
+                }
+                
+                newComm.hourly_rate_applied = Math.round(rate);
+                newComm.commission_amount = Math.round(commissionAmount);
+                
+                return newComm;
+            });
+            finalCommissions.push(...recalculated);
+        }
         
-        // 4. Combine and apply final sort configuration
-        let combined = [...recalculatedNonBoxing, ...recalculatedBoxing];
-
-        combined.sort((a, b) => {
-            // Keep boxing at the end
+        // Final sort for display
+        finalCommissions.sort((a, b) => {
             const aIsBoxing = a.commission_type === 'Boxing Package';
             const bIsBoxing = b.commission_type === 'Boxing Package';
             if (aIsBoxing && !bIsBoxing) return 1;
@@ -943,7 +985,6 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 
             let aValue: any, bValue: any;
             
-            // The rest of the sorting logic from the original hook
             if (sortConfig.key === 'sessionDate') {
                 aValue = getSessionDate(a).getTime();
                 bValue = getSessionDate(b).getTime();
@@ -955,18 +996,14 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                  bValue = b[sortConfig.key as keyof PTCommission];
             }
             
-            if (aValue < bValue) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
+            if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
             return 0;
         });
 
-        return combined;
+        return finalCommissions;
 
-    }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers]);
+    }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers, commissionPlans]);
     
     const filteredTrainersForCards = useMemo(() => {
         const activeTrainers = trainers.filter(t => t.status === 'active');
@@ -1004,7 +1041,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredTrainersForCards.map(trainer => {
-                    const monthCommissions = commissions.filter(c => c.trainer_id === trainer.id && (c.month_reference === monthFilter));
+                    const monthCommissions = sortedCommissions.filter(c => c.trainer_id === trainer.id);
                     const totalHours = monthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
                     const totalEarned = monthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
                     const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
@@ -2225,231 +2262,4 @@ function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: 
             </DialogContent>
         </Dialog>
     )
-}
-
-function SessionSigningDialog({ client, pkg, trainers, commissionPlans, children }: SessionSigningDialogProps) {
-    const { firestore: db } = useFirebase();
-    const { toast } = useToast();
-    const [isPending, startTransition] = useTransition();
-    const [open, setOpen] = useState(false);
-
-    const { control, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            duration: '1',
-            trainerId: '',
-            clientSignature: '',
-            trainerSignature: '',
-        }
-    });
-
-    const processSubmit = async (data: z.infer<typeof formSchema>) => {
-        const sessionDuration = parseFloat(data.duration);
-        const trainer = trainers.find(t => t.id === data.trainerId);
-
-        if (!trainer) {
-            toast({ title: "Trainer not found", variant: "destructive"});
-            return;
-        }
-
-        if ((pkg.hours_remaining ?? 0) < sessionDuration) {
-            toast({ title: "Insufficient hours", description: `This package only has ${pkg.hours_remaining} hours remaining.`, variant: "destructive"});
-            return;
-        }
-
-        startTransition(async () => {
-            if (!db) return;
-            try {
-                const sessionDateTime = new Date();
-
-                // 1. Create Session
-                const sessionData: Omit<PTSession, 'id'> = {
-                    client_id: client.id,
-                    purchase_id: pkg.id,
-                    trainer_id: data.trainerId,
-                    session_datetime: sessionDateTime.toISOString(),
-                    duration_hours: sessionDuration,
-                    session_status: 'completed',
-                    completed_by: trainer.name,
-                    completion_timestamp: sessionDateTime.toISOString(),
-                    clientSignature: data.clientSignature,
-                    trainerSignature: data.trainerSignature
-                };
-                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), sessionData);
-                
-                // 2. Update Package
-                const newHoursUsed = (pkg.hours_used || 0) + sessionDuration;
-                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
-                await updateDoc(doc(db, "pt_packages", pkg.id), {
-                    hours_used: newHoursUsed,
-                    hours_remaining: newHoursRemaining,
-                    status: newHoursRemaining <= 0 ? 'completed' : 'active'
-                });
-
-                // 3. Calculate and Create Commission
-                const monthRef = getMonthReference(sessionDateTime);
-                const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", data.trainerId), where("month_reference", "==", monthRef)));
-                const commissionsInMonth = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
-                
-                const cumulativeHoursBefore = commissionsInMonth
-                    .filter(c => c.commission_type !== 'Boxing Package')
-                    .reduce((sum, c) => sum + c.duration_hours, 0);
-
-                const cumulativeBoxingHoursBefore = commissionsInMonth
-                    .filter(c => c.commission_type === 'Boxing Package')
-                    .reduce((sum, c) => sum + c.duration_hours, 0);
-
-                let rate = 0;
-                let commission = 0;
-                let commissionTypeName = '';
-                let finalCumulativeBefore = 0;
-                let finalCumulativeAfter = 0;
-                
-                const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
-                const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
-                const trainerPlan = commissionPlans.find(p => p.id === trainer.commission_plan);
-
-                if (isBoxingPackage && boxingPlan) {
-                    finalCumulativeBefore = cumulativeBoxingHoursBefore;
-                    finalCumulativeAfter = cumulativeBoxingHoursBefore + sessionDuration;
-
-                    rate = boxingPlan.tiers[0].rate;
-                    commission = sessionDuration * rate;
-                    commissionTypeName = boxingPlan.name;
-                } else if (trainerPlan) {
-                    finalCumulativeBefore = cumulativeHoursBefore;
-                    finalCumulativeAfter = cumulativeHoursBefore + sessionDuration;
-
-                    commissionTypeName = trainerPlan.name;
-                    if (trainerPlan.tiers.length === 1) { // Fixed rate plan
-                        rate = trainerPlan.tiers[0].rate;
-                        commission = sessionDuration * rate;
-                    } else { // Tiered plan
-                        const tier1 = trainerPlan.tiers.find(t => t.maxHours !== Infinity);
-                        const tier2 = trainerPlan.tiers.find(t => t.maxHours === Infinity);
-                        if(tier1 && tier2) {
-                            const { maxHours: tier1Max, rate: tier1Rate } = tier1;
-                            const { rate: tier2Rate } = tier2;
-
-                            if (cumulativeHoursBefore >= tier1Max) {
-                                rate = tier2Rate;
-                                commission = sessionDuration * tier2Rate;
-                            } else if ((cumulativeHoursBefore + sessionDuration) <= tier1Max) {
-                                rate = tier1Rate;
-                                commission = sessionDuration * tier1Rate;
-                            } else {
-                                const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
-                                const hoursAtTier2 = sessionDuration - hoursAtTier1;
-                                commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
-                                rate = commission / sessionDuration; // blended rate
-                            }
-                        }
-                    }
-                }
-                
-                const commissionData: Omit<PTCommission, 'id'> = {
-                    trainer_id: data.trainerId,
-                    session_id: newSessionRef.id,
-                    duration_hours: sessionDuration,
-                    hourly_rate_applied: Math.round(rate),
-                    commission_amount: Math.round(commission),
-                    cumulative_hours_before: finalCumulativeBefore,
-                    cumulative_hours_after: finalCumulativeAfter,
-                    commission_plan: isBoxingPackage ? 'BOXING' : trainer.commission_plan,
-                    commission_type: commissionTypeName,
-                    month_reference: monthRef
-                };
-                await addDoc(collection(db, "pt_commissions"), commissionData);
-
-                toast({title: "Session Completed Successfully!", description: `Commission of ${formatCurrency(commission)} created for ${trainer.name}.`});
-                reset();
-                setOpen(false);
-            } catch (error) {
-                console.error("Error completing session:", error);
-                toast({ title: "Error", description: "Failed to complete the session.", variant: "destructive" });
-            }
-        });
-    };
-    
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Start New Session: {client.name}</DialogTitle>
-                    <DialogDescription>Package: {pkg.package_name} ({pkg.hours_used || 0}/{pkg.hours_purchased} hours used)</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit(processSubmit)}>
-                    <div className="space-y-6 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="session-trainer">Trainer</Label>
-                                <Controller
-                                    name="trainerId"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <SelectTrigger id="session-trainer"><SelectValue placeholder="Select Trainer"/></SelectTrigger>
-                                            <SelectContent>
-                                                {trainers.filter(t => t.status === 'active').map(t=> <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {errors.trainerId && <p className="text-xs text-destructive mt-1">{errors.trainerId.message}</p>}
-                            </div>
-                            <div>
-                                <Label htmlFor="session-duration">Duration</Label>
-                                <Controller
-                                    name="duration"
-                                    control={control}
-                                    defaultValue="1"
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <SelectTrigger id="session-duration"><SelectValue/></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="1">1 hour</SelectItem>
-                                                <SelectItem value="1.5">1.5 hours</SelectItem>
-                                                <SelectItem value="2">2 hours</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <Controller
-                                    name="clientSignature"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <SignaturePad label="Client Signature" onSignatureChange={field.onChange} />
-                                    )}
-                                />
-                                {errors.clientSignature && <p className="text-xs text-destructive mt-1">{errors.clientSignature.message}</p>}
-                            </div>
-                            <div>
-                                <Controller
-                                    name="trainerSignature"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <SignaturePad label="Trainer Signature" onSignatureChange={field.onChange} />
-                                    )}
-                                />
-                                {errors.trainerSignature && <p className="text-xs text-destructive mt-1">{errors.trainerSignature.message}</p>}
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter className="mt-4 pt-4 border-t">
-                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>
-                            {isPending ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4"/>}
-                            Confirm & Complete Session
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
 }
