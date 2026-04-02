@@ -2453,5 +2453,3 @@ function SessionSigningDialog({ client, pkg, trainers, commissionPlans, children
         </Dialog>
     );
 }
-
-```
