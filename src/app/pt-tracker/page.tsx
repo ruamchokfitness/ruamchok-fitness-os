@@ -698,15 +698,35 @@ function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, 
     const [isPending, startTransition] = useTransition();
 
     const [selectedClientId, setSelectedClientId] = useState('');
+    const [clientSearch, setClientSearch] = useState('');
+    const [isClientListOpen, setIsClientListOpen] = useState(false);
     const [selectedPackageId, setSelectedPackageId] = useState('');
     const [datetime, setDatetime] = useState('');
     const [trainerId, setTrainerId] = useState('');
     const [duration, setDuration] = useState('1');
 
+    const activeClients = useMemo(() => clients.filter(c => c.status === 'active'), [clients]);
+
+    const filteredClientsForSearch = useMemo(() => clientSearch
+        ? activeClients.filter(client =>
+            client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+            (client.member_id && client.member_id.toLowerCase().includes(clientSearch.toLowerCase()))
+          )
+        : activeClients, [activeClients, clientSearch]);
+
+    const handleClientSelect = (clientId: string) => {
+        setSelectedClientId(clientId);
+        const client = clients.find(c => c.id === clientId);
+        setClientSearch(client?.name || '');
+        setIsClientListOpen(false);
+    };
+
     useEffect(() => {
         if (open) {
             // Reset form on open
             setSelectedClientId('');
+            setClientSearch('');
+            setIsClientListOpen(false);
             setSelectedPackageId('');
             const now = new Date();
             now.setSeconds(0);
@@ -860,13 +880,40 @@ function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, 
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div>
-                        <Label htmlFor="manual-client">Client</Label>
-                        <Select value={selectedClientId} onValueChange={(value) => setSelectedClientId(value)} required>
-                            <SelectTrigger id="manual-client"><SelectValue placeholder="Select a client" /></SelectTrigger>
-                            <SelectContent>
-                                {clients.filter(c => c.status === 'active').map(c => <SelectItem key={c.id} value={c.id}>{c.name} ({c.member_id})</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <Label htmlFor="manual-client">Client *</Label>
+                        <div className="relative">
+                            <Input
+                                id="manual-client"
+                                placeholder="Search by name or ID..."
+                                value={clientSearch}
+                                onChange={(e) => {
+                                    setClientSearch(e.target.value);
+                                    setSelectedClientId('');
+                                    setIsClientListOpen(true);
+                                }}
+                                onFocus={() => setIsClientListOpen(true)}
+                                onBlur={() => setTimeout(() => setIsClientListOpen(false), 150)}
+                                autoComplete="off"
+                            />
+                            {isClientListOpen && filteredClientsForSearch.length > 0 && (
+                                <Card className="absolute top-full mt-1 w-full z-50">
+                                    <CardContent className="p-0">
+                                        <ScrollArea className="h-48">
+                                            {filteredClientsForSearch.map((client) => (
+                                                <div
+                                                    key={client.id}
+                                                    className="p-2 hover:bg-accent cursor-pointer"
+                                                    onMouseDown={() => handleClientSelect(client.id)}
+                                                >
+                                                    <p className="font-medium">{client.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{client.member_id}</p>
+                                                </div>
+                                            ))}
+                                        </ScrollArea>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
                     </div>
 
                     <div className={cn(!selectedClientId && 'opacity-50 pointer-events-none')}>
