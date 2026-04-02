@@ -30,7 +30,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 
 // Helper Functions
-const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount || 0);
+const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -685,6 +685,244 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
     )
 }
 
+function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    clients: PTClient[];
+    trainers: PTTrainer[];
+    packages: PTPackage[];
+    commissionPlans: PTCommissionPlan[];
+    db: Firestore;
+}) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const [selectedClientId, setSelectedClientId] = useState('');
+    const [selectedPackageId, setSelectedPackageId] = useState('');
+    const [datetime, setDatetime] = useState('');
+    const [trainerId, setTrainerId] = useState('');
+    const [duration, setDuration] = useState('1');
+
+    useEffect(() => {
+        if (open) {
+            // Reset form on open
+            setSelectedClientId('');
+            setSelectedPackageId('');
+            const now = new Date();
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            setDatetime(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+            setTrainerId('');
+            setDuration('1');
+        }
+    }, [open]);
+
+    const activePackagesForClient = useMemo(() => {
+        if (!selectedClientId) return [];
+        return packages.filter(p => p.client_id === selectedClientId && p.status === 'active');
+    }, [packages, selectedClientId]);
+
+    useEffect(() => {
+        if (!activePackagesForClient.some(p => p.id === selectedPackageId)) {
+            setSelectedPackageId('');
+        }
+    }, [selectedClientId, activePackagesForClient, selectedPackageId]);
+
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!db) return;
+
+        if (!selectedClientId || !selectedPackageId || !trainerId || !duration || !datetime) {
+            toast({ title: "ข้อมูลไม่ครบถ้วน", description: "กรุณากรอกข้อมูลให้ครบทุกช่อง", variant: "destructive" });
+            return;
+        }
+
+        const pkg = packages.find(p => p.id === selectedPackageId);
+        const client = clients.find(c => c.id === selectedClientId);
+        const trainer = trainers.find(t => t.id === trainerId);
+        const sessionDuration = parseFloat(duration);
+
+        if (!pkg || !client || !trainer) {
+            toast({ title: "ข้อมูลไม่ถูกต้อง", description: "ไม่พบข้อมูลลูกค้า, แพ็กเกจ หรือเทรนเนอร์", variant: "destructive" });
+            return;
+        }
+
+        if ((pkg.hours_remaining ?? 0) < sessionDuration) {
+            toast({ title: "ชั่วโมงในแพ็กเกจไม่เพียงพอ", description: `แพ็กเกจนี้เหลือเพียง ${pkg.hours_remaining} ชั่วโมง`, variant: "destructive"});
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const sessionDateTime = new Date(datetime);
+
+                // 1. Create Session
+                const sessionData: Omit<PTSession, 'id'> = {
+                    client_id: client.id,
+                    purchase_id: pkg.id,
+                    trainer_id: trainerId,
+                    session_datetime: sessionDateTime.toISOString(),
+                    duration_hours: sessionDuration,
+                    session_status: 'completed',
+                    completed_by: 'Manual Entry',
+                    completion_timestamp: new Date().toISOString(),
+                };
+                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), sessionData);
+                
+                // 2. Update Package
+                const newHoursUsed = (pkg.hours_used || 0) + sessionDuration;
+                const newHoursRemaining = pkg.hours_purchased - newHoursUsed;
+                await updateDoc(doc(db, "pt_packages", pkg.id), {
+                    hours_used: newHoursUsed,
+                    hours_remaining: newHoursRemaining,
+                    status: newHoursRemaining <= 0 ? 'completed' : 'active'
+                });
+
+                // 3. Calculate and Create Commission
+                const monthRef = getMonthReference(sessionDateTime);
+                const commissionsSnapshot = await getDocs(query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef)));
+                const commissionsInMonth = commissionsSnapshot.docs.map(d=>d.data() as PTCommission);
+                
+                const cumulativeHoursBefore = commissionsInMonth
+                    .filter(c => c.commission_type !== 'Boxing Package')
+                    .reduce((sum, c) => sum + c.duration_hours, 0);
+
+                let rate = 0;
+                let commission = 0;
+                let commissionTypeName = '';
+                let cumulativeAfter = cumulativeHoursBefore;
+                
+                const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
+                const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
+                const trainerPlan = commissionPlans.find(p => p.id === trainer.commission_plan);
+
+                if (isBoxingPackage && boxingPlan) {
+                    rate = boxingPlan.tiers[0].rate;
+                    commission = sessionDuration * rate;
+                    commissionTypeName = boxingPlan.name;
+                } else if (trainerPlan) {
+                    commissionTypeName = trainerPlan.name;
+                    if (trainerPlan.tiers.length === 1) {
+                        rate = trainerPlan.tiers[0].rate;
+                        commission = sessionDuration * rate;
+                    } else {
+                        const tier1 = trainerPlan.tiers.find(t => t.maxHours !== Infinity);
+                        const tier2 = trainerPlan.tiers.find(t => t.maxHours === Infinity);
+                        if(tier1 && tier2) {
+                            const { maxHours: tier1Max, rate: tier1Rate } = tier1;
+                            const { rate: tier2Rate } = tier2;
+
+                            if (cumulativeHoursBefore >= tier1Max) {
+                                rate = tier2Rate;
+                                commission = sessionDuration * tier2Rate;
+                            } else if ((cumulativeHoursBefore + sessionDuration) <= tier1Max) {
+                                rate = tier1Rate;
+                                commission = sessionDuration * tier1Rate;
+                            } else {
+                                const hoursAtTier1 = tier1Max - cumulativeHoursBefore;
+                                const hoursAtTier2 = sessionDuration - hoursAtTier1;
+                                commission = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                                rate = commission / sessionDuration;
+                            }
+                        }
+                    }
+                    cumulativeAfter += sessionDuration;
+                }
+                
+                const commissionData: Omit<PTCommission, 'id'> = {
+                    trainer_id: trainerId,
+                    session_id: newSessionRef.id,
+                    duration_hours: sessionDuration,
+                    hourly_rate_applied: Math.round(rate),
+                    commission_amount: Math.round(commission),
+                    cumulative_hours_before: cumulativeHoursBefore,
+                    cumulative_hours_after: cumulativeAfter,
+                    commission_plan: trainer.commission_plan,
+                    commission_type: commissionTypeName,
+                    month_reference: monthRef
+                };
+                await addDoc(collection(db, "pt_commissions"), commissionData);
+
+                toast({title: "Session Completed Successfully", description: `Commission of ${formatCurrency(commission)} created for ${trainer.name}.`});
+                onOpenChange(false);
+            } catch (error) {
+                console.error("Error completing session:", error);
+                toast({ title: "Error", description: "Failed to complete the session.", variant: "destructive" });
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Manually Complete a Session</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    <div>
+                        <Label htmlFor="manual-client">Client</Label>
+                        <Select value={selectedClientId} onValueChange={(value) => setSelectedClientId(value)} required>
+                            <SelectTrigger id="manual-client"><SelectValue placeholder="Select a client" /></SelectTrigger>
+                            <SelectContent>
+                                {clients.filter(c => c.status === 'active').map(c => <SelectItem key={c.id} value={c.id}>{c.name} ({c.member_id})</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className={cn(!selectedClientId && 'opacity-50 pointer-events-none')}>
+                        <Label htmlFor="manual-package">Active Package</Label>
+                        <Select value={selectedPackageId} onValueChange={(value) => setSelectedPackageId(value)} required disabled={!selectedClientId || activePackagesForClient.length === 0}>
+                            <SelectTrigger id="manual-package"><SelectValue placeholder="Select an active package" /></SelectTrigger>
+                            <SelectContent>
+                                {activePackagesForClient.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name} ({p.hours_remaining}h left)</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        {!selectedClientId && <p className="text-xs text-muted-foreground mt-1">Select a client first.</p>}
+                        {selectedClientId && activePackagesForClient.length === 0 && <p className="text-xs text-destructive mt-1">No active packages for this client.</p>}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="manual-trainer">Trainer</Label>
+                            <Select value={trainerId} onValueChange={setTrainerId} required>
+                                <SelectTrigger id="manual-trainer"><SelectValue placeholder="Select a trainer" /></SelectTrigger>
+                                <SelectContent>
+                                    {trainers.filter(t => t.status === 'active').map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="manual-duration">Duration</Label>
+                            <Select value={duration} onValueChange={setDuration} required>
+                                <SelectTrigger id="manual-duration"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">1 hour</SelectItem>
+                                    <SelectItem value="1.5">1.5 hours</SelectItem>
+                                    <SelectItem value="2">2 hours</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                       <Label htmlFor="manual-datetime">Date & Time</Label>
+                       <Input id="manual-datetime" type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} required />
+                    </div>
+
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            Complete Session
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
 function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
@@ -692,6 +930,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
     const { toast } = useToast();
     const [sortConfig, setSortConfig] = useState<{ key: keyof PTSession | 'clientName' | 'trainerName' | 'memberId', direction: 'ascending' | 'descending' }>({ key: 'session_datetime', direction: 'descending' });
     const [checkedSessions, setCheckedSessions] = useState<string[]>([]);
+    const [manualCompleteOpen, setManualCompleteOpen] = useState(false);
 
     const handleCheckChange = (sessionId: string) => {
         setCheckedSessions(prev => 
@@ -804,9 +1043,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                         {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                 <Link href="/member-signin">
-                    <Button className="btn-primary"><Plus className="mr-2"/> Sign-in Client</Button>
-                </Link>
+                 <Button onClick={() => setManualCompleteOpen(true)} className="btn-primary"><Plus className="mr-2"/> Complete Session</Button>
             </div>
              <Card>
                 <Table>
@@ -862,6 +1099,15 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 commissionPlans={commissionPlans}
                 db={db}
             />
+             <ManualSessionCompletionDialog
+                open={manualCompleteOpen}
+                onOpenChange={setManualCompleteOpen}
+                clients={clients}
+                trainers={trainers}
+                packages={packages}
+                commissionPlans={commissionPlans}
+                db={db}
+            />
         </div>
     )
 }
@@ -870,7 +1116,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     const [pdfModalOpen, setPdfModalOpen] = useState(false);
-    const [sortConfig, setSortConfig] = useState<{ key: keyof PTCommission | 'sessionDate' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'cumulative_hours_after', direction: 'ascending' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof PTCommission | 'sessionDate' | 'trainerName', direction: 'ascending' | 'descending' }>({ key: 'sessionDate', direction: 'ascending' });
     
     const months = useMemo(() => [...new Set(commissions.map(c => c.month_reference))].sort().reverse(), [commissions]);
 
@@ -928,16 +1174,20 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 
                 let rate = 0;
                 let commissionAmount = 0;
+                let commissionTypeName = '';
 
-                if (newComm.commission_type === 'Boxing Package') {
-                    if (boxingPlan) {
-                        rate = boxingPlan.tiers[0].rate;
-                        commissionAmount = duration * rate;
-                    }
+                const pkg = packages.find(p => p.id === sessions.find(s => s.id === comm.session_id)?.purchase_id);
+                const isBoxingPackage = pkg?.package_name.toLowerCase().includes('boxing');
+                
+                if (isBoxingPackage && boxingPlan) {
+                    commissionTypeName = boxingPlan.name;
+                    rate = boxingPlan.tiers[0].rate;
+                    commissionAmount = duration * rate;
                     newComm.cumulative_hours_before = cumulativeBoxingHours;
                     cumulativeBoxingHours += duration;
                     newComm.cumulative_hours_after = cumulativeBoxingHours;
                 } else if (plan) {
+                     commissionTypeName = plan.name;
                      if (plan.tiers.length === 1) { // Fixed rate
                         rate = plan.tiers[0].rate;
                         commissionAmount = duration * rate;
@@ -970,6 +1220,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 
                 newComm.hourly_rate_applied = Math.round(rate);
                 newComm.commission_amount = Math.round(commissionAmount);
+                newComm.commission_type = commissionTypeName;
                 
                 return newComm;
             });
@@ -978,8 +1229,9 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         
         // Final sort for display
         finalCommissions.sort((a, b) => {
-            const aIsBoxing = a.commission_type === 'Boxing Package';
-            const bIsBoxing = b.commission_type === 'Boxing Package';
+            const aIsBoxing = packages.find(p => p.id === sessions.find(s => s.id === a.session_id)?.purchase_id)?.package_name.toLowerCase().includes('boxing');
+            const bIsBoxing = packages.find(p => p.id === sessions.find(s => s.id === b.session_id)?.purchase_id)?.package_name.toLowerCase().includes('boxing');
+
             if (aIsBoxing && !bIsBoxing) return 1;
             if (!aIsBoxing && bIsBoxing) return -1;
 
@@ -1003,7 +1255,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 
         return finalCommissions;
 
-    }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers, commissionPlans]);
+    }, [commissions, trainerFilter, monthFilter, sortConfig, sessions, trainers, commissionPlans, packages]);
     
     const filteredTrainersForCards = useMemo(() => {
         const activeTrainers = trainers.filter(t => t.status === 'active');
@@ -1088,11 +1340,13 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                         {sortedCommissions.length === 0 ? <TablePlaceholder/> : sortedCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
+                            const pkg = packages.find(p => p.id === session?.purchase_id);
+                            const isBoxing = pkg?.package_name.toLowerCase().includes('boxing');
                             return (
                                 <TableRow key={comm.id}>
                                     <TableCell>{formatDateTime(session?.session_datetime)}</TableCell>
                                     <TableCell>{trainer?.name || 'Unknown'}</TableCell>
-                                    <TableCell><Badge variant="outline" className={comm.commission_type === 'Boxing Package' ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{comm.commission_type}</Badge></TableCell>
+                                    <TableCell><Badge variant="outline" className={isBoxing ? 'bg-red-100 text-red-700' : 'bg-slate-100'}>{comm.commission_type}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
                                     <TableCell>{formatCurrency(comm.hourly_rate_applied)}/hr</TableCell>
                                     <TableCell>{comm.cumulative_hours_before || 0}h → {comm.cumulative_hours_after || 0}h</TableCell>
