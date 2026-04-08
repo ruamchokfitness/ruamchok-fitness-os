@@ -2134,12 +2134,102 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
         }
         const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
 
-        let filteredCommissions = commissions.filter(c => c.trainer_id === trainerId && c.month_reference === monthFilter);
+        const monthCommissions = commissions.filter(c => c.trainer_id === trainerId && c.month_reference === monthFilter);
         
-        filteredCommissions.sort((a,b) => (a.cumulative_hours_after || 0) - (b.cumulative_hours_after || 0));
+        const getSessionForCommission = (commission: PTCommission) => sessions.find(s => s.id === commission.session_id);
+        const getSessionDate = (commission: PTCommission) => {
+            const session = getSessionForCommission(commission);
+            return session ? new Date(session.session_datetime) : new Date(0);
+        };
+        
+        const sortedMonthCommissions = monthCommissions.sort((a, b) => getSessionDate(a).getTime() - getSessionDate(b).getTime());
 
-        const totalHours = filteredCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-        const totalEarned = filteredCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+        const recalculatedCommissions: PTCommission[] = [];
+        let cumulativeHours = 0;
+        let cumulativeBoxingHours = 0;
+
+        for (const comm of sortedMonthCommissions) {
+            const newComm = { ...comm };
+            const session = getSessionForCommission(newComm);
+            const pkg = session ? packages.find(p => p.id === session.purchase_id) : undefined;
+            const isBoxingPackage = pkg?.package_name.toLowerCase().includes('boxing');
+            
+            const currentTrainer = trainers.find(t => t.id === newComm.trainer_id);
+            const currentPlan = currentTrainer ? commissionPlans.find(p => p.id === currentTrainer.commission_plan) : undefined;
+            const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
+            
+            const duration = newComm.duration_hours;
+            let rate = 0;
+            let commissionAmount = 0;
+            let commissionTypeName = '';
+
+            if (isBoxingPackage && boxingPlan) {
+                commissionTypeName = boxingPlan.name;
+                rate = boxingPlan.tiers[0].rate;
+                commissionAmount = duration * rate;
+                newComm.cumulative_hours_before = cumulativeBoxingHours;
+                cumulativeBoxingHours += duration;
+                newComm.cumulative_hours_after = cumulativeBoxingHours;
+            } else if (currentPlan) {
+                 commissionTypeName = currentPlan.name;
+                 if (currentPlan.tiers.length === 1) { // Fixed rate
+                    rate = currentPlan.tiers[0].rate;
+                    commissionAmount = duration * rate;
+                } else { // Tiered rate
+                    const tier1 = currentPlan.tiers.find(t => t.maxHours !== Infinity);
+                    const tier2 = currentPlan.tiers.find(t => t.maxHours === Infinity);
+
+                    if (tier1 && tier2) {
+                        const { maxHours: tier1Max, rate: tier1Rate } = tier1;
+                        const { rate: tier2Rate } = tier2;
+
+                        if (cumulativeHours >= tier1Max) {
+                            rate = tier2Rate;
+                            commissionAmount = duration * rate;
+                        } else if ((cumulativeHours + duration) <= tier1Max) {
+                            rate = tier1Rate;
+                            commissionAmount = duration * tier1Rate;
+                        } else {
+                            const hoursAtTier1 = tier1Max - cumulativeHours;
+                            const hoursAtTier2 = duration - hoursAtTier1;
+                            commissionAmount = (hoursAtTier1 * tier1Rate) + (hoursAtTier2 * tier2Rate);
+                            rate = duration > 0 ? commissionAmount / duration : 0;
+                        }
+                    }
+                }
+                newComm.cumulative_hours_before = cumulativeHours;
+                cumulativeHours += duration;
+                newComm.cumulative_hours_after = cumulativeHours;
+            }
+            
+            newComm.hourly_rate_applied = Math.round(rate);
+            newComm.commission_amount = Math.round(commissionAmount);
+            newComm.commission_type = commissionTypeName;
+
+            recalculatedCommissions.push(newComm);
+        }
+
+        const regularCommissionsForPDF = recalculatedCommissions.filter(c => {
+            const session = getSessionForCommission(c);
+            const pkg = session ? packages.find(p => p.id === session.purchase_id) : undefined;
+            return !pkg?.package_name.toLowerCase().includes('boxing');
+        });
+
+        const boxingCommissionsForPDF = recalculatedCommissions.filter(c => {
+            const session = getSessionForCommission(c);
+            const pkg = session ? packages.find(p => p.id === session.purchase_id) : undefined;
+            return pkg?.package_name.toLowerCase().includes('boxing');
+        });
+
+        const finalCommissionsForPDF = [...regularCommissionsForPDF, ...boxingCommissionsForPDF];
+
+        if (finalCommissionsForPDF.length === 0) {
+            toast({ title: "No data", description: "No commission records found for the selected period.", variant: "destructive" });
+            return;
+        }
+
+        const totalHours = finalCommissionsForPDF.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
+        const totalEarned = finalCommissionsForPDF.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
 
         let htmlContent = `
             <!DOCTYPE html>
@@ -2206,7 +2296,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     </div>
         `;
 
-        if (filteredCommissions.length > 0) {
+        if (finalCommissionsForPDF.length > 0) {
             htmlContent += `
                 <h2>COMMISSION SUMMARY</h2>
                 <table>
@@ -2226,7 +2316,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                     <tbody>
             `;
 
-            filteredCommissions.forEach(comm => {
+            finalCommissionsForPDF.forEach(comm => {
                 const session = sessions.find(s => s.id === comm.session_id);
                 const client = clients.find(c => c.id === session?.client_id);
                 const pkg = packages.find(p => p.id === session?.purchase_id);
@@ -2241,7 +2331,7 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                         <td>${pkg?.package_name || '-'}</td>
                         <td>${pkg?.hours_purchased ? `${pkg.hours_purchased}h` : '-'}</td>
                         <td>${formatCurrency(comm.hourly_rate_applied || 0)}</td>
-                        <td>${comm.cumulative_hours_before || 0}→${comm.cumulative_hours_after || 0}h</td>
+                        <td>${comm.cumulative_hours_before || 0}h → ${comm.cumulative_hours_after || 0}h</td>
                         <td class="amount">${formatCurrency(comm.commission_amount || 0)}</td>
                         <td>${clientSignHTML}</td>
                         <td>${trainerSignHTML}</td>
