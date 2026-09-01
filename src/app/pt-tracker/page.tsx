@@ -529,7 +529,100 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     }, [recalculatedCommissions, trainers, commissionPlans, trainerFilter]);
 
     const generateCommissionPDF = () => {
-        if (trainerFilter === 'all') return;
+        if (trainerFilter === 'all') {
+            // Summary for all trainers
+            const totalHours = recalculatedCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
+            const totalAmount = recalculatedCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
+
+            let htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Gym Commission Summary - ${monthFilter}</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
+                        .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+                        .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+                        .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+                        .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+                        .summary-card { border: 1px solid #000; padding: 12px; text-align: center; }
+                        .summary-card .label { font-size: 10px; font-weight: bold; color: #666; margin-bottom: 5px; }
+                        .summary-card .value { font-size: 18px; font-weight: bold; color: #000; }
+                        h2 { font-size: 14px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; text-transform: uppercase; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th { background: #f0f0f0; color: #000; padding: 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
+                        td { padding: 7px 8px; border: 1px solid #ccc; font-size: 11px; }
+                        .amount { text-align: right; font-weight: bold; }
+                        .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
+                        .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>GYM COMMISSION SUMMARY</h1>
+                            <div style="font-size: 12px;"><strong>Period:</strong> ${monthFilter}</div>
+                        </div>
+                        <div class="summary-grid">
+                            <div class="summary-card">
+                                <div class="label">TOTAL HOURS</div>
+                                <div class="value">${totalHours}h</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="label">TOTAL PAYOUT</div>
+                                <div class="value">${formatCurrency(totalAmount)}</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="label">TRAINERS</div>
+                                <div class="value">${trainerSummaries.length}</div>
+                            </div>
+                        </div>
+                        <h2>TRAINER BREAKDOWN</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Trainer Name</th>
+                                    <th>Plan</th>
+                                    <th>Total Hours</th>
+                                    <th style="text-align: right;">Total Commission</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${trainerSummaries.map(s => `
+                                    <tr>
+                                        <td>${s.name}</td>
+                                        <td>${s.plan}</td>
+                                        <td>${s.totalHours}h</td>
+                                        <td class="amount">${formatCurrency(s.totalCommission)}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="total-row">
+                                    <td colspan="3" style="text-align: right;">TOTAL:</td>
+                                    <td class="amount">${formatCurrency(totalAmount)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="footer">
+                            <p>Generated on ${new Date().toLocaleString('en-GB')}</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            const printWindow = window.open('', '', 'width=1000,height=800');
+            if (printWindow) {
+                printWindow.document.write(htmlContent);
+                printWindow.document.close();
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                }, 300);
+            }
+            return;
+        }
+
         const trainer = trainers.find(t => t.id === trainerFilter);
         const plan = commissionPlans.find(p => p.id === trainer?.commission_plan);
         if (!trainer) return;
@@ -658,9 +751,9 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     </Select>
                      <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px] bg-white" />
                 </div>
-                {trainerFilter !== 'all' && (
-                    <Button onClick={generateCommissionPDF} variant="outline" className="bg-white"><FileText className="mr-2 h-4 w-4"/>Generate PDF</Button>
-                )}
+                <Button onClick={generateCommissionPDF} className="bg-primary text-white hover:bg-primary/90">
+                    <FileText className="mr-2 h-4 w-4"/>Generate PDF
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
