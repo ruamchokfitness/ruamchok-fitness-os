@@ -782,14 +782,29 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 
              <Card>
                 <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Trainer</TableHead><TableHead>Plan</TableHead><TableHead>Hours</TableHead><TableHead>Rate</TableHead><TableHead>Cumulative</TableHead><TableHead className="text-right">Commission</TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Member ID</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Trainer</TableHead>
+                            <TableHead>Plan</TableHead>
+                            <TableHead>Hours</TableHead>
+                            <TableHead>Rate</TableHead>
+                            <TableHead>Cumulative</TableHead>
+                            <TableHead className="text-right">Commission</TableHead>
+                        </TableRow>
+                    </TableHeader>
                     <TableBody>
                         {recalculatedCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
+                            const client = session ? clients.find(c => c.id === session.client_id) : null;
                             return (
                                 <TableRow key={comm.id}>
                                     <TableCell>{formatDateTime(session?.session_datetime || '')}</TableCell>
+                                    <TableCell>{client?.member_id || '-'}</TableCell>
+                                    <TableCell>{client?.name || '-'}</TableCell>
                                     <TableCell>{trainer?.name}</TableCell>
                                     <TableCell><Badge variant="outline">{comm.commission_type}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
