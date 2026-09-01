@@ -693,22 +693,27 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 <th>Date</th>
                                 <th>Member ID</th>
                                 <th>Member Name</th>
+                                <th>Package Name (Hrs Purchased)</th>
                                 <th>Duration</th>
                                 <th>Rate</th>
                                 <th>Cumulative</th>
                                 <th style="text-align: right;">Amount</th>
-                                <th style="text-align: center;">Client Sign</th>
+                                <th style="text-align: center;">Member Sign</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${recalculatedCommissions.map(comm => {
                                 const session = sessions.find(s => s.id === comm.session_id);
                                 const client = clients.find(c => c.id === session?.client_id);
+                                const pkg = session ? packages.find(p => p.id === session.purchase_id) : null;
+                                const dateOnly = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+
                                 return `
                                     <tr>
-                                        <td>${formatDateTime(session?.session_datetime || '')}</td>
+                                        <td>${dateOnly}</td>
                                         <td>${client?.member_id || '-'}</td>
                                         <td>${client?.name || '-'}</td>
+                                        <td>${pkg ? `${pkg.package_name} (${pkg.hours_purchased}h)` : '-'}</td>
                                         <td>${comm.duration_hours}h</td>
                                         <td>${formatCurrency(comm.hourly_rate_applied)}</td>
                                         <td>${comm.cumulative_hours_before}h → ${comm.cumulative_hours_after}h</td>
@@ -720,7 +725,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 `;
                             }).join('')}
                             <tr class="total-row">
-                                <td colspan="6" style="text-align: right;">TOTAL COMMISSION:</td>
+                                <td colspan="7" style="text-align: right;">TOTAL COMMISSION:</td>
                                 <td class="amount">${formatCurrency(totalAmount)}</td>
                                 <td></td>
                             </tr>
