@@ -532,26 +532,21 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     }, [commissions, trainerFilter, monthFilter, trainers, commissionPlans, sessions, packages]);
 
     const trainerSummaries = useMemo(() => {
-        const summariesMap: Record<string, { id: string, name: string, plan: string, totalHours: number, totalCommission: number }> = {};
+        const trainersToProcess = trainerFilter === 'all' ? trainers : trainers.filter(t => t.id === trainerFilter);
         
-        recalculatedCommissions.forEach(comm => {
-            if (!summariesMap[comm.trainer_id]) {
-                const trainer = trainers.find(t => t.id === comm.trainer_id);
-                const plan = commissionPlans.find(p => p.id === trainer?.commission_plan);
-                summariesMap[comm.trainer_id] = {
-                    id: comm.trainer_id,
-                    name: trainer?.name || 'Unknown',
-                    plan: plan?.name || '-',
-                    totalHours: 0,
-                    totalCommission: 0
-                };
-            }
-            summariesMap[comm.trainer_id].totalHours += comm.duration_hours;
-            summariesMap[comm.trainer_id].totalCommission += comm.commission_amount;
-        });
-
-        return Object.values(summariesMap).sort((a, b) => a.name.localeCompare(b.name));
-    }, [recalculatedCommissions, trainers, commissionPlans]);
+        return trainersToProcess.map(trainer => {
+            const trainerComms = recalculatedCommissions.filter(c => c.trainer_id === trainer.id);
+            const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
+            
+            return {
+                id: trainer.id,
+                name: trainer.name,
+                plan: plan?.name || '-',
+                totalHours: trainerComms.reduce((sum, c) => sum + c.duration_hours, 0),
+                totalCommission: trainerComms.reduce((sum, c) => sum + c.commission_amount, 0)
+            };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+    }, [recalculatedCommissions, trainers, commissionPlans, trainerFilter]);
 
     return (
          <div className="space-y-6">
@@ -566,34 +561,36 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     </Select>
                      <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px]" />
                 </div>
-                 <Button onClick={() => setPdfModalOpen(true)}><FileText className="mr-2 h-4 w-4" /> Generate PDF</Button>
+                 <Button onClick={() => setPdfModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white"><FileText className="mr-2 h-4 w-4" /> Generate PDF</Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {trainerSummaries.map(summary => (
-                    <Card key={summary.id} className="bg-white border p-5 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-3">
-                            <div>
-                                <h4 className="font-bold text-lg text-slate-900">{summary.name}</h4>
-                                <p className="text-xs text-muted-foreground font-medium">Plan: {summary.plan}</p>
+                    <Card key={summary.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-all">
+                        <CardContent className="p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 font-bold border border-green-100">
+                                    {summary.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-800">{summary.name}</h4>
+                                    <Badge variant="outline" className="text-[10px] h-5 py-0 bg-slate-50 border-slate-200 text-slate-600">
+                                        {summary.plan}
+                                    </Badge>
+                                </div>
                             </div>
-                            <Trophy className="w-5 h-5 text-amber-500 opacity-50" />
-                        </div>
-                        <Separator className="mb-3" />
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hours Delivered</span>
-                                <span className="text-lg font-bold text-slate-900">{summary.totalHours}h</span>
+                            
+                            <div className="space-y-2.5">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">Hours ({monthFilter})</span>
+                                    <span className="font-bold text-slate-900">{summary.totalHours}h</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500">Total Earnings</span>
+                                    <span className="font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span>
+                                </div>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Commission</span>
-                                <span className="text-lg font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-1 border-t border-dashed">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Period</span>
-                                <span className="text-xs font-medium text-slate-700">{monthFilter}</span>
-                            </div>
-                        </div>
+                        </CardContent>
                     </Card>
                 ))}
                 {trainerSummaries.length === 0 && (
