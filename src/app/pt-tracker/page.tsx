@@ -16,13 +16,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown, Search, FileText } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
 import type { Firestore } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -530,13 +531,27 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         });
     }, [commissions, trainerFilter, monthFilter, trainers, commissionPlans, sessions, packages]);
 
-    const summary = useMemo(() => {
-        const totalHours = recalculatedCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
-        const totalAmount = recalculatedCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
-        const trainer = trainers.find(t => t.id === trainerFilter);
-        const plan = trainer ? commissionPlans.find(p => p.id === trainer.commission_plan) : null;
-        return { totalHours, totalAmount, trainer, plan };
-    }, [recalculatedCommissions, trainers, trainerFilter, commissionPlans]);
+    const trainerSummaries = useMemo(() => {
+        const summariesMap: Record<string, { id: string, name: string, plan: string, totalHours: number, totalCommission: number }> = {};
+        
+        recalculatedCommissions.forEach(comm => {
+            if (!summariesMap[comm.trainer_id]) {
+                const trainer = trainers.find(t => t.id === comm.trainer_id);
+                const plan = commissionPlans.find(p => p.id === trainer?.commission_plan);
+                summariesMap[comm.trainer_id] = {
+                    id: comm.trainer_id,
+                    name: trainer?.name || 'Unknown',
+                    plan: plan?.name || '-',
+                    totalHours: 0,
+                    totalCommission: 0
+                };
+            }
+            summariesMap[comm.trainer_id].totalHours += comm.duration_hours;
+            summariesMap[comm.trainer_id].totalCommission += comm.commission_amount;
+        });
+
+        return Object.values(summariesMap).sort((a, b) => a.name.localeCompare(b.name));
+    }, [recalculatedCommissions, trainers, commissionPlans]);
 
     return (
          <div className="space-y-6">
@@ -551,25 +566,42 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     </Select>
                      <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px]" />
                 </div>
-                 <Button onClick={() => setPdfModalOpen(true)}><Info className="mr-2 h-4 w-4" /> Generate PDF</Button>
+                 <Button onClick={() => setPdfModalOpen(true)}><FileText className="mr-2 h-4 w-4" /> Generate PDF</Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Hours Delivered</p>
-                    <p className="text-3xl font-extrabold text-slate-900">{summary.totalHours}h</p>
-                    {trainerFilter !== 'all' && <p className="text-xs text-muted-foreground mt-1 font-medium">Plan: {summary.plan?.name || '-'}</p>}
-                </Card>
-                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Commission</p>
-                    <p className="text-3xl font-extrabold text-green-600">{formatCurrency(summary.totalAmount)}</p>
-                    {trainerFilter !== 'all' && <p className="text-xs text-muted-foreground mt-1 font-medium">{summary.trainer?.name}</p>}
-                </Card>
-                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Report Period</p>
-                    <p className="text-3xl font-extrabold text-slate-900">{monthFilter}</p>
-                    <p className="text-xs text-muted-foreground mt-1 font-medium">{trainerFilter === 'all' ? 'Combined Gym Report' : 'Individual Trainer Report'}</p>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {trainerSummaries.map(summary => (
+                    <Card key={summary.id} className="bg-white border p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 className="font-bold text-lg text-slate-900">{summary.name}</h4>
+                                <p className="text-xs text-muted-foreground font-medium">Plan: {summary.plan}</p>
+                            </div>
+                            <Trophy className="w-5 h-5 text-amber-500 opacity-50" />
+                        </div>
+                        <Separator className="mb-3" />
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hours Delivered</span>
+                                <span className="text-lg font-bold text-slate-900">{summary.totalHours}h</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Commission</span>
+                                <span className="text-lg font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-dashed">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Period</span>
+                                <span className="text-xs font-medium text-slate-700">{monthFilter}</span>
+                            </div>
+                        </div>
+                    </Card>
+                ))}
+                {trainerSummaries.length === 0 && (
+                     <Card className="col-span-full bg-slate-50 border-dashed border-2 p-10 flex flex-col items-center justify-center text-center">
+                        <Info className="w-10 h-10 text-slate-300 mb-2" />
+                        <p className="text-slate-500 font-medium">No training data found for this period.</p>
+                     </Card>
+                )}
             </div>
 
              <Card>
