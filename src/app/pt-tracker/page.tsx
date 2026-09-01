@@ -653,6 +653,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     .amount { text-align: right; font-weight: bold; }
                     .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
                     .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    .signature-img { max-height: 30px; width: auto; vertical-align: middle; }
                     @media print {
                         body { margin: 0; padding: 0; }
                         .container { padding: 15px; }
@@ -692,11 +693,11 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 <th>Date</th>
                                 <th>Member ID</th>
                                 <th>Member Name</th>
-                                <th>Plan</th>
                                 <th>Duration</th>
                                 <th>Rate</th>
                                 <th>Cumulative</th>
                                 <th style="text-align: right;">Amount</th>
+                                <th style="text-align: center;">Client Sign</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -708,17 +709,20 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                         <td>${formatDateTime(session?.session_datetime || '')}</td>
                                         <td>${client?.member_id || '-'}</td>
                                         <td>${client?.name || '-'}</td>
-                                        <td>${comm.commission_type}</td>
                                         <td>${comm.duration_hours}h</td>
                                         <td>${formatCurrency(comm.hourly_rate_applied)}</td>
                                         <td>${comm.cumulative_hours_before}h → ${comm.cumulative_hours_after}h</td>
                                         <td class="amount">${formatCurrency(comm.commission_amount)}</td>
+                                        <td style="text-align: center;">
+                                            ${session?.clientSignature ? `<img src="${session.clientSignature}" class="signature-img" />` : '-'}
+                                        </td>
                                     </tr>
                                 `;
                             }).join('')}
                             <tr class="total-row">
-                                <td colspan="7" style="text-align: right;">TOTAL COMMISSION:</td>
+                                <td colspan="6" style="text-align: right;">TOTAL COMMISSION:</td>
                                 <td class="amount">${formatCurrency(totalAmount)}</td>
+                                <td></td>
                             </tr>
                         </tbody>
                     </table>
@@ -838,26 +842,26 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
-    const [packageName, setPackageName] = useState('Personal Training Package');
-    const [hoursPurchased, setHoursPurchased] = useState(10);
-    const [pricePaid, setPricePaid] = useState(6000);
+    const [packageName, setPackageName] = useState('');
+    const [hoursPurchased, setHoursPurchased] = useState(0);
+    const [pricePaid, setPricePaid] = useState(0);
     const [hoursUsed, setHoursUsed] = useState(0);
-    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
-    const [expiryDate, setExpiryDate] = useState(new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]);
+    const [purchaseDate, setPurchaseDate] = useState('');
+    const [expiryDate, setExpiryDate] = useState('');
     const [status, setStatus] = useState<'active' | 'completed' | 'expired'>('active');
     const [selectedClientId, setSelectedClientId] = useState('');
 
     useEffect(() => {
         if (open) {
             if (pkg) {
-                setPackageName(pkg.package_name);
-                setHoursPurchased(pkg.hours_purchased);
-                setPricePaid(pkg.price_paid);
-                setHoursUsed(pkg.hours_used);
-                setPurchaseDate(pkg.purchase_date);
-                setExpiryDate(pkg.expiry_date);
-                setStatus(pkg.status);
-                setSelectedClientId(pkg.client_id);
+                setPackageName(pkg.package_name || '');
+                setHoursPurchased(pkg.hours_purchased || 0);
+                setPricePaid(pkg.price_paid || 0);
+                setHoursUsed(pkg.hours_used || 0);
+                setPurchaseDate(pkg.purchase_date || '');
+                setExpiryDate(pkg.expiry_date || '');
+                setStatus(pkg.status || 'active');
+                setSelectedClientId(pkg.client_id || '');
             } else {
                 setPackageName('Personal Training Package');
                 setHoursPurchased(10);
@@ -882,13 +886,13 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 const finalData = { 
                     client_id: selectedClientId, 
                     package_name: packageName, 
-                    hours_purchased: hoursPurchased, 
-                    price_paid: pricePaid, 
-                    price_per_hour: pricePerHour, 
+                    hours_purchased: Number(hoursPurchased), 
+                    price_paid: Number(pricePaid), 
+                    price_per_hour: Number(pricePerHour), 
                     purchase_date: purchaseDate, 
                     expiry_date: expiryDate, 
                     status: hoursRemaining <= 0 ? 'completed' : status, 
-                    hours_used: hoursUsed, 
+                    hours_used: Number(hoursUsed), 
                     hours_remaining: hoursRemaining 
                 };
                 if (pkg) await updateDoc(doc(db, "pt_packages", pkg.id), finalData);
@@ -903,7 +907,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>{pkg ? 'Edit Package' : 'Add Package'}</DialogTitle></DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Package Name *</Label>
