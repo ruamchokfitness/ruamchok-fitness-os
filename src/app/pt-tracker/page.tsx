@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition, useRef, useCallback } from 'react';
@@ -529,6 +530,14 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         });
     }, [commissions, trainerFilter, monthFilter, trainers, commissionPlans, sessions, packages]);
 
+    const summary = useMemo(() => {
+        const totalHours = recalculatedCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
+        const totalAmount = recalculatedCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
+        const trainer = trainers.find(t => t.id === trainerFilter);
+        const plan = trainer ? commissionPlans.find(p => p.id === trainer.commission_plan) : null;
+        return { totalHours, totalAmount, trainer, plan };
+    }, [recalculatedCommissions, trainers, trainerFilter, commissionPlans]);
+
     return (
          <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -544,6 +553,34 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 </div>
                  <Button onClick={() => setPdfModalOpen(true)}><Info className="mr-2 h-4 w-4" /> Generate PDF</Button>
             </div>
+
+            {trainerFilter !== 'all' && summary.trainer && (
+                <div className="space-y-6">
+                    <div>
+                        <h2 className="text-3xl font-bold text-slate-800">TRAINING REPORT</h2>
+                        <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mt-2">
+                            <p className="text-lg"><strong>Trainer:</strong> {summary.trainer.name}</p>
+                            <p className="text-lg"><strong>Plan:</strong> {summary.plan?.name || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Hours Delivered</p>
+                            <p className="text-4xl font-bold">{summary.totalHours}h</p>
+                        </Card>
+                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Total Earned</p>
+                            <p className="text-4xl font-bold">{formatCurrency(summary.totalAmount)}</p>
+                        </Card>
+                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Period</p>
+                            <p className="text-4xl font-bold">{monthFilter}</p>
+                        </Card>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mt-8 uppercase">Commission Summary</h3>
+                </div>
+            )}
+
              <Card>
                 <Table>
                     <TableHeader>
@@ -1134,25 +1171,50 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
         }
 
         const totalCommission = finalData.reduce((sum, c) => sum + c.amount, 0);
+        const totalHours = finalData.reduce((sum, c) => sum + c.duration, 0);
 
         let htmlContent = `
             <!DOCTYPE html>
             <html><head><meta charset="UTF-8"><title>Commission Report</title>
             <style>
-                body { font-family: Arial, sans-serif; font-size: 12px; }
+                body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
                 table { width: 100%; border-collapse: collapse; margin-top: 15px; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .summary { font-size: 14px; font-weight: bold; text-align: right; margin-top: 15px; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                .header { margin-bottom: 10px; }
+                .header h1 { font-size: 24px; margin-bottom: 5px; font-weight: bold; }
+                .header-sub { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 8px; font-size: 14px; }
+                .summary-boxes { display: flex; gap: 15px; margin: 20px 0; }
+                .summary-box { flex: 1; border: 1px solid #ccc; padding: 15px; text-align: center; }
+                .box-label { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px; text-transform: uppercase; }
+                .box-value { font-size: 20px; font-weight: bold; }
+                .section-title { font-size: 16px; font-weight: bold; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
                 .section-header { background: #fafafa; font-weight: bold; }
             </style></head><body>
             <div class="header">
-                <h1>PT COMMISSION REPORT</h1>
-                <p>Trainer: ${targetTrainer.name} | Month: ${month}</p>
+                <h1>TRAINING REPORT</h1>
+                <div class="header-sub">
+                    <span><strong>Trainer:</strong> ${targetTrainer.name}</span>
+                    <span><strong>Plan:</strong> ${plan?.name || 'N/A'}</span>
+                </div>
             </div>
+            <div class="summary-boxes">
+                <div class="summary-box">
+                    <div class="box-label">Hours Delivered</div>
+                    <div class="box-value">${totalHours}h</div>
+                </div>
+                <div class="summary-box">
+                    <div class="box-label">Total Earned</div>
+                    <div class="box-value">${formatCurrency(totalCommission)}</div>
+                </div>
+                <div class="summary-box">
+                    <div class="box-label">Period</div>
+                    <div class="box-value">${month}</div>
+                </div>
+            </div>
+            <div class="section-title">COMMISSION SUMMARY</div>
             <table><thead><tr>
-                <th>Date</th><th>Client</th><th>Package</th><th>Hours</th><th>Rate</th><th>Cumulative</th><th>Amount</th>
+                <th>Date</th><th>Client</th><th>Package</th><th>Duration</th><th>Rate</th><th>Cumulative</th><th>Amount</th>
             </tr></thead><tbody>
             ${finalData.map(c => `
                 <tr class="${c.type === 'Boxing Package' ? 'section-header' : ''}">
@@ -1160,7 +1222,6 @@ function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, c
                 </tr>
             `).join('')}
             </tbody></table>
-            <div class="summary">TOTAL COMMISSION: ${formatCurrency(totalCommission)}</div>
             </body></html>
         `;
 
