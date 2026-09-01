@@ -56,52 +56,56 @@ export function SessionHistoryTable({ packageId, trainers }: SessionHistoryTable
     return (
         <div className="border-t mt-4 pt-4">
             <h4 className="font-semibold text-md mb-2 px-1">Session History</h4>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[50px]">No.</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Trainer</TableHead>
-                        <TableHead>Client Signature</TableHead>
-                        <TableHead>Trainer Signature</TableHead>
-                        <TableHead>Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {sessions.map((session, index) => {
-                        const { date, time } = formatDateTime(session.session_datetime);
-                        const trainer = trainers.find(t => t.id === session.trainer_id);
-                        return (
-                            <TableRow key={session.id}>
-                                <TableCell>{index + 1}</TableCell>
-                                <TableCell>{date}</TableCell>
-                                <TableCell>{time}</TableCell>
-                                <TableCell>{trainer?.name || 'N/A'}</TableCell>
-                                <TableCell>
-                                    {session.clientSignature ? (
-                                        <img src={session.clientSignature} alt="Client Signature" width={80} height={40} className="bg-gray-100 rounded-sm" />
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">-</span>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    {session.trainerSignature ? (
-                                        <img src={session.trainerSignature} alt="Trainer Signature" width={80} height={40} className="bg-gray-100 rounded-sm" />
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">-</span>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant={session.clientSignature ? "default" : "secondary"} className={session.clientSignature ? "bg-green-100 text-green-800" : ""}>
-                                        {session.clientSignature ? "Signed" : "Completed Manually"}
-                                    </Badge>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[50px]">No.</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Trainer</TableHead>
+                            <TableHead>Duration</TableHead>
+                            <TableHead>Client Signature</TableHead>
+                            <TableHead>Trainer Signature</TableHead>
+                            <TableHead>Status</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {sessions.map((session, index) => {
+                            const { date, time } = formatDateTime(session.session_datetime);
+                            const trainer = trainers.find(t => t.id === session.trainer_id);
+                            return (
+                                <TableRow key={session.id}>
+                                    <TableCell>{index + 1}</TableCell>
+                                    <TableCell>{date}</TableCell>
+                                    <TableCell>{time}</TableCell>
+                                    <TableCell>{trainer?.name || 'N/A'}</TableCell>
+                                    <TableCell className="font-medium">{session.duration_hours}h</TableCell>
+                                    <TableCell>
+                                        {session.clientSignature ? (
+                                            <img src={session.clientSignature} alt="Client Signature" width={80} height={40} className="bg-gray-100 rounded-sm" />
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {session.trainerSignature ? (
+                                            <img src={session.trainerSignature} alt="Trainer Signature" width={80} height={40} className="bg-gray-100 rounded-sm" />
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={session.clientSignature ? "default" : "secondary"} className={session.clientSignature ? "bg-green-100 text-green-800" : ""}>
+                                            {session.clientSignature ? "Signed" : "Completed Manually"}
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
         </div>
     );
 }

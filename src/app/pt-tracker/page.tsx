@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useMemo, useTransition, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, getDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
-import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Cell, Line, ComposedChart, CartesianGrid } from 'recharts';
+import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, getDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
+import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 
 import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, PTCommissionTier } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -25,121 +24,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Firestore } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
-
+import { Progress } from '@/components/ui/progress';
 
 // Helper Functions
 const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[], monthRef: string) {
-    const [year, month] = monthRef.split('-').map(Number);
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0, 23, 59, 59);
-
-    const sessionsQuery = query(
-        collection(db, "pt_sessions"),
-        where("trainer_id", "==", trainerId)
-    );
-    const sessionsSnapshot = await getDocs(sessionsQuery);
-    const allTrainerSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
-
-    const sessionsThisMonth = allTrainerSessions
-        .filter(session => {
-            const sessionDate = new Date(session.session_datetime);
-            return session.session_status === 'completed' && sessionDate >= firstDay && sessionDate <= lastDay;
-        })
-        .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
-
-    const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
-    const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
-    
-    const commissionsQuery = query(
-        collection(db, "pt_commissions"),
-        where("trainer_id", "==", trainerId),
-        where("month_reference", "==", monthRef)
-    );
-    const commissionsSnapshot = await getDocs(commissionsQuery);
-
-    const batch = writeBatch(db);
-    commissionsSnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-    });
-
-    let cumulativeHoursInMonth = 0;
-    let cumulativeBoxingHoursInMonth = 0;
-    const plan = allPlans.find(p => p.id === newPlanId);
-    const boxingPlan = allPlans.find(p => p.id === 'BOXING');
-
-
-    for (const session of sessionsThisMonth) {
-        const pkg = allPackages.find(p => p.id === session.purchase_id);
-        if (!pkg) continue;
-
-        const duration = session.duration_hours;
-        const isBoxingPackage = pkg.package_name.toLowerCase().includes('boxing');
-        let rate = 0;
-        let commission = 0;
-        let commissionTypeName = '';
-        let cumulativeBefore = 0;
-        let cumulativeAfter = 0;
-        
-        if (isBoxingPackage && boxingPlan) {
-            cumulativeBefore = cumulativeBoxingHoursInMonth;
-            cumulativeBoxingHoursInMonth += duration;
-            cumulativeAfter = cumulativeBoxingHoursInMonth;
-            rate = boxingPlan.tiers[0].rate;
-            commission = duration * rate;
-            commissionTypeName = boxingPlan.name;
-        } else if (plan) {
-            cumulativeBefore = cumulativeHoursInMonth;
-            cumulativeHoursInMonth += duration;
-            cumulativeAfter = cumulativeHoursInMonth;
-            commissionTypeName = plan.name;
-            if (plan.tiers.length === 1) {
-                rate = plan.tiers[0].rate;
-                commission = duration * rate;
-            } else {
-                const tier1 = plan.tiers.find(t => t.maxHours !== Infinity);
-                const tier2 = plan.tiers.find(t => t.maxHours === Infinity);
-                if (tier1 && tier2) {
-                    const tier1Max = tier1.maxHours;
-                    if (cumulativeBefore >= tier1Max) {
-                        rate = tier2.rate;
-                        commission = duration * rate;
-                    } else if ((cumulativeBefore + duration) <= tier1Max) {
-                        rate = tier1.rate;
-                        commission = duration * rate;
-                    } else {
-                        const hoursAtTier1 = tier1Max - cumulativeBefore;
-                        const hoursAtTier2 = duration - hoursAtTier1;
-                        commission = (hoursAtTier1 * tier1.rate) + (hoursAtTier2 * tier2.rate);
-                        rate = commission / duration;
-                    }
-                }
-            }
-        }
-        
-        const commissionData: Omit<PTCommission, 'id'> = {
-            trainer_id: trainerId,
-            session_id: session.id,
-            duration_hours: duration,
-            hourly_rate_applied: Math.round(rate),
-            commission_amount: Math.round(commission),
-            cumulative_hours_before: cumulativeBefore,
-            cumulative_hours_after: cumulativeAfter,
-            commission_plan: isBoxingPackage ? 'BOXING' : newPlanId,
-            commission_type: commissionTypeName,
-            month_reference: monthRef
-        };
-        const newCommissionRef = doc(collection(db, "pt_commissions"));
-        batch.set(newCommissionRef, commissionData);
-    }
-    await batch.commit();
-}
-
 
 function PTTrackerPageContent() {
     const { firestore: db } = useFirebase();
@@ -154,20 +45,8 @@ function PTTrackerPageContent() {
     const { data: commissionPlans, isLoading: l6 } = useCollection<PTCommissionPlan>(useMemoFirebase(() => db ? query(collection(db, "pt_commission_plans"), orderBy('name')) : null, [db]));
     
     const loading = l1 || l2 || l3 || l4 || l5 || l6;
-    
+
     useEffect(() => {
-        if (!db || l1) return;
-        const seedData = async () => {
-            const clientsCollection = collection(db, "pt_clients");
-            const snapshot = await getDocs(query(clientsCollection, where("name", "!=", "")));
-            if (snapshot.empty) {
-                // Initial seeding logic here if needed
-            }
-        }
-        seedData();
-    }, [db, clients, l1]);
-    
-     useEffect(() => {
         if (!db || l6) return;
         const seedCommissionPlans = async () => {
             const plansCollection = collection(db, "pt_commission_plans");
@@ -189,7 +68,6 @@ function PTTrackerPageContent() {
         };
         seedCommissionPlans();
     }, [db, commissionPlans, l6]);
-
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -380,38 +258,23 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     )
 }
 
-function TablePlaceholder({ colSpan = 7 }: { colSpan?: number }) {
-    return <TableRow><TableCell colSpan={colSpan} className="text-center h-24 text-slate-500">No data available.</TableCell></TableRow>;
-}
-
 function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore }) {
     const [search, setSearch] = useState('');
-    const [addClientModalOpen, setAddClientModalOpen] = useState(false);
-    const [editClientModalOpen, setEditClientModalOpen] = useState(false);
+    const [clientModalOpen, setClientModalOpen] = useState(false);
     const [packageModalOpen, setPackageModalOpen] = useState(false);
     const [selectedClient, setSelectedClient] = useState<PTClient | null>(null);
     const [selectedPackage, setSelectedPackage] = useState<PTPackage | null>(null);
-    const { toast } = useToast();
 
     const filteredClients = useMemo(() => 
         clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.member_id?.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => a.name.localeCompare(b.name))
     , [clients, search]);
     
-    const handleEditClient = (client: PTClient) => { setSelectedClient(client); setEditClientModalOpen(true); };
-    const handleAddPackage = (client: PTClient) => { setSelectedClient(client); setSelectedPackage(null); setPackageModalOpen(true); };
-    const handleEditPackage = (pkg: PTPackage) => {
-        const client = clients.find(c => c.id === pkg.client_id);
-        setSelectedClient(client || null);
-        setSelectedPackage(pkg);
-        setPackageModalOpen(true);
-    };
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <Input type="text" placeholder="Search clients by name or ID..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
-                <Button onClick={() => setAddClientModalOpen(true)} className="btn-primary"><Plus className="mr-2"/> Add Client</Button>
+                <Button onClick={() => { setSelectedClient(null); setClientModalOpen(true); }} className="btn-primary"><Plus className="mr-2"/> Add Client</Button>
             </div>
             <Card>
                 <Accordion type="single" collapsible className="w-full">
@@ -439,8 +302,8 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                                 </AccordionTrigger>
                                 <AccordionContent className="p-4 bg-slate-50 border-t">
                                     <div className="flex justify-end gap-2 mb-4">
-                                        <Button size="sm" variant="outline" onClick={() => handleEditClient(client)}><Edit className="mr-2 h-3 w-3"/> Edit Client</Button>
-                                        <Button size="sm" onClick={() => handleAddPackage(client)}><Plus className="mr-2 h-3 w-3"/> New Package</Button>
+                                        <Button size="sm" variant="outline" onClick={() => { setSelectedClient(client); setClientModalOpen(true); }}><Edit className="mr-2 h-3 w-3"/> Edit Client</Button>
+                                        <Button size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(null); setPackageModalOpen(true); }}><Plus className="mr-2 h-3 w-3"/> New Package</Button>
                                     </div>
                                     <Table>
                                         <TableHeader>
@@ -458,7 +321,7 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                                                     <TableCell>{pkg.hours_used || 0} / {pkg.hours_purchased}</TableCell>
                                                     <TableCell><Badge variant="outline">{pkg.status}</Badge></TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="sm" onClick={() => handleEditPackage(pkg)}>Edit</Button>
+                                                        <Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -470,8 +333,7 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                     })}
                 </Accordion>
             </Card>
-            <ClientAndPackageModal open={addClientModalOpen} onOpenChange={setAddClientModalOpen} db={db} clients={clients} />
-            <ClientModal open={editClientModalOpen} onOpenChange={setEditClientModalOpen} client={selectedClient} db={db} />
+            <ClientModal open={clientModalOpen} onOpenChange={setClientModalOpen} client={selectedClient} db={db} />
             <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />
         </div>
     )
@@ -719,6 +581,57 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     )
 }
 
+function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const data = {
+            name: formData.get('name') as string,
+            member_id: formData.get('member_id') as string,
+            phone: formData.get('phone') as string,
+            status: formData.get('status') as any,
+        };
+
+        startTransition(async () => {
+            try {
+                if (client) await updateDoc(doc(db, "pt_clients", client.id), data);
+                else await addDoc(collection(db, "pt_clients"), { ...data, entity_type: 'client' });
+                toast({ title: "Success", description: "Client saved successfully." });
+                onOpenChange(false);
+            } catch (error) {
+                toast({ title: "Error", variant: "destructive" });
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>{client ? 'Edit Client' : 'Add Client'}</DialogTitle></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div><Label>Name *</Label><Input name="name" defaultValue={client?.name} required /></div>
+                    <div><Label>Member ID</Label><Input name="member_id" defaultValue={client?.member_id} /></div>
+                    <div><Label>Phone</Label><Input name="phone" defaultValue={client?.phone} /></div>
+                    <div>
+                        <Label>Status</Label>
+                        <Select name="status" defaultValue={client?.status || 'active'}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Client</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
@@ -738,14 +651,14 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     useEffect(() => {
         if (open) {
             if (pkg) {
-                setPackageName(pkg.package_name);
-                setHoursPurchased(pkg.hours_purchased);
-                setPricePaid(pkg.price_paid);
+                setPackageName(pkg.package_name || '');
+                setHoursPurchased(pkg.hours_purchased || 0);
+                setPricePaid(pkg.price_paid || 0);
                 setHoursUsed(pkg.hours_used || 0);
-                setPurchaseDate(pkg.purchase_date);
-                setExpiryDate(pkg.expiry_date);
-                setStatus(pkg.status);
-                setSelectedClientId(pkg.client_id);
+                setPurchaseDate(pkg.purchase_date || '');
+                setExpiryDate(pkg.expiry_date || '');
+                setStatus(pkg.status || 'active');
+                setSelectedClientId(pkg.client_id || '');
                 setClientSearch(clients.find(c => c.id === pkg.client_id)?.name || '');
             } else {
                 setPackageName('Personal Training Package');
@@ -771,13 +684,13 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         const data: Omit<PTPackage, 'id'> = {
             client_id: selectedClientId,
             package_name: packageName,
-            hours_purchased: hoursPurchased,
-            price_paid: pricePaid,
+            hours_purchased: Number(hoursPurchased),
+            price_paid: Number(pricePaid),
             price_per_hour: pricePerHour,
             purchase_date: purchaseDate,
             expiry_date: expiryDate,
             status: hoursRemaining <= 0 ? 'completed' : status,
-            hours_used: hoursUsed,
+            hours_used: Number(hoursUsed),
             hours_remaining: hoursRemaining,
         };
 
@@ -788,6 +701,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 toast({ title: "Success", description: "Package saved successfully." });
                 onOpenChange(false);
             } catch (error) {
+                console.error("Error saving package:", error);
                 toast({ title: "Error", variant: "destructive" });
             }
         });
@@ -799,11 +713,11 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 <DialogHeader><DialogTitle>{pkg ? 'Edit Package' : 'Add Package'}</DialogTitle></DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {!pkg && (
-                        <div>
+                        <div className="relative">
                             <Label>Client *</Label>
                             <Input placeholder="Search client..." value={clientSearch} onChange={e => { setClientSearch(e.target.value); setSelectedClientId(''); setIsClientListOpen(true); }} onFocus={() => setIsClientListOpen(true)} onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)} />
                             {isClientListOpen && (
-                                <Card className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto">
+                                <Card className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto shadow-xl">
                                     {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
                                         <div key={c.id} className="p-2 hover:bg-slate-100 cursor-pointer" onMouseDown={() => { setSelectedClientId(c.id); setClientSearch(c.name); setIsClientListOpen(false); }}>{c.name} ({c.member_id})</div>
                                     ))}
@@ -824,15 +738,15 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                         </div>
                         <div className="space-y-2">
                             <Label>Hours Purchased *</Label>
-                            <Input type="number" value={hoursPurchased} onChange={e => setHoursPurchased(parseFloat(e.target.value))} />
+                            <Input type="number" value={hoursPurchased} onChange={e => setHoursPurchased(Number(e.target.value))} />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Total Price (THB) *</Label>
-                            <Input type="number" value={pricePaid} onChange={e => setPricePaid(parseFloat(e.target.value))} />
+                            <Input type="number" value={pricePaid} onChange={e => setPricePaid(Number(e.target.value))} />
                         </div>
-                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center">
+                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center border border-slate-100">
                             <Label className="text-muted-foreground text-xs">Price per hour:</Label>
                             <span className="font-bold">{formatCurrency(pricePerHour)}</span>
                         </div>
@@ -850,7 +764,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Hours Used</Label>
-                            <Input type="number" step="0.1" value={hoursUsed} onChange={e => setHoursUsed(parseFloat(e.target.value))} />
+                            <Input type="number" step="0.5" value={hoursUsed} onChange={e => setHoursUsed(Number(e.target.value))} />
                             <p className="text-[10px] text-muted-foreground">Remaining: {hoursRemaining}h</p>
                         </div>
                         <div className="space-y-2">
@@ -875,17 +789,547 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     )
 }
 
-// ... Rest of sub-components (TrainerModal, ManagePlansDialog, SessionEditModal, etc. follow standard patterns)
-// Assuming they are consistent with previous updates for brevity.
+function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, commissionPlans: PTCommissionPlan[], db: Firestore }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
 
-function ClientAndPackageModal({ open, onOpenChange, db, clients }: any) { return null; } // Logic inside PackageModal handles new/edit
-function ClientModal({ open, onOpenChange, client, db }: any) { return null; }
-function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: any) { return null; }
-function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, commissionPlans }: any) { return null; }
-function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: any) { return null; }
-function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans, packages }: any) { return null; }
-function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: any) { return null; }
-function DeleteButton({ type, name, onConfirmDelete }: any) { return null; }
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const data = {
+            name: formData.get('name') as string,
+            email: formData.get('email') as string,
+            phone: formData.get('phone') as string,
+            status: formData.get('status') as any,
+            commission_plan: formData.get('commission_plan') as string,
+        };
+
+        startTransition(async () => {
+            try {
+                if (trainer) await updateDoc(doc(db, "pt_trainers", trainer.id), data);
+                else await addDoc(collection(db, "pt_trainers"), { ...data, entity_type: 'trainer' });
+                toast({ title: "Success", description: "Trainer saved successfully." });
+                onOpenChange(false);
+            } catch (error) {
+                toast({ title: "Error", variant: "destructive" });
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>{trainer ? 'Edit Trainer' : 'Add Trainer'}</DialogTitle></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div><Label>Name *</Label><Input name="name" defaultValue={trainer?.name} required /></div>
+                    <div><Label>Email</Label><Input name="email" type="email" defaultValue={trainer?.email} /></div>
+                    <div><Label>Phone</Label><Input name="phone" defaultValue={trainer?.phone} /></div>
+                    <div>
+                        <Label>Commission Plan *</Label>
+                        <Select name="commission_plan" defaultValue={trainer?.commission_plan || 'PLAN_A'}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {commissionPlans.filter(p=>p.id!=='BOXING').map(plan => <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label>Status</Label>
+                        <Select name="status" defaultValue={trainer?.status || 'active'}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Trainer</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, commissionPlans }: any) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    if (!session) return null;
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const newDuration = parseFloat(formData.get('duration') as string);
+        const diff = newDuration - session.duration_hours;
+        
+        startTransition(async () => {
+            try {
+                // Update Session
+                await updateDoc(doc(db, "pt_sessions", session.id), { duration_hours: newDuration });
+                
+                // Update Package
+                const pkg = packages.find((p:any) => p.id === session.purchase_id);
+                if (pkg) {
+                    const newUsed = (pkg.hours_used || 0) + diff;
+                    await updateDoc(doc(db, "pt_packages", pkg.id), { 
+                        hours_used: newUsed,
+                        hours_remaining: pkg.hours_purchased - newUsed 
+                    });
+                }
+                
+                // Recalculate Commissions for this trainer in this month
+                const monthRef = getMonthReference(new Date(session.session_datetime));
+                const trainer = trainers.find((t:any) => t.id === session.trainer_id);
+                if (trainer) {
+                    await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans, monthRef);
+                }
+
+                toast({ title: "Success", description: "Session updated and commissions recalculated." });
+                onOpenChange(false);
+            } catch (error) {
+                toast({ title: "Error", variant: "destructive" });
+            }
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Edit Session</DialogTitle></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <Label>Duration (Hours)</Label>
+                        <Input name="duration" type="number" step="0.5" defaultValue={session.duration_hours} required />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Changing duration will update the client's package and recalculate trainer's commissions for this month.</p>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Update Session</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: any) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const [selectedClient, setSelectedClient] = useState<string>('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showResults, setShowResults] = useState(false);
+
+    const filteredClients = useMemo(() => {
+        if (!searchQuery) return [];
+        return clients.filter((c: any) => 
+            c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            c.member_id?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [clients, searchQuery]);
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const clientId = selectedClient;
+        const packageId = formData.get('package') as string;
+        const trainerId = formData.get('trainer') as string;
+        const duration = parseFloat(formData.get('duration') as string);
+        const dateStr = formData.get('date') as string;
+
+        if (!clientId || !packageId || !trainerId || isNaN(duration)) {
+             toast({ title: "Error", description: "Please fill all required fields.", variant: "destructive" });
+             return;
+        }
+
+        startTransition(async () => {
+             try {
+                const sessionDateTime = dateStr ? new Date(dateStr) : new Date();
+                const trainer = trainers.find((t:any) => t.id === trainerId);
+                const pkg = packages.find((p:any) => p.id === packageId);
+
+                if (!trainer || !pkg) throw new Error("Data not found");
+
+                // 1. Create Session
+                const sessionData: Omit<PTSession, 'id'> = {
+                    client_id: clientId,
+                    purchase_id: packageId,
+                    trainer_id: trainerId,
+                    session_datetime: sessionDateTime.toISOString(),
+                    duration_hours: duration,
+                    session_status: 'completed',
+                    completed_by: 'Manual Admin Entry',
+                    completion_timestamp: new Date().toISOString()
+                };
+                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), sessionData);
+
+                // 2. Update Package
+                const newUsed = (pkg.hours_used || 0) + duration;
+                await updateDoc(doc(db, "pt_packages", pkg.id), {
+                    hours_used: newUsed,
+                    hours_remaining: pkg.hours_purchased - newUsed,
+                    status: (pkg.hours_purchased - newUsed) <= 0 ? 'completed' : 'active'
+                });
+
+                // 3. Recalculate Commissions
+                const monthRef = getMonthReference(sessionDateTime);
+                await recalculateCommissions(db, trainerId, trainer.commission_plan, commissionPlans, monthRef);
+
+                toast({ title: "Success", description: "Session recorded manually." });
+                onOpenChange(false);
+                setSelectedClient('');
+                setSearchQuery('');
+            } catch (error) {
+                toast({ title: "Error", variant: "destructive" });
+            }
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-xl">
+                <DialogHeader><DialogTitle>Manual Session Entry</DialogTitle></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="relative">
+                        <Label>Client *</Label>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Search by name or member ID..." 
+                                value={searchQuery}
+                                className="pl-8"
+                                onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
+                                onFocus={() => setShowResults(true)}
+                            />
+                        </div>
+                        {showResults && searchQuery && (
+                            <Card className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto shadow-lg">
+                                {filteredClients.length > 0 ? filteredClients.map((c: any) => (
+                                    <div 
+                                        key={c.id} 
+                                        className="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                                        onMouseDown={() => { 
+                                            setSelectedClient(c.id); 
+                                            setSearchQuery(c.name + (c.member_id ? ` (${c.member_id})` : ''));
+                                            setShowResults(false);
+                                        }}
+                                    >
+                                        {c.name} {c.member_id && <span className="text-muted-foreground ml-1">[{c.member_id}]</span>}
+                                    </div>
+                                )) : <div className="p-2 text-sm text-muted-foreground">No clients found</div>}
+                            </Card>
+                        )}
+                    </div>
+                    {selectedClient && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label>Package *</Label>
+                                <Select name="package" required>
+                                    <SelectTrigger><SelectValue placeholder="Select Package" /></SelectTrigger>
+                                    <SelectContent>
+                                        {packages.filter((p:any) => p.client_id === selectedClient && p.status === 'active').map((pkg:any) => (
+                                            <SelectItem key={pkg.id} value={pkg.id}>{pkg.package_name} ({pkg.hours_remaining}h left)</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Trainer *</Label>
+                                <Select name="trainer" required>
+                                    <SelectTrigger><SelectValue placeholder="Select Trainer" /></SelectTrigger>
+                                    <SelectContent>
+                                        {trainers.map((t:any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div><Label>Duration (Hours) *</Label><Input name="duration" type="number" step="0.5" defaultValue="1" required /></div>
+                            <div><Label>Date</Label><Input name="date" type="datetime-local" defaultValue={new Date().toISOString().slice(0, 16)} /></div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending || !selectedClient}>{isPending && <Loader2 className="animate-spin mr-2"/>} Complete Session</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans, packages }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) {
+    const { toast } = useToast();
+    const [month, setMonth] = useState(() => getMonthReference());
+
+    const generateCommissionReportPDF = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const trainerId = formData.get('trainer') as string;
+        const targetTrainer = trainers.find(t => t.id === trainerId);
+        
+        if (!targetTrainer) return;
+
+        // Filter and Recalculate for the specific trainer and month to ensure consistency in PDF
+        const trainerSessions = sessions.filter(s => s.trainer_id === trainerId && getMonthReference(new Date(s.session_datetime)) === month && s.session_status === 'completed');
+        const sortedSessions = [...trainerSessions].sort((a,b) => a.session_datetime.localeCompare(b.session_datetime));
+        
+        const plan = commissionPlans.find(p => p.id === targetTrainer.commission_plan);
+        const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
+        
+        let cumHours = 0;
+        let cumBoxing = 0;
+        const reportCommissions: any[] = [];
+
+        sortedSessions.forEach(session => {
+            const client = clients.find(c => c.id === session.client_id);
+            const pkg = packages.find(p => p.id === session.purchase_id);
+            const isBoxing = pkg?.package_name.toLowerCase().includes('boxing');
+            const dur = session.duration_hours;
+            
+            let rate = 0;
+            let type = '';
+            let before = 0;
+            if (isBoxing && boxingPlan) {
+                rate = boxingPlan.tiers[0].rate;
+                before = cumBoxing;
+                cumBoxing += dur;
+                type = 'Boxing Package';
+            } else if (plan) {
+                if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
+                else {
+                    const t1 = plan.tiers.find(t => t.maxHours !== Infinity);
+                    const t2 = plan.tiers.find(t => t.maxHours === Infinity);
+                    if (t1 && t2) {
+                        if (cumHours >= t1.maxHours) rate = t2.rate;
+                        else if (cumHours + dur <= t1.maxHours) rate = t1.rate;
+                        else {
+                            const h1 = t1.maxHours - cumHours;
+                            rate = ((h1 * t1.rate) + ((dur - h1) * t2.rate)) / dur;
+                        }
+                    }
+                }
+                before = cumHours;
+                cumHours += dur;
+                type = plan.name;
+            }
+            reportCommissions.push({
+                date: formatDateTime(session.session_datetime),
+                client: client?.name || 'Unknown',
+                pkg: pkg?.package_name || 'Unknown',
+                duration: dur,
+                rate: Math.round(rate),
+                amount: Math.round(rate * dur),
+                cumBefore: before,
+                cumAfter: before + dur,
+                type: type
+            });
+        });
+
+        // Separate and re-order for PDF: Plan Items first, then Boxing Items
+        const planItems = reportCommissions.filter(c => c.type !== 'Boxing Package');
+        const boxingItems = reportCommissions.filter(c => c.type === 'Boxing Package');
+        const finalData = [...planItems, ...boxingItems];
+
+        if (finalData.length === 0) {
+            toast({ title: "No data found for this month.", variant: "destructive" });
+            return;
+        }
+
+        const totalCommission = finalData.reduce((sum, c) => sum + c.amount, 0);
+
+        let htmlContent = `
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8"><title>Commission Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; font-size: 12px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .summary { font-size: 14px; font-weight: bold; text-align: right; margin-top: 15px; }
+                .section-header { background: #fafafa; font-weight: bold; }
+            </style></head><body>
+            <div class="header">
+                <h1>PT COMMISSION REPORT</h1>
+                <p>Trainer: ${targetTrainer.name} | Month: ${month}</p>
+            </div>
+            <table><thead><tr>
+                <th>Date</th><th>Client</th><th>Package</th><th>Hours</th><th>Rate</th><th>Cumulative</th><th>Amount</th>
+            </tr></thead><tbody>
+            ${finalData.map(c => `
+                <tr class="${c.type === 'Boxing Package' ? 'section-header' : ''}">
+                    <td>${c.date}</td><td>${c.client}</td><td>${c.pkg}</td><td>${c.duration}h</td><td>${formatCurrency(c.rate)}</td><td>${c.cumBefore}h → ${c.cumAfter}h</td><td>${formatCurrency(c.amount)}</td>
+                </tr>
+            `).join('')}
+            </tbody></table>
+            <div class="summary">TOTAL COMMISSION: ${formatCurrency(totalCommission)}</div>
+            </body></html>
+        `;
+
+        const printWindow = window.open('', '', 'width=1000,height=800');
+        if (!printWindow) return;
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Generate Trainer Report</DialogTitle></DialogHeader>
+                <form onSubmit={generateCommissionReportPDF} className="space-y-4">
+                    <div>
+                        <Label>Select Month</Label>
+                        <Input type="month" value={month} onChange={e => setMonth(e.target.value)} required />
+                    </div>
+                    <div>
+                        <Label>Select Trainer</Label>
+                        <Select name="trainer" required>
+                            <SelectTrigger><SelectValue placeholder="Select Trainer" /></SelectTrigger>
+                            <SelectContent>{trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit">Generate PDF</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: boolean, onOpenChange: (open: boolean) => void, plans: PTCommissionPlan[], trainers: PTTrainer[], db: Firestore }) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+
+    const handleUpdateRate = async (planId: string, tierIndex: number, newRate: number) => {
+        const plan = plans.find(p => p.id === planId);
+        if (!plan) return;
+        const newTiers = [...plan.tiers];
+        newTiers[tierIndex].rate = newRate;
+        
+        startTransition(async () => {
+            try {
+                await updateDoc(doc(db, "pt_commission_plans", planId), { tiers: newTiers });
+                toast({ title: "Rate updated." });
+            } catch (e) {
+                toast({ title: "Error", variant: "destructive" });
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader><DialogTitle>Commission Plans</DialogTitle></DialogHeader>
+                <div className="space-y-6">
+                    {plans.map(plan => (
+                        <div key={plan.id} className="p-4 border rounded-lg bg-slate-50">
+                            <h4 className="font-bold mb-3">{plan.name}</h4>
+                            <div className="space-y-2">
+                                {plan.tiers.map((tier, idx) => (
+                                    <div key={idx} className="flex items-center gap-4 bg-white p-2 rounded border">
+                                        <span className="text-sm text-slate-500 w-32">{tier.maxHours === Infinity ? 'Remaining Hours' : `First ${tier.maxHours} Hours`}</span>
+                                        <div className="flex items-center gap-2">
+                                            <Label>Rate:</Label>
+                                            <Input 
+                                                type="number" 
+                                                className="w-24" 
+                                                defaultValue={tier.rate} 
+                                                onBlur={(e) => handleUpdateRate(plan.id, idx, parseFloat(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <DialogFooter><DialogClose asChild><Button variant="outline">Close</Button></DialogClose></DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[], monthRef: string) {
+    const [year, month] = monthRef.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0, 23, 59, 59);
+
+    const sessionsQuery = query(collection(db, "pt_sessions"), where("trainer_id", "==", trainerId));
+    const sessionsSnapshot = await getDocs(sessionsQuery);
+    const allTrainerSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
+
+    const sessionsThisMonth = allTrainerSessions
+        .filter(session => {
+            const sessionDate = new Date(session.session_datetime);
+            return session.session_status === 'completed' && sessionDate >= firstDay && sessionDate <= lastDay;
+        })
+        .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
+
+    const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
+    const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
+    
+    const commissionsQuery = query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef));
+    const commissionsSnapshot = await getDocs(commissionsQuery);
+
+    const batch = writeBatch(db);
+    commissionsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    let cumHours = 0;
+    let cumBoxing = 0;
+    const plan = allPlans.find(p => p.id === newPlanId);
+    const boxingPlan = allPlans.find(p => p.id === 'BOXING');
+
+    for (const session of sessionsThisMonth) {
+        const pkg = allPackages.find(p => p.id === session.purchase_id);
+        if (!pkg) continue;
+
+        const isBoxing = pkg.package_name.toLowerCase().includes('boxing');
+        const dur = session.duration_hours;
+        let rate = 0;
+        let before = 0;
+        let type = '';
+
+        if (isBoxing && boxingPlan) {
+            rate = boxingPlan.tiers[0].rate;
+            before = cumBoxing;
+            cumBoxing += dur;
+            type = 'Boxing Package';
+        } else if (plan) {
+            if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
+            else {
+                const t1 = plan.tiers.find(t => t.maxHours !== Infinity);
+                const t2 = plan.tiers.find(t => t.maxHours === Infinity);
+                if (t1 && t2) {
+                    if (cumHours >= t1.maxHours) rate = t2.rate;
+                    else if (cumHours + dur <= t1.maxHours) rate = t1.rate;
+                    else {
+                        const h1 = t1.maxHours - cumHours;
+                        rate = ((h1 * t1.rate) + ((dur - h1) * t2.rate)) / dur;
+                    }
+                }
+            }
+            before = cumHours;
+            cumHours += dur;
+            type = plan.name;
+        }
+
+        batch.set(doc(collection(db, "pt_commissions")), {
+            trainer_id: trainerId,
+            session_id: session.id,
+            duration_hours: dur,
+            hourly_rate_applied: Math.round(rate),
+            commission_amount: Math.round(rate * dur),
+            cumulative_hours_before: before,
+            cumulative_hours_after: before + dur,
+            commission_plan: isBoxing ? 'BOXING' : newPlanId,
+            commission_type: type,
+            month_reference: monthRef
+        });
+    }
+    await batch.commit();
+}
 
 export default function PTTrackerPage() {
     return (
