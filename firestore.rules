@@ -5,29 +5,24 @@ service cloud.firestore {
     
     // Helper function to check if the requesting user is an admin.
     function isAdmin() {
-      // It's safe to use get() here because it's a very small, fast read.
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Any authenticated user can read their own user profile.
       allow read: if request.auth != null && request.auth.uid == userId;
-      // Only admins can read all user profiles or write/update any user profile (e.g., to change a role).
       allow list, write: if request.auth != null && isAdmin();
     }
 
     // Rules for the 'security' collection
     match /security/settings {
-      // Any authenticated user can read the settings (to check for forced sign-out).
       allow read: if request.auth != null;
-      // Only admins can write to the settings (to trigger a forced sign-out).
       allow write: if request.auth != null && isAdmin();
     }
     
-    // Default rule for all other collections
-    // Allows any authenticated user to read and write.
-    // This keeps other app features working while we build out auth.
+    // Sales Dashboard rules
     match /salesdashboard1/{document=**} {
         allow read, write: if request.auth != null;
     }
@@ -41,6 +36,7 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
     }
 
+    // HRM rules
     match /employees/{document=**} {
         allow read, write: if request.auth != null;
     }
@@ -63,6 +59,7 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
     }
 
+    // Maintenance rules
     match /MaintenanceCategories/{document=**} {
         allow read, write: if request.auth != null;
     }
@@ -70,6 +67,7 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
     }
 
+    // Group Class rules
     match /groupClasses/{document=**} {
         allow read, write: if request.auth != null;
     }
@@ -83,6 +81,7 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
     }
 
+    // PT Tracker rules - ensuring all are covered for authenticated users
     match /pt_clients/{document=**} {
         allow read, write: if request.auth != null;
     }
@@ -109,4 +108,3 @@ service cloud.firestore {
     }
   }
 }
-
