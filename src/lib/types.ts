@@ -1,3 +1,4 @@
+
 export type User = {
   uid: string;
   name: string;
@@ -186,6 +187,7 @@ export interface PTSession {
   completion_timestamp?: string; // ISO 8601
   clientSignature?: string; // Data URL
   trainerSignature?: string; // Data URL
+  is_checked?: boolean;
 }
 
 export interface PTCommission {
@@ -290,5 +292,3 @@ export interface AssessmentServiceRecord {
   status: 'active' | 'completed';
   remark?: string;
 }
-
-    

@@ -1,37 +1,36 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useTransition, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
-import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, getDoc, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 
-import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, PTCommissionTier } from '@/lib/types';
+import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, User, Package, Briefcase, Info, Copyright, Edit, ChevronsUpDown, ArrowUp, ArrowDown, ArrowUpDown, Search, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Separator } from '@/components/ui/separator';
-import type { Firestore } from 'firebase/firestore';
-import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { Firestore } from 'firebase/firestore';
 
 // Helper Functions
 const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const formatDate = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-const formatDateTime = (dateStr: string) => dateStr ? new Date(dateStr).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
 function PTTrackerPageContent() {
@@ -137,18 +136,12 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
         const thisMonthCommissions = commissions.filter(c => c.month_reference === thisMonthRef);
         const totalCommission = thisMonthCommissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
         const totalHoursThisMonth = thisMonthCommissions.reduce((sum, c) => sum + (c.duration_hours || 0), 0);
-        const totalRevenue = packages.reduce((total, p) => total + (p.price_paid || 0), 0);
-        const totalHoursRemaining = activePackages.reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
-        const completedSessionsCount = sessions.filter(s => s.session_status === 'completed').length;
-
+        
         return {
             totalClients: clients.length,
             activeTrainers: trainers.filter(t => t.status === 'active').length,
             sessionsThisMonth: totalHoursThisMonth,
             commissionThisMonth: totalCommission,
-            totalRevenue,
-            totalHoursRemaining,
-            completedSessionsCount,
             activePackages: activePackages.slice(0, 5),
             recentSessions: sessions.slice(0, 5)
         }
@@ -159,74 +152,46 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="bg-gradient-to-br from-sky-500 to-sky-700 text-white p-6">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm opacity-80">Total Clients</p>
-                            <p className="text-3xl font-bold mt-1">{stats.totalClients}</p>
-                        </div>
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                            <Users className="w-6 h-6"/>
-                        </div>
+                        <div><p className="text-sm opacity-80">Total Clients</p><p className="text-3xl font-bold mt-1">{stats.totalClients}</p></div>
+                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center"><Users className="w-6 h-6"/></div>
                     </div>
                 </Card>
                  <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-slate-500">Active Trainers</p>
-                            <p className="text-3xl font-bold text-slate-800 mt-1">{stats.activeTrainers}</p>
-                        </div>
-                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600">
-                           <Award className="w-6 h-6"/>
-                        </div>
+                        <div><p className="text-sm text-slate-500">Active Trainers</p><p className="text-3xl font-bold text-slate-800 mt-1">{stats.activeTrainers}</p></div>
+                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600"><Award className="w-6 h-6"/></div>
                     </div>
                 </Card>
                 <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-slate-500">Sessions This Month</p>
-                            <p className="text-3xl font-bold text-slate-800 mt-1">{stats.sessionsThisMonth}</p>
-                        </div>
-                        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
-                            <CalendarIcon className="w-6 h-6"/>
-                        </div>
+                        <div><p className="text-sm text-slate-500">Sessions This Month</p><p className="text-3xl font-bold text-slate-800 mt-1">{stats.sessionsThisMonth}</p></div>
+                        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600"><CalendarIcon className="w-6 h-6"/></div>
                     </div>
                 </Card>
                  <Card className="p-6 bg-white">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-slate-500">Commission This Month</p>
-                            <p className="text-3xl font-bold text-slate-800 mt-1">{formatCurrency(stats.commissionThisMonth)}</p>
-                        </div>
-                        <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                           <BarChart2 className="w-6 h-6"/>
-                        </div>
+                        <div><p className="text-sm text-slate-500">Commission This Month</p><p className="text-3xl font-bold text-slate-800 mt-1">{formatCurrency(stats.commissionThisMonth)}</p></div>
+                        <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600"><BarChart2 className="w-6 h-6"/></div>
                     </div>
                 </Card>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <Card>
                     <CardHeader><CardTitle>Active Packages</CardTitle></CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {stats.activePackages.length === 0 ? <p className="text-slate-500 text-sm">No active packages</p> : 
-                                stats.activePackages.map(pkg => {
-                                    const client = clients.find(c => c.id === pkg.client_id);
-                                    const progress = pkg.hours_purchased > 0 ? ((pkg.hours_used || 0) / pkg.hours_purchased * 100) : 0;
-                                    return (
-                                        <div key={pkg.id} className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-semibold">
-                                                {client?.name?.charAt(0) || '?'}
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="font-medium text-slate-800">{client?.name || 'Unknown'}</span>
-                                                    <span className="text-sm text-slate-500">{pkg.hours_remaining || 0}h left</span>
-                                                </div>
-                                                <Progress value={progress} className="h-2" />
-                                            </div>
+                            {stats.activePackages.map(pkg => {
+                                const client = clients.find(c => c.id === pkg.client_id);
+                                return (
+                                    <div key={pkg.id} className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold">{client?.name?.charAt(0)}</div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between mb-1"><span className="font-medium text-slate-800">{client?.name}</span><span className="text-sm text-slate-500">{pkg.hours_remaining}h left</span></div>
+                                            <Progress value={(pkg.hours_used / pkg.hours_purchased) * 100} className="h-2" />
                                         </div>
-                                    )
-                                })
-                            }
+                                    </div>
+                                )
+                            })}
                         </div>
                     </CardContent>
                 </Card>
@@ -234,24 +199,15 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
                     <CardHeader><CardTitle>Recent Sessions</CardTitle></CardHeader>
                     <CardContent>
                         <div className="space-y-1">
-                             {stats.recentSessions.length === 0 ? <p className="text-slate-500 text-sm">No sessions recorded</p> : 
-                                stats.recentSessions.map(session => {
-                                    const client = clients.find(c => c.id === session.client_id);
-                                    const trainer = trainers.find(t => t.id === session.trainer_id);
-                                    return (
-                                        <div key={session.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                                            <div>
-                                                <p className="font-medium text-slate-800">{client?.name || 'Unknown'}</p>
-                                                <p className="text-sm text-slate-500">with {trainer?.name || 'Unknown'}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <Badge variant="outline" className={`badge-${session.session_status}`}>{session.session_status}</Badge>
-                                                <p className="text-xs text-slate-400 mt-1">{formatDateTime(session.session_datetime)}</p>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            }
+                             {stats.recentSessions.map(session => {
+                                const client = clients.find(c => c.id === session.client_id);
+                                return (
+                                    <div key={session.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                                        <div><p className="font-medium text-slate-800">{client?.name}</p><p className="text-xs text-slate-400">{formatDateTime(session.session_datetime)}</p></div>
+                                        <Badge variant="outline">{session.session_status}</Badge>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </CardContent>
                 </Card>
@@ -260,7 +216,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     )
 }
 
-function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore }) {
+function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore | null }) {
     const [search, setSearch] = useState('');
     const [clientModalOpen, setClientModalOpen] = useState(false);
     const [packageModalOpen, setPackageModalOpen] = useState(false);
@@ -275,8 +231,8 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <Input type="text" placeholder="Search clients by name or ID..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
-                <Button onClick={() => { setSelectedClient(null); setClientModalOpen(true); }} className="btn-primary"><Plus className="mr-2"/> Add Client</Button>
+                <Input type="text" placeholder="Search clients..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
+                <Button onClick={() => { setSelectedClient(null); setClientModalOpen(true); }}><Plus className="mr-2"/> Add Client</Button>
             </div>
             <Card>
                 <Accordion type="single" collapsible className="w-full">
@@ -288,18 +244,10 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                                 <AccordionTrigger className="p-4 hover:bg-slate-50">
                                     <div className="flex items-center justify-between w-full pr-4">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold">
-                                                {client.name?.charAt(0)?.toUpperCase()}
-                                            </div>
-                                            <div className="text-left">
-                                                <p className="font-semibold text-slate-800">{client.name}</p>
-                                                <p className="text-sm text-slate-500">{client.member_id || 'No ID'}</p>
-                                            </div>
-                                            <Badge variant="outline">{client.status}</Badge>
+                                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold">{client.name?.charAt(0)}</div>
+                                            <div className="text-left"><p className="font-semibold text-slate-800">{client.name}</p><p className="text-sm text-slate-500">{client.member_id || 'No ID'}</p></div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-lg text-green-600">{activeHours} <span className="text-sm font-normal text-slate-500">hours left</span></p>
-                                        </div>
+                                        <div className="text-right"><p className="font-bold text-lg text-green-600">{activeHours} <span className="text-sm font-normal text-slate-500">hours left</span></p></div>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="p-4 bg-slate-50 border-t">
@@ -308,23 +256,14 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                                         <Button size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(null); setPackageModalOpen(true); }}><Plus className="mr-2 h-3 w-3"/> New Package</Button>
                                     </div>
                                     <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Package</TableHead>
-                                                <TableHead>Hours (Used/Total)</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
+                                        <TableHeader><TableRow><TableHead>Package</TableHead><TableHead>Hours (Used/Total)</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                                         <TableBody>
                                             {clientPackages.map(pkg => (
                                                 <TableRow key={pkg.id}>
                                                     <TableCell className="font-medium">{pkg.package_name}</TableCell>
                                                     <TableCell>{pkg.hours_used || 0} / {pkg.hours_purchased}</TableCell>
                                                     <TableCell><Badge variant="outline">{pkg.status}</Badge></TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button>
-                                                    </TableCell>
+                                                    <TableCell className="text-right"><Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button></TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -335,15 +274,14 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                     })}
                 </Accordion>
             </Card>
-            <ClientModal open={clientModalOpen} onOpenChange={setClientModalOpen} client={selectedClient} db={db} />
-            <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />
+            {db && <ClientModal open={clientModalOpen} onOpenChange={setClientModalOpen} client={selectedClient} db={db} />}
+            {db && <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />}
         </div>
     )
 }
 
-function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
+function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore | null }) { 
     const [trainerModalOpen, setTrainerModalOpen] = useState(false);
-    const [plansModalOpen, setPlansModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
     
@@ -351,22 +289,11 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
         <div className="space-y-6">
              <div className="flex justify-between items-center">
                  <h3 className="text-lg font-semibold">Trainer Roster</h3>
-                <div className="flex gap-2">
-                    <Button onClick={() => setPlansModalOpen(true)} variant="outline"><Settings className="mr-2"/> Manage Plans</Button>
-                    <Button onClick={() => { setSelectedTrainer(null); setTrainerModalOpen(true); }}><Plus className="mr-2"/> Add Trainer</Button>
-                </div>
+                 <Button onClick={() => { setSelectedTrainer(null); setTrainerModalOpen(true); }}><Plus className="mr-2"/> Add Trainer</Button>
             </div>
             <Card>
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Trainer</TableHead>
-                            <TableHead>Plan</TableHead>
-                            <TableHead>Earnings ({thisMonthRef})</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Trainer</TableHead><TableHead>Plan</TableHead><TableHead>Earnings ({thisMonthRef})</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                     <TableBody>
                         {trainers.map(trainer => {
                             const monthlyEarned = commissions.filter(c => c.trainer_id === trainer.id && c.month_reference === thisMonthRef).reduce((sum, c) => sum + c.commission_amount, 0);
@@ -386,32 +313,66 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
                     </TableBody>
                 </Table>
             </Card>
-            <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} />
-            <ManagePlansDialog open={plansModalOpen} onOpenChange={setPlansModalOpen} plans={commissionPlans} trainers={trainers} db={db} />
+            {db && <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} />}
         </div>
     )
 }
 
-function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore }) { 
+function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore | null }) { 
+    const { toast } = useToast();
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
-    const [manualCompleteOpen, setManualCompleteOpen] = useState(false);
-    const [trainerFilter, setTrainerFilter] = useState('all');
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
 
-    const filteredSessions = sessions.filter(s => trainerFilter === 'all' || s.trainer_id === trainerFilter);
+    const handleToggleCheck = async (session: PTSession, checked: boolean) => {
+        if (!db) return;
+        try {
+            await updateDoc(doc(db, "pt_sessions", session.id), { is_checked: checked });
+        } catch (e) {
+            toast({ title: "Error", variant: "destructive" });
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!db || !sessionToDelete) return;
+        startTransition(async () => {
+            try {
+                const session = sessions.find(s => s.id === sessionToDelete);
+                if (session) {
+                    // Update Package hours back
+                    const pkg = packages.find(p => p.id === session.purchase_id);
+                    if (pkg) {
+                        const newUsed = Math.max(0, (pkg.hours_used || 0) - session.duration_hours);
+                        await updateDoc(doc(db, "pt_packages", pkg.id), {
+                            hours_used: newUsed,
+                            hours_remaining: pkg.hours_purchased - newUsed,
+                            status: 'active'
+                        });
+                    }
+
+                    // Delete Commission
+                    const commQuery = query(collection(db, "pt_commissions"), where("session_id", "==", session.id));
+                    const commSnap = await getDocs(commQuery);
+                    const batch = writeBatch(db);
+                    commSnap.forEach(d => batch.delete(d.ref));
+                    await batch.commit();
+
+                    // Delete Session
+                    await deleteDoc(doc(db, "pt_sessions", session.id));
+                    
+                    toast({ title: "Session deleted." });
+                }
+            } catch (e) {
+                toast({ title: "Error deleting", variant: "destructive" });
+            }
+            setDeleteConfirmOpen(false);
+        });
+    };
 
     return (
          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                 <Select value={trainerFilter} onValueChange={setTrainerFilter}>
-                    <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Trainers" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Trainers</SelectItem>
-                        {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                 <Button onClick={() => setManualCompleteOpen(true)}><Plus className="mr-2"/> Complete Session</Button>
-            </div>
              <Card>
                 <Table>
                     <TableHeader>
@@ -426,19 +387,27 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredSessions.map(session => {
+                        {sessions.map(session => {
                             const client = clients.find(c => c.id === session.client_id);
                             const trainer = trainers.find(t => t.id === session.trainer_id);
                             return (
-                                <TableRow key={session.id}>
+                                <TableRow key={session.id} className={cn(session.is_checked && "bg-green-50/50 hover:bg-green-100/50")}>
                                     <TableCell>{formatDateTime(session.session_datetime)}</TableCell>
                                     <TableCell>{client?.member_id}</TableCell>
                                     <TableCell>{client?.name}</TableCell>
                                     <TableCell>{trainer?.name}</TableCell>
                                     <TableCell>{session.duration_hours}h</TableCell>
                                     <TableCell><Badge variant="outline">{session.session_status}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => { setSessionToEdit(session); setEditModalOpen(true); }}>Edit</Button>
+                                    <TableCell className="text-right flex items-center justify-end gap-2">
+                                        <div className="flex items-center gap-2 mr-2 border-r pr-2">
+                                            <Checkbox 
+                                                checked={session.is_checked} 
+                                                onCheckedChange={(checked) => handleToggleCheck(session, !!checked)}
+                                                className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                                            />
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setSessionToEdit(session); setEditModalOpen(true); }}><Edit className="h-4 w-4"/></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSessionToDelete(session.id); setDeleteConfirmOpen(true); }}><Trash2 className="h-4 w-4"/></Button>
                                     </TableCell>
                                 </TableRow>
                             )
@@ -446,8 +415,22 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                     </TableBody>
                 </Table>
             </Card>
-            <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} commissionPlans={commissionPlans} />
-            <ManualSessionCompletionDialog open={manualCompleteOpen} onOpenChange={setManualCompleteOpen} clients={clients} trainers={trainers} packages={packages} commissionPlans={commissionPlans} db={db} />
+            {db && <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} commissionPlans={commissionPlans} />}
+            
+            <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Session?</AlertDialogTitle>
+                        <AlertDialogDescription>This will revert the package hours and remove associated commissions. This action cannot be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700" disabled={isPending}>
+                            {isPending ? <Loader2 className="animate-spin h-4 w-4"/> : 'Confirm Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
@@ -455,7 +438,6 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
 function CommissionsTab({ commissions, trainers, sessions, clients, commissionPlans, packages }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
-    const [pdfModalOpen, setPdfModalOpen] = useState(false);
     
     const recalculatedCommissions = useMemo(() => {
         const filtered = commissions.filter(c => (trainerFilter === 'all' || c.trainer_id === trainerFilter) && c.month_reference === monthFilter);
@@ -497,9 +479,8 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     c.cumulative_hours_after = cumBoxing;
                     c.commission_type = 'Boxing Package';
                 } else if (plan) {
-                    if (plan.tiers.length === 1) {
-                        rate = plan.tiers[0].rate;
-                    } else {
+                    if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
+                    else {
                         const t1 = plan.tiers.find(t => t.maxHours !== Infinity);
                         const t2 = plan.tiers.find(t => t.maxHours === Infinity);
                         if (t1 && t2) {
@@ -533,11 +514,9 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 
     const trainerSummaries = useMemo(() => {
         const trainersToProcess = trainerFilter === 'all' ? trainers : trainers.filter(t => t.id === trainerFilter);
-        
         return trainersToProcess.map(trainer => {
             const trainerComms = recalculatedCommissions.filter(c => c.trainer_id === trainer.id);
             const plan = commissionPlans.find(p => p.id === trainer.commission_plan);
-            
             return {
                 id: trainer.id,
                 name: trainer.name,
@@ -554,14 +533,10 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                  <div className="flex gap-2">
                     <Select value={trainerFilter} onValueChange={setTrainerFilter}>
                         <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Trainers" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Trainers</SelectItem>
-                            {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                        </SelectContent>
+                        <SelectContent><SelectItem value="all">All Trainers</SelectItem>{trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
                      <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px]" />
                 </div>
-                 <Button onClick={() => setPdfModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white"><FileText className="mr-2 h-4 w-4" /> Generate PDF</Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -569,58 +544,31 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     <Card key={summary.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-all">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 font-bold border border-green-100">
-                                    {summary.name.charAt(0)}
-                                </div>
+                                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 font-bold border border-green-100">{summary.name.charAt(0)}</div>
                                 <div>
                                     <h4 className="font-bold text-slate-800">{summary.name}</h4>
-                                    <Badge variant="outline" className="text-[10px] h-5 py-0 bg-slate-50 border-slate-200 text-slate-600">
-                                        {summary.plan}
-                                    </Badge>
+                                    <Badge variant="outline" className="text-[10px] h-5 py-0 bg-slate-50 border-slate-200 text-slate-600">{summary.plan}</Badge>
                                 </div>
                             </div>
-                            
                             <div className="space-y-2.5">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500">Hours ({monthFilter})</span>
-                                    <span className="font-bold text-slate-900">{summary.totalHours}h</span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500">Total Earnings</span>
-                                    <span className="font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span>
-                                </div>
+                                <div className="flex justify-between items-center text-sm"><span className="text-slate-500">Hours ({monthFilter})</span><span className="font-bold text-slate-900">{summary.totalHours}h</span></div>
+                                <div className="flex justify-between items-center text-sm"><span className="text-slate-500">Total Earnings</span><span className="font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span></div>
                             </div>
                         </CardContent>
                     </Card>
                 ))}
-                {trainerSummaries.length === 0 && (
-                     <Card className="col-span-full bg-slate-50 border-dashed border-2 p-10 flex flex-col items-center justify-center text-center">
-                        <Info className="w-10 h-10 text-slate-300 mb-2" />
-                        <p className="text-slate-500 font-medium">No training data found for this period.</p>
-                     </Card>
-                )}
             </div>
 
              <Card>
                 <Table>
-                    <TableHeader>
-                         <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Trainer</TableHead>
-                            <TableHead>Plan</TableHead>
-                            <TableHead>Hours</TableHead>
-                            <TableHead>Rate</TableHead>
-                            <TableHead>Cumulative</TableHead>
-                            <TableHead className="text-right">Commission</TableHead>
-                        </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Trainer</TableHead><TableHead>Plan</TableHead><TableHead>Hours</TableHead><TableHead>Rate</TableHead><TableHead>Cumulative</TableHead><TableHead className="text-right">Commission</TableHead></TableRow></TableHeader>
                     <TableBody>
                         {recalculatedCommissions.map(comm => {
                             const trainer = trainers.find(t => t.id === comm.trainer_id);
                             const session = sessions.find(s => s.id === comm.session_id);
                             return (
                                 <TableRow key={comm.id}>
-                                    <TableCell>{formatDateTime(session?.session_datetime)}</TableCell>
+                                    <TableCell>{formatDateTime(session?.session_datetime || '')}</TableCell>
                                     <TableCell>{trainer?.name}</TableCell>
                                     <TableCell><Badge variant="outline">{comm.commission_type}</Badge></TableCell>
                                     <TableCell>{comm.duration_hours}h</TableCell>
@@ -633,7 +581,6 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     </TableBody>
                 </Table>
             </Card>
-             <PDFExportModal open={pdfModalOpen} onOpenChange={setPdfModalOpen} trainers={trainers} commissions={commissions} sessions={sessions} clients={clients} commissionPlans={commissionPlans} packages={packages} />
         </div>
     )
 }
@@ -641,29 +588,19 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name') as string,
-            member_id: formData.get('member_id') as string,
-            phone: formData.get('phone') as string,
-            status: formData.get('status') as any,
-        };
-
+        const data = { name: formData.get('name') as string, member_id: formData.get('member_id') as string, phone: formData.get('phone') as string, status: formData.get('status') as any };
         startTransition(async () => {
             try {
                 if (client) await updateDoc(doc(db, "pt_clients", client.id), data);
-                else await addDoc(collection(db, "pt_clients"), { ...data, entity_type: 'client' });
-                toast({ title: "Success", description: "Client saved successfully." });
+                else await addDoc(collection(db, "pt_clients"), { ...data });
+                toast({ title: "Success" });
                 onOpenChange(false);
-            } catch (error) {
-                toast({ title: "Error", variant: "destructive" });
-            }
+            } catch (error) { toast({ title: "Error", variant: "destructive" }); }
         });
     }
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -672,17 +609,8 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
                     <div><Label>Name *</Label><Input name="name" defaultValue={client?.name} required /></div>
                     <div><Label>Member ID</Label><Input name="member_id" defaultValue={client?.member_id} /></div>
                     <div><Label>Phone</Label><Input name="phone" defaultValue={client?.phone} /></div>
-                    <div>
-                        <Label>Status</Label>
-                        <Select name="status" defaultValue={client?.status || 'active'}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                        </Select>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Client</Button>
-                    </DialogFooter>
+                    <div><Label>Status</Label><Select name="status" defaultValue={client?.status || 'active'}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
+                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Client</Button></DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
@@ -692,75 +620,31 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
 function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-
-    // Controlled Form State
-    const [packageName, setPackageName] = useState('');
-    const [hoursPurchased, setHoursPurchased] = useState(0);
-    const [pricePaid, setPricePaid] = useState(0);
-    const [hoursUsed, setHoursUsed] = useState(0);
-    const [purchaseDate, setPurchaseDate] = useState('');
-    const [expiryDate, setExpiryDate] = useState('');
-    const [status, setStatus] = useState<any>('active');
-    const [selectedClientId, setSelectedClientId] = useState('');
-    const [clientSearch, setClientSearch] = useState('');
-    const [isClientListOpen, setIsClientListOpen] = useState(false);
-
+    const [formData, setFormData] = useState({ packageName: 'Personal Training Package', hoursPurchased: 10, pricePaid: 6000, hoursUsed: 0, purchaseDate: new Date().toISOString().split('T')[0], expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0], status: 'active' as any, selectedClientId: '' });
+    
     useEffect(() => {
         if (open) {
-            if (pkg) {
-                setPackageName(pkg.package_name || '');
-                setHoursPurchased(pkg.hours_purchased || 0);
-                setPricePaid(pkg.price_paid || 0);
-                setHoursUsed(pkg.hours_used || 0);
-                setPurchaseDate(pkg.purchase_date || '');
-                setExpiryDate(pkg.expiry_date || '');
-                setStatus(pkg.status || 'active');
-                setSelectedClientId(pkg.client_id || '');
-                setClientSearch(clients.find(c => c.id === pkg.client_id)?.name || '');
-            } else {
-                setPackageName('Personal Training Package');
-                setHoursPurchased(10);
-                setPricePaid(6000);
-                setHoursUsed(0);
-                setPurchaseDate(new Date().toISOString().split('T')[0]);
-                setExpiryDate(new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]);
-                setStatus('active');
-                setSelectedClientId(client?.id || '');
-                setClientSearch(client?.name || '');
-            }
+            if (pkg) setFormData({ packageName: pkg.package_name, hoursPurchased: pkg.hours_purchased, pricePaid: pkg.price_paid, hoursUsed: pkg.hours_used, purchaseDate: pkg.purchase_date, expiryDate: pkg.expiry_date, status: pkg.status, selectedClientId: pkg.client_id });
+            else setFormData({ ...formData, selectedClientId: client?.id || '' });
         }
-    }, [open, pkg, client, clients]);
+    }, [open, pkg, client]);
 
-    const pricePerHour = hoursPurchased > 0 ? pricePaid / hoursPurchased : 0;
-    const hoursRemaining = Math.max(0, hoursPurchased - hoursUsed);
+    const hoursRemaining = Math.max(0, formData.hoursPurchased - formData.hoursUsed);
+    const pricePerHour = formData.hoursPurchased > 0 ? formData.pricePaid / formData.hoursPurchased : 0;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedClientId) return;
-
-        const data: Omit<PTPackage, 'id'> = {
-            client_id: selectedClientId,
-            package_name: packageName,
-            hours_purchased: Number(hoursPurchased),
-            price_paid: Number(pricePaid),
-            price_per_hour: pricePerHour,
-            purchase_date: purchaseDate,
-            expiry_date: expiryDate,
-            status: hoursRemaining <= 0 ? 'completed' : status,
-            hours_used: Number(hoursUsed),
-            hours_remaining: hoursRemaining,
-        };
-
+        if (!formData.selectedClientId) return;
         startTransition(async () => {
             try {
-                if (pkg) await updateDoc(doc(db, "pt_packages", pkg.id), data);
-                else await addDoc(collection(db, "pt_packages"), { ...data, entity_type: 'package' });
-                toast({ title: "Success", description: "Package saved successfully." });
+                const data = { ...formData, price_per_hour: pricePerHour, hours_remaining: hoursRemaining, status: hoursRemaining <= 0 ? 'completed' : formData.status };
+                // Map to Firestore keys
+                const finalData = { client_id: data.selectedClientId, package_name: data.packageName, hours_purchased: data.hoursPurchased, price_paid: data.pricePaid, price_per_hour: data.price_per_hour, purchase_date: data.purchaseDate, expiry_date: data.expiryDate, status: data.status, hours_used: data.hoursUsed, hours_remaining: data.hours_remaining };
+                if (pkg) await updateDoc(doc(db, "pt_packages", pkg.id), finalData);
+                else await addDoc(collection(db, "pt_packages"), finalData);
+                toast({ title: "Success" });
                 onOpenChange(false);
-            } catch (error) {
-                console.error("Error saving package:", error);
-                toast({ title: "Error", variant: "destructive" });
-            }
+            } catch (error) { toast({ title: "Error", variant: "destructive" }); }
         });
     }
 
@@ -769,77 +653,23 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
             <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>{pkg ? 'Edit Package' : 'Add Package'}</DialogTitle></DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {!pkg && (
-                        <div className="relative">
-                            <Label>Client *</Label>
-                            <Input placeholder="Search client..." value={clientSearch} onChange={e => { setClientSearch(e.target.value); setSelectedClientId(''); setIsClientListOpen(true); }} onFocus={() => setIsClientListOpen(true)} onBlur={() => setTimeout(() => setIsClientListOpen(false), 200)} />
-                            {isClientListOpen && (
-                                <Card className="absolute z-50 w-full mt-1 max-h-40 overflow-y-auto shadow-xl">
-                                    {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
-                                        <div key={c.id} className="p-2 hover:bg-slate-100 cursor-pointer" onMouseDown={() => { setSelectedClientId(c.id); setClientSearch(c.name); setIsClientListOpen(false); }}>{c.name} ({c.member_id})</div>
-                                    ))}
-                                </Card>
-                            )}
-                        </div>
-                    )}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Package Name *</Label>
-                            <Select value={packageName} onValueChange={setPackageName}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
-                                    <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Hours Purchased *</Label>
-                            <Input type="number" value={hoursPurchased} onChange={e => setHoursPurchased(Number(e.target.value))} />
-                        </div>
+                        <div className="space-y-2"><Label>Package Name *</Label><Select value={formData.packageName} onValueChange={(v) => setFormData({...formData, packageName: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Personal Training Package">Personal Training Package</SelectItem><SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2"><Label>Hours Purchased *</Label><Input type="number" value={formData.hoursPurchased} onChange={e => setFormData({...formData, hoursPurchased: Number(e.target.value)})} /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Total Price (THB) *</Label>
-                            <Input type="number" value={pricePaid} onChange={e => setPricePaid(Number(e.target.value))} />
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center border border-slate-100">
-                            <Label className="text-muted-foreground text-xs">Price per hour:</Label>
-                            <span className="font-bold">{formatCurrency(pricePerHour)}</span>
-                        </div>
+                        <div className="space-y-2"><Label>Total Price (THB) *</Label><Input type="number" value={formData.pricePaid} onChange={e => setFormData({...formData, pricePaid: Number(e.target.value)})} /></div>
+                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center border border-slate-100"><Label className="text-muted-foreground text-xs">Price per hour:</Label><span className="font-bold">{formatCurrency(pricePerHour)}</span></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Purchase Date *</Label>
-                            <Input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Expiry Date *</Label>
-                            <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} />
-                        </div>
+                        <div className="space-y-2"><Label>Purchase Date *</Label><Input type="date" value={formData.purchaseDate} onChange={e => setFormData({...formData, purchaseDate: e.target.value})} /></div>
+                        <div className="space-y-2"><Label>Expiry Date *</Label><Input type="date" value={formData.expiryDate} onChange={e => setFormData({...formData, expiryDate: e.target.value})} /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Hours Used</Label>
-                            <Input type="number" step="0.5" value={hoursUsed} onChange={e => setHoursUsed(Number(e.target.value))} />
-                            <p className="text-[10px] text-muted-foreground">Remaining: {hoursRemaining}h</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Status</Label>
-                            <Select value={status} onValueChange={setStatus}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="completed">Completed</SelectItem>
-                                    <SelectItem value="expired">Expired</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        <div className="space-y-2"><Label>Hours Used</Label><Input type="number" step="0.5" value={formData.hoursUsed} onChange={e => setFormData({...formData, hoursUsed: Number(e.target.value)})} /><p className="text-[10px] text-muted-foreground">Remaining: {hoursRemaining}h</p></div>
+                        <div className="space-y-2"><Label>Status</Label><Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent></Select></div>
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button>
-                    </DialogFooter>
+                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button></DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
@@ -849,30 +679,19 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
 function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, commissionPlans: PTCommissionPlan[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        const data = {
-            name: formData.get('name') as string,
-            email: formData.get('email') as string,
-            phone: formData.get('phone') as string,
-            status: formData.get('status') as any,
-            commission_plan: formData.get('commission_plan') as string,
-        };
-
+        const data = { name: formData.get('name') as string, email: formData.get('email') as string, phone: formData.get('phone') as string, status: formData.get('status') as any, commission_plan: formData.get('commission_plan') as string };
         startTransition(async () => {
             try {
                 if (trainer) await updateDoc(doc(db, "pt_trainers", trainer.id), data);
-                else await addDoc(collection(db, "pt_trainers"), { ...data, entity_type: 'trainer' });
-                toast({ title: "Success", description: "Trainer saved successfully." });
+                else await addDoc(collection(db, "pt_trainers"), data);
+                toast({ title: "Success" });
                 onOpenChange(false);
-            } catch (error) {
-                toast({ title: "Error", variant: "destructive" });
-            }
+            } catch (error) { toast({ title: "Error", variant: "destructive" }); }
         });
     }
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -881,26 +700,9 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { op
                     <div><Label>Name *</Label><Input name="name" defaultValue={trainer?.name} required /></div>
                     <div><Label>Email</Label><Input name="email" type="email" defaultValue={trainer?.email} /></div>
                     <div><Label>Phone</Label><Input name="phone" defaultValue={trainer?.phone} /></div>
-                    <div>
-                        <Label>Commission Plan *</Label>
-                        <Select name="commission_plan" defaultValue={trainer?.commission_plan || 'PLAN_A'}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {commissionPlans.filter(p=>p.id!=='BOXING').map(plan => <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Label>Status</Label>
-                        <Select name="status" defaultValue={trainer?.status || 'active'}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
-                        </Select>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Trainer</Button>
-                    </DialogFooter>
+                    <div><Label>Plan *</Label><Select name="commission_plan" defaultValue={trainer?.commission_plan || 'PLAN_A'}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{commissionPlans.filter(p=>p.id!=='BOXING').map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label>Status</Label><Select name="status" defaultValue={trainer?.status || 'active'}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
+                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Trainer</Button></DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
@@ -913,19 +715,27 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
 
     if (!session) return null;
 
+    const client = clients.find((c:any) => c.id === session.client_id);
+    const pkg = packages.find((p:any) => p.id === session.purchase_id);
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const newDuration = parseFloat(formData.get('duration') as string);
+        const newTrainerId = formData.get('trainerId') as string;
+        const newDateTime = formData.get('datetime') as string;
         const diff = newDuration - session.duration_hours;
         
         startTransition(async () => {
             try {
                 // Update Session
-                await updateDoc(doc(db, "pt_sessions", session.id), { duration_hours: newDuration });
+                await updateDoc(doc(db, "pt_sessions", session.id), { 
+                    duration_hours: newDuration,
+                    trainer_id: newTrainerId,
+                    session_datetime: new Date(newDateTime).toISOString()
+                });
                 
                 // Update Package
-                const pkg = packages.find((p:any) => p.id === session.purchase_id);
                 if (pkg) {
                     const newUsed = (pkg.hours_used || 0) + diff;
                     await updateDoc(doc(db, "pt_packages", pkg.id), { 
@@ -934,32 +744,60 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     });
                 }
                 
-                // Recalculate Commissions for this trainer in this month
-                const monthRef = getMonthReference(new Date(session.session_datetime));
-                const trainer = trainers.find((t:any) => t.id === session.trainer_id);
-                if (trainer) {
-                    await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans, monthRef);
+                // Recalculate Commissions
+                const monthRef = getMonthReference(new Date(newDateTime));
+                const trainer = trainers.find((t:any) => t.id === newTrainerId);
+                if (trainer) await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans, monthRef);
+                if (newTrainerId !== session.trainer_id) {
+                    const oldTrainer = trainers.find((t:any) => t.id === session.trainer_id);
+                    if (oldTrainer) await recalculateCommissions(db, oldTrainer.id, oldTrainer.commission_plan, commissionPlans, getMonthReference(new Date(session.session_datetime)));
                 }
 
-                toast({ title: "Success", description: "Session updated and commissions recalculated." });
+                toast({ title: "Success" });
                 onOpenChange(false);
-            } catch (error) {
-                toast({ title: "Error", variant: "destructive" });
-            }
+            } catch (error) { toast({ title: "Error", variant: "destructive" }); }
         });
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader><DialogTitle>Edit Session</DialogTitle></DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <Label>Duration (Hours)</Label>
-                        <Input name="duration" type="number" step="0.5" defaultValue={session.duration_hours} required />
+            <DialogContent className="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Session</DialogTitle>
+                    <DialogDescription>For client: {client?.name}</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+                    <div className="space-y-2">
+                        <Label>Package</Label>
+                        <div className="p-3 bg-slate-50 border rounded-md text-sm text-slate-700">
+                            {pkg?.package_name} ({pkg?.hours_remaining}h left)
+                        </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">Changing duration will update the client's package and recalculate trainer's commissions for this month.</p>
-                    <DialogFooter>
+                    <div className="space-y-2">
+                        <Label>Trainer *</Label>
+                        <Select name="trainerId" defaultValue={session.trainer_id} required>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>{trainers.map((t:any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Date & Time *</Label>
+                            <Input name="datetime" type="datetime-local" defaultValue={new Date(session.session_datetime).toISOString().slice(0, 16)} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Duration (hours) *</Label>
+                            <Select name="duration" defaultValue={session.duration_hours.toString()} required>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">1 hour</SelectItem>
+                                    <SelectItem value="1.5">1.5 hours</SelectItem>
+                                    <SelectItem value="2">2 hours</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter className="pt-4 border-t">
                         <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Update Session</Button>
                     </DialogFooter>
@@ -969,384 +807,16 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
     )
 }
 
-function ManualSessionCompletionDialog({ open, onOpenChange, clients, trainers, packages, commissionPlans, db }: any) {
-    const { toast } = useToast();
-    const [isPending, startTransition] = useTransition();
-    const [selectedClient, setSelectedClient] = useState<string>('');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showResults, setShowResults] = useState(false);
-
-    const filteredClients = useMemo(() => {
-        if (!searchQuery) return [];
-        return clients.filter((c: any) => 
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            c.member_id?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [clients, searchQuery]);
-
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        const clientId = selectedClient;
-        const packageId = formData.get('package') as string;
-        const trainerId = formData.get('trainer') as string;
-        const duration = parseFloat(formData.get('duration') as string);
-        const dateStr = formData.get('date') as string;
-
-        if (!clientId || !packageId || !trainerId || isNaN(duration)) {
-             toast({ title: "Error", description: "Please fill all required fields.", variant: "destructive" });
-             return;
-        }
-
-        startTransition(async () => {
-             try {
-                const sessionDateTime = dateStr ? new Date(dateStr) : new Date();
-                const trainer = trainers.find((t:any) => t.id === trainerId);
-                const pkg = packages.find((p:any) => p.id === packageId);
-
-                if (!trainer || !pkg) throw new Error("Data not found");
-
-                // 1. Create Session
-                const sessionData: Omit<PTSession, 'id'> = {
-                    client_id: clientId,
-                    purchase_id: packageId,
-                    trainer_id: trainerId,
-                    session_datetime: sessionDateTime.toISOString(),
-                    duration_hours: duration,
-                    session_status: 'completed',
-                    completed_by: 'Manual Admin Entry',
-                    completion_timestamp: new Date().toISOString()
-                };
-                const newSessionRef = await addDoc(collection(db, 'pt_sessions'), sessionData);
-
-                // 2. Update Package
-                const newUsed = (pkg.hours_used || 0) + duration;
-                await updateDoc(doc(db, "pt_packages", pkg.id), {
-                    hours_used: newUsed,
-                    hours_remaining: pkg.hours_purchased - newUsed,
-                    status: (pkg.hours_purchased - newUsed) <= 0 ? 'completed' : 'active'
-                });
-
-                // 3. Recalculate Commissions
-                const monthRef = getMonthReference(sessionDateTime);
-                await recalculateCommissions(db, trainerId, trainer.commission_plan, commissionPlans, monthRef);
-
-                toast({ title: "Success", description: "Session recorded manually." });
-                onOpenChange(false);
-                setSelectedClient('');
-                setSearchQuery('');
-            } catch (error) {
-                toast({ title: "Error", variant: "destructive" });
-            }
-        });
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
-                <DialogHeader><DialogTitle>Manual Session Entry</DialogTitle></DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="relative">
-                        <Label>Client *</Label>
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Search by name or member ID..." 
-                                value={searchQuery}
-                                className="pl-8"
-                                onChange={(e) => { setSearchQuery(e.target.value); setShowResults(true); }}
-                                onFocus={() => setShowResults(true)}
-                            />
-                        </div>
-                        {showResults && searchQuery && (
-                            <Card className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto shadow-lg">
-                                {filteredClients.length > 0 ? filteredClients.map((c: any) => (
-                                    <div 
-                                        key={c.id} 
-                                        className="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-                                        onMouseDown={() => { 
-                                            setSelectedClient(c.id); 
-                                            setSearchQuery(c.name + (c.member_id ? ` (${c.member_id})` : ''));
-                                            setShowResults(false);
-                                        }}
-                                    >
-                                        {c.name} {c.member_id && <span className="text-muted-foreground ml-1">[{c.member_id}]</span>}
-                                    </div>
-                                )) : <div className="p-2 text-sm text-muted-foreground">No clients found</div>}
-                            </Card>
-                        )}
-                    </div>
-                    {selectedClient && (
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <Label>Package *</Label>
-                                <Select name="package" required>
-                                    <SelectTrigger><SelectValue placeholder="Select Package" /></SelectTrigger>
-                                    <SelectContent>
-                                        {packages.filter((p:any) => p.client_id === selectedClient && p.status === 'active').map((pkg:any) => (
-                                            <SelectItem key={pkg.id} value={pkg.id}>{pkg.package_name} ({pkg.hours_remaining}h left)</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label>Trainer *</Label>
-                                <Select name="trainer" required>
-                                    <SelectTrigger><SelectValue placeholder="Select Trainer" /></SelectTrigger>
-                                    <SelectContent>
-                                        {trainers.map((t:any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div><Label>Duration (Hours) *</Label><Input name="duration" type="number" step="0.5" defaultValue="1" required /></div>
-                            <div><Label>Date</Label><Input name="date" type="datetime-local" defaultValue={new Date().toISOString().slice(0, 16)} /></div>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending || !selectedClient}>{isPending && <Loader2 className="animate-spin mr-2"/>} Complete Session</Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function PDFExportModal({ open, onOpenChange, trainers, commissions, sessions, clients, commissionPlans, packages }: { open: boolean, onOpenChange: (open: boolean) => void, trainers: PTTrainer[], commissions: PTCommission[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) {
-    const { toast } = useToast();
-    const [month, setMonth] = useState(() => getMonthReference());
-
-    const generateCommissionReportPDF = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        const trainerId = formData.get('trainer') as string;
-        const targetTrainer = trainers.find(t => t.id === trainerId);
-        
-        if (!targetTrainer) return;
-
-        // Filter and Recalculate for the specific trainer and month to ensure consistency in PDF
-        const trainerSessions = sessions.filter(s => s.trainer_id === trainerId && getMonthReference(new Date(s.session_datetime)) === month && s.session_status === 'completed');
-        const sortedSessions = [...trainerSessions].sort((a,b) => a.session_datetime.localeCompare(b.session_datetime));
-        
-        const plan = commissionPlans.find(p => p.id === targetTrainer.commission_plan);
-        const boxingPlan = commissionPlans.find(p => p.id === 'BOXING');
-        
-        let cumHours = 0;
-        let cumBoxing = 0;
-        const reportCommissions: any[] = [];
-
-        sortedSessions.forEach(session => {
-            const client = clients.find(c => c.id === session.client_id);
-            const pkg = packages.find(p => p.id === session.purchase_id);
-            const isBoxing = pkg?.package_name.toLowerCase().includes('boxing');
-            const dur = session.duration_hours;
-            
-            let rate = 0;
-            let type = '';
-            let before = 0;
-            if (isBoxing && boxingPlan) {
-                rate = boxingPlan.tiers[0].rate;
-                before = cumBoxing;
-                cumBoxing += dur;
-                type = 'Boxing Package';
-            } else if (plan) {
-                if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
-                else {
-                    const t1 = plan.tiers.find(t => t.maxHours !== Infinity);
-                    const t2 = plan.tiers.find(t => t.maxHours === Infinity);
-                    if (t1 && t2) {
-                        if (cumHours >= t1.maxHours) rate = t2.rate;
-                        else if (cumHours + dur <= t1.maxHours) rate = t1.rate;
-                        else {
-                            const h1 = t1.maxHours - cumHours;
-                            rate = ((h1 * t1.rate) + ((dur - h1) * t2.rate)) / dur;
-                        }
-                    }
-                }
-                before = cumHours;
-                cumHours += dur;
-                type = plan.name;
-            }
-            reportCommissions.push({
-                date: formatDateTime(session.session_datetime),
-                client: client?.name || 'Unknown',
-                pkg: pkg?.package_name || 'Unknown',
-                duration: dur,
-                rate: Math.round(rate),
-                amount: Math.round(rate * dur),
-                cumBefore: before,
-                cumAfter: before + dur,
-                type: type
-            });
-        });
-
-        // Separate and re-order for PDF: Plan Items first, then Boxing Items
-        const planItems = reportCommissions.filter(c => c.type !== 'Boxing Package');
-        const boxingItems = reportCommissions.filter(c => c.type === 'Boxing Package');
-        const finalData = [...planItems, ...boxingItems];
-
-        if (finalData.length === 0) {
-            toast({ title: "No data found for this month.", variant: "destructive" });
-            return;
-        }
-
-        const totalCommission = finalData.reduce((sum, c) => sum + c.amount, 0);
-        const totalHours = finalData.reduce((sum, c) => sum + c.duration, 0);
-
-        let htmlContent = `
-            <!DOCTYPE html>
-            <html><head><meta charset="UTF-8"><title>Commission Report</title>
-            <style>
-                body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
-                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; font-weight: bold; }
-                .header { margin-bottom: 10px; }
-                .header h1 { font-size: 24px; margin-bottom: 5px; font-weight: bold; }
-                .header-sub { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 8px; font-size: 14px; }
-                .summary-boxes { display: flex; gap: 15px; margin: 20px 0; }
-                .summary-box { flex: 1; border: 1px solid #ccc; padding: 15px; text-align: center; }
-                .box-label { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px; text-transform: uppercase; }
-                .box-value { font-size: 20px; font-weight: bold; }
-                .section-title { font-size: 16px; font-weight: bold; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
-                .section-header { background: #fafafa; font-weight: bold; }
-            </style></head><body>
-            <div class="header">
-                <h1>TRAINING REPORT</h1>
-                <div class="header-sub">
-                    <span><strong>Trainer:</strong> ${targetTrainer.name}</span>
-                    <span><strong>Plan:</strong> ${plan?.name || 'N/A'}</span>
-                </div>
-            </div>
-            <div class="summary-boxes">
-                <div class="summary-box">
-                    <div class="box-label">Hours Delivered</div>
-                    <div class="box-value">${totalHours}h</div>
-                </div>
-                <div class="summary-box">
-                    <div class="box-label">Total Earned</div>
-                    <div class="box-value">${formatCurrency(totalCommission)}</div>
-                </div>
-                <div class="summary-box">
-                    <div class="box-label">Period</div>
-                    <div class="box-value">${month}</div>
-                </div>
-            </div>
-            <div class="section-title">COMMISSION SUMMARY</div>
-            <table><thead><tr>
-                <th>Date</th><th>Client</th><th>Package</th><th>Duration</th><th>Rate</th><th>Cumulative</th><th>Amount</th>
-            </tr></thead><tbody>
-            ${finalData.map(c => `
-                <tr class="${c.type === 'Boxing Package' ? 'section-header' : ''}">
-                    <td>${c.date}</td><td>${c.client}</td><td>${c.pkg}</td><td>${c.duration}h</td><td>${formatCurrency(c.rate)}</td><td>${c.cumBefore}h → ${c.cumAfter}h</td><td>${formatCurrency(c.amount)}</td>
-                </tr>
-            `).join('')}
-            </tbody></table>
-            </body></html>
-        `;
-
-        const printWindow = window.open('', '', 'width=1000,height=800');
-        if (!printWindow) return;
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
-        onOpenChange(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader><DialogTitle>Generate Trainer Report</DialogTitle></DialogHeader>
-                <form onSubmit={generateCommissionReportPDF} className="space-y-4">
-                    <div>
-                        <Label>Select Month</Label>
-                        <Input type="month" value={month} onChange={e => setMonth(e.target.value)} required />
-                    </div>
-                    <div>
-                        <Label>Select Trainer</Label>
-                        <Select name="trainer" required>
-                            <SelectTrigger><SelectValue placeholder="Select Trainer" /></SelectTrigger>
-                            <SelectContent>{trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit">Generate PDF</Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function ManagePlansDialog({ open, onOpenChange, plans, trainers, db }: { open: boolean, onOpenChange: (open: boolean) => void, plans: PTCommissionPlan[], trainers: PTTrainer[], db: Firestore }) {
-    const { toast } = useToast();
-    const [isPending, startTransition] = useTransition();
-
-    const handleUpdateRate = async (planId: string, tierIndex: number, newRate: number) => {
-        const plan = plans.find(p => p.id === planId);
-        if (!plan) return;
-        const newTiers = [...plan.tiers];
-        newTiers[tierIndex].rate = newRate;
-        
-        startTransition(async () => {
-            try {
-                await updateDoc(doc(db, "pt_commission_plans", planId), { tiers: newTiers });
-                toast({ title: "Rate updated." });
-            } catch (e) {
-                toast({ title: "Error", variant: "destructive" });
-            }
-        });
-    }
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader><DialogTitle>Commission Plans</DialogTitle></DialogHeader>
-                <div className="space-y-6">
-                    {plans.map(plan => (
-                        <div key={plan.id} className="p-4 border rounded-lg bg-slate-50">
-                            <h4 className="font-bold mb-3">{plan.name}</h4>
-                            <div className="space-y-2">
-                                {plan.tiers.map((tier, idx) => (
-                                    <div key={idx} className="flex items-center gap-4 bg-white p-2 rounded border">
-                                        <span className="text-sm text-slate-500 w-32">{tier.maxHours === Infinity ? 'Remaining Hours' : `First ${tier.maxHours} Hours`}</span>
-                                        <div className="flex items-center gap-2">
-                                            <Label>Rate:</Label>
-                                            <Input 
-                                                type="number" 
-                                                className="w-24" 
-                                                defaultValue={tier.rate} 
-                                                onBlur={(e) => handleUpdateRate(plan.id, idx, parseFloat(e.target.value))}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <DialogFooter><DialogClose asChild><Button variant="outline">Close</Button></DialogClose></DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: PTTrainer['commission_plan'], allPlans: PTCommissionPlan[], monthRef: string) {
+async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: string, allPlans: PTCommissionPlan[], monthRef: string) {
     const [year, month] = monthRef.split('-').map(Number);
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0, 23, 59, 59);
 
     const sessionsQuery = query(collection(db, "pt_sessions"), where("trainer_id", "==", trainerId));
     const sessionsSnapshot = await getDocs(sessionsQuery);
-    const allTrainerSessions = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession));
-
-    const sessionsThisMonth = allTrainerSessions
-        .filter(session => {
-            const sessionDate = new Date(session.session_datetime);
-            return session.session_status === 'completed' && sessionDate >= firstDay && sessionDate <= lastDay;
-        })
-        .sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
+    const sessionsThisMonth = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession))
+        .filter(s => s.session_status === 'completed' && new Date(s.session_datetime) >= firstDay && new Date(s.session_datetime) <= lastDay)
+        .sort((a, b) => a.session_datetime.localeCompare(b.session_datetime));
 
     const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
     const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
@@ -1365,17 +835,13 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
     for (const session of sessionsThisMonth) {
         const pkg = allPackages.find(p => p.id === session.purchase_id);
         if (!pkg) continue;
-
         const isBoxing = pkg.package_name.toLowerCase().includes('boxing');
         const dur = session.duration_hours;
-        let rate = 0;
-        let before = 0;
-        let type = '';
+        let rate = 0, before = 0, type = '';
 
         if (isBoxing && boxingPlan) {
             rate = boxingPlan.tiers[0].rate;
-            before = cumBoxing;
-            cumBoxing += dur;
+            before = cumBoxing; cumBoxing += dur;
             type = 'Boxing Package';
         } else if (plan) {
             if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
@@ -1385,29 +851,14 @@ async function recalculateCommissions(db: Firestore, trainerId: string, newPlanI
                 if (t1 && t2) {
                     if (cumHours >= t1.maxHours) rate = t2.rate;
                     else if (cumHours + dur <= t1.maxHours) rate = t1.rate;
-                    else {
-                        const h1 = t1.maxHours - cumHours;
-                        rate = ((h1 * t1.rate) + ((dur - h1) * t2.rate)) / dur;
-                    }
+                    else rate = (( (t1.maxHours - cumHours) * t1.rate) + ((dur - (t1.maxHours - cumHours)) * t2.rate)) / dur;
                 }
             }
-            before = cumHours;
-            cumHours += dur;
+            before = cumHours; cumHours += dur;
             type = plan.name;
         }
 
-        batch.set(doc(collection(db, "pt_commissions")), {
-            trainer_id: trainerId,
-            session_id: session.id,
-            duration_hours: dur,
-            hourly_rate_applied: Math.round(rate),
-            commission_amount: Math.round(rate * dur),
-            cumulative_hours_before: before,
-            cumulative_hours_after: before + dur,
-            commission_plan: isBoxing ? 'BOXING' : newPlanId,
-            commission_type: type,
-            month_reference: monthRef
-        });
+        batch.set(doc(collection(db, "pt_commissions")), { trainer_id: trainerId, session_id: session.id, duration_hours: dur, hourly_rate_applied: Math.round(rate), commission_amount: Math.round(rate * dur), cumulative_hours_before: before, cumulative_hours_after: before + dur, commission_plan: isBoxing ? 'BOXING' : newPlanId, commission_type: type, month_reference: monthRef });
     }
     await batch.commit();
 }
