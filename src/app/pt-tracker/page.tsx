@@ -554,32 +554,23 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                  <Button onClick={() => setPdfModalOpen(true)}><Info className="mr-2 h-4 w-4" /> Generate PDF</Button>
             </div>
 
-            {trainerFilter !== 'all' && summary.trainer && (
-                <div className="space-y-6">
-                    <div>
-                        <h2 className="text-3xl font-bold text-slate-800">TRAINING REPORT</h2>
-                        <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mt-2">
-                            <p className="text-lg"><strong>Trainer:</strong> {summary.trainer.name}</p>
-                            <p className="text-lg"><strong>Plan:</strong> {summary.plan?.name || 'N/A'}</p>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Hours Delivered</p>
-                            <p className="text-4xl font-bold">{summary.totalHours}h</p>
-                        </Card>
-                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Total Earned</p>
-                            <p className="text-4xl font-bold">{formatCurrency(summary.totalAmount)}</p>
-                        </Card>
-                        <Card className="flex flex-col items-center justify-center p-6 bg-white border">
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Period</p>
-                            <p className="text-4xl font-bold">{monthFilter}</p>
-                        </Card>
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 mt-8 uppercase">Commission Summary</h3>
-                </div>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Hours Delivered</p>
+                    <p className="text-3xl font-extrabold text-slate-900">{summary.totalHours}h</p>
+                    {trainerFilter !== 'all' && <p className="text-xs text-muted-foreground mt-1 font-medium">Plan: {summary.plan?.name || '-'}</p>}
+                </Card>
+                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Commission</p>
+                    <p className="text-3xl font-extrabold text-green-600">{formatCurrency(summary.totalAmount)}</p>
+                    {trainerFilter !== 'all' && <p className="text-xs text-muted-foreground mt-1 font-medium">{summary.trainer?.name}</p>}
+                </Card>
+                <Card className="bg-white border p-6 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Report Period</p>
+                    <p className="text-3xl font-extrabold text-slate-900">{monthFilter}</p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">{trainerFilter === 'all' ? 'Combined Gym Report' : 'Individual Trainer Report'}</p>
+                </Card>
+            </div>
 
              <Card>
                 <Table>
