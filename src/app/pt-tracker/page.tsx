@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import type { Firestore } from 'firebase/firestore';
 
 // Helper Functions
@@ -527,32 +528,155 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
         }).sort((a, b) => a.name.localeCompare(b.name));
     }, [recalculatedCommissions, trainers, commissionPlans, trainerFilter]);
 
+    const generateCommissionPDF = () => {
+        if (trainerFilter === 'all') return;
+        const trainer = trainers.find(t => t.id === trainerFilter);
+        const plan = commissionPlans.find(p => p.id === trainer?.commission_plan);
+        if (!trainer) return;
+
+        const totalHours = recalculatedCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
+        const totalAmount = recalculatedCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
+
+        let htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Commission Report - ${trainer.name}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+                    .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+                    .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+                    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+                    .summary-card { border: 1px solid #000; padding: 12px; text-align: center; }
+                    .summary-card .label { font-size: 10px; font-weight: bold; color: #666; margin-bottom: 5px; }
+                    .summary-card .value { font-size: 18px; font-weight: bold; color: #000; }
+                    h2 { font-size: 14px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; text-transform: uppercase; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th { background: #f0f0f0; color: #000; padding: 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
+                    td { padding: 7px 8px; border: 1px solid #ccc; font-size: 11px; }
+                    .amount { text-align: right; font-weight: bold; }
+                    .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
+                    .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                    @media print {
+                        body { margin: 0; padding: 0; }
+                        .container { padding: 15px; }
+                        table { page-break-inside: auto; }
+                        tr { page-break-inside: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>TRAINING REPORT</h1>
+                        <div style="font-size: 12px;">
+                            <strong>Trainer:</strong> ${trainer.name} | <strong>Plan:</strong> ${plan?.name || '-'}
+                        </div>
+                    </div>
+
+                    <div class="summary-grid">
+                         <div class="summary-card">
+                            <div class="label">HOURS DELIVERED</div>
+                            <div class="value">${totalHours}h</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">TOTAL EARNED</div>
+                            <div class="value">${formatCurrency(totalAmount)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">REPORT PERIOD</div>
+                            <div class="value">${monthFilter}</div>
+                        </div>
+                    </div>
+                    
+                    <h2>COMMISSION SUMMARY</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Member ID</th>
+                                <th>Member Name</th>
+                                <th>Plan</th>
+                                <th>Duration</th>
+                                <th>Rate</th>
+                                <th>Cumulative</th>
+                                <th style="text-align: right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${recalculatedCommissions.map(comm => {
+                                const session = sessions.find(s => s.id === comm.session_id);
+                                const client = clients.find(c => c.id === session?.client_id);
+                                return `
+                                    <tr>
+                                        <td>${formatDateTime(session?.session_datetime || '')}</td>
+                                        <td>${client?.member_id || '-'}</td>
+                                        <td>${client?.name || '-'}</td>
+                                        <td>${comm.commission_type}</td>
+                                        <td>${comm.duration_hours}h</td>
+                                        <td>${formatCurrency(comm.hourly_rate_applied)}</td>
+                                        <td>${comm.cumulative_hours_before}h → ${comm.cumulative_hours_after}h</td>
+                                        <td class="amount">${formatCurrency(comm.commission_amount)}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr class="total-row">
+                                <td colspan="7" style="text-align: right;">TOTAL COMMISSION:</td>
+                                <td class="amount">${formatCurrency(totalAmount)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                     <div class="footer">
+                        <p>Generated on ${new Date().toLocaleString('en-GB')}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '', 'width=1000,height=800');
+        if (printWindow) {
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 300);
+        }
+    };
+
     return (
          <div className="space-y-6">
             <div className="flex justify-between items-center">
                  <div className="flex gap-2">
                     <Select value={trainerFilter} onValueChange={setTrainerFilter}>
-                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Trainers" /></SelectTrigger>
+                        <SelectTrigger className="w-[200px] bg-white"><SelectValue placeholder="All Trainers" /></SelectTrigger>
                         <SelectContent><SelectItem value="all">All Trainers</SelectItem>{trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                     </Select>
-                     <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px]" />
+                     <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px] bg-white" />
                 </div>
+                {trainerFilter !== 'all' && (
+                    <Button onClick={generateCommissionPDF} variant="outline" className="bg-white"><FileText className="mr-2 h-4 w-4"/>Generate PDF</Button>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {trainerSummaries.map(summary => (
                     <Card key={summary.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-all">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 font-bold border border-green-100">{summary.name.charAt(0)}</div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">{summary.name}</h4>
-                                    <Badge variant="outline" className="text-[10px] h-5 py-0 bg-slate-50 border-slate-200 text-slate-600">{summary.plan}</Badge>
+                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold border border-slate-200">{summary.name.charAt(0)}</div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-800 truncate">{summary.name}</h4>
+                                    <Badge variant="outline" className="text-[10px] h-5 py-0 bg-slate-50 border-slate-200 text-slate-500 font-normal">{summary.plan}</Badge>
                                 </div>
                             </div>
                             <div className="space-y-2.5">
-                                <div className="flex justify-between items-center text-sm"><span className="text-slate-500">Hours ({monthFilter})</span><span className="font-bold text-slate-900">{summary.totalHours}h</span></div>
-                                <div className="flex justify-between items-center text-sm"><span className="text-slate-500">Total Earnings</span><span className="font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span></div>
+                                <div className="flex justify-between items-center text-sm"><span className="text-slate-400">Hours</span><span className="font-bold text-slate-800">{summary.totalHours}h</span></div>
+                                <div className="flex justify-between items-center text-sm"><span className="text-slate-400">Total Earnings</span><span className="font-bold text-green-600">{formatCurrency(summary.totalCommission)}</span></div>
                             </div>
                         </CardContent>
                     </Card>
@@ -620,26 +744,60 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
 function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
-    const [formData, setFormData] = useState({ packageName: 'Personal Training Package', hoursPurchased: 10, pricePaid: 6000, hoursUsed: 0, purchaseDate: new Date().toISOString().split('T')[0], expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0], status: 'active' as any, selectedClientId: '' });
-    
+
+    const [packageName, setPackageName] = useState('Personal Training Package');
+    const [hoursPurchased, setHoursPurchased] = useState(10);
+    const [pricePaid, setPricePaid] = useState(6000);
+    const [hoursUsed, setHoursUsed] = useState(0);
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+    const [expiryDate, setExpiryDate] = useState(new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]);
+    const [status, setStatus] = useState<'active' | 'completed' | 'expired'>('active');
+    const [selectedClientId, setSelectedClientId] = useState('');
+
     useEffect(() => {
         if (open) {
-            if (pkg) setFormData({ packageName: pkg.package_name, hoursPurchased: pkg.hours_purchased, pricePaid: pkg.price_paid, hoursUsed: pkg.hours_used, purchaseDate: pkg.purchase_date, expiryDate: pkg.expiry_date, status: pkg.status, selectedClientId: pkg.client_id });
-            else setFormData({ ...formData, selectedClientId: client?.id || '' });
+            if (pkg) {
+                setPackageName(pkg.package_name);
+                setHoursPurchased(pkg.hours_purchased);
+                setPricePaid(pkg.price_paid);
+                setHoursUsed(pkg.hours_used);
+                setPurchaseDate(pkg.purchase_date);
+                setExpiryDate(pkg.expiry_date);
+                setStatus(pkg.status);
+                setSelectedClientId(pkg.client_id);
+            } else {
+                setPackageName('Personal Training Package');
+                setHoursPurchased(10);
+                setPricePaid(6000);
+                setHoursUsed(0);
+                setPurchaseDate(new Date().toISOString().split('T')[0]);
+                setExpiryDate(new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]);
+                setStatus('active');
+                setSelectedClientId(client?.id || '');
+            }
         }
     }, [open, pkg, client]);
 
-    const hoursRemaining = Math.max(0, formData.hoursPurchased - formData.hoursUsed);
-    const pricePerHour = formData.hoursPurchased > 0 ? formData.pricePaid / formData.hoursPurchased : 0;
+    const hoursRemaining = Math.max(0, hoursPurchased - hoursUsed);
+    const pricePerHour = hoursPurchased > 0 ? pricePaid / hoursPurchased : 0;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.selectedClientId) return;
+        if (!selectedClientId) return;
         startTransition(async () => {
             try {
-                const data = { ...formData, price_per_hour: pricePerHour, hours_remaining: hoursRemaining, status: hoursRemaining <= 0 ? 'completed' : formData.status };
-                // Map to Firestore keys
-                const finalData = { client_id: data.selectedClientId, package_name: data.packageName, hours_purchased: data.hoursPurchased, price_paid: data.pricePaid, price_per_hour: data.price_per_hour, purchase_date: data.purchaseDate, expiry_date: data.expiryDate, status: data.status, hours_used: data.hoursUsed, hours_remaining: data.hours_remaining };
+                const finalData = { 
+                    client_id: selectedClientId, 
+                    package_name: packageName, 
+                    hours_purchased: hoursPurchased, 
+                    price_paid: pricePaid, 
+                    price_per_hour: pricePerHour, 
+                    purchase_date: purchaseDate, 
+                    expiry_date: expiryDate, 
+                    status: hoursRemaining <= 0 ? 'completed' : status, 
+                    hours_used: hoursUsed, 
+                    hours_remaining: hoursRemaining 
+                };
                 if (pkg) await updateDoc(doc(db, "pt_packages", pkg.id), finalData);
                 else await addDoc(collection(db, "pt_packages"), finalData);
                 toast({ title: "Success" });
@@ -654,20 +812,58 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                 <DialogHeader><DialogTitle>{pkg ? 'Edit Package' : 'Add Package'}</DialogTitle></DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Package Name *</Label><Select value={formData.packageName} onValueChange={(v) => setFormData({...formData, packageName: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Personal Training Package">Personal Training Package</SelectItem><SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-2"><Label>Hours Purchased *</Label><Input type="number" value={formData.hoursPurchased} onChange={e => setFormData({...formData, hoursPurchased: Number(e.target.value)})} /></div>
+                        <div className="space-y-2">
+                            <Label>Package Name *</Label>
+                            <Select value={packageName} onValueChange={(v) => setPackageName(v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Personal Training Package">Personal Training Package</SelectItem>
+                                    <SelectItem value="Boxing Training Package">Boxing Training Package</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Hours Purchased *</Label>
+                            <Input type="number" value={hoursPurchased} onChange={e => setHoursPurchased(Number(e.target.value))} required />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Total Price (THB) *</Label><Input type="number" value={formData.pricePaid} onChange={e => setFormData({...formData, pricePaid: Number(e.target.value)})} /></div>
-                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center border border-slate-100"><Label className="text-muted-foreground text-xs">Price per hour:</Label><span className="font-bold">{formatCurrency(pricePerHour)}</span></div>
+                        <div className="space-y-2">
+                            <Label>Total Price (THB) *</Label>
+                            <Input type="number" value={pricePaid} onChange={e => setPricePaid(Number(e.target.value))} required />
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-md flex flex-col justify-center border border-slate-100">
+                            <Label className="text-muted-foreground text-xs">Price per hour:</Label>
+                            <span className="font-bold">{formatCurrency(pricePerHour)}</span>
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Purchase Date *</Label><Input type="date" value={formData.purchaseDate} onChange={e => setFormData({...formData, purchaseDate: e.target.value})} /></div>
-                        <div className="space-y-2"><Label>Expiry Date *</Label><Input type="date" value={formData.expiryDate} onChange={e => setFormData({...formData, expiryDate: e.target.value})} /></div>
+                        <div className="space-y-2">
+                            <Label>Purchase Date *</Label>
+                            <Input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Expiry Date *</Label>
+                            <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label>Hours Used</Label><Input type="number" step="0.5" value={formData.hoursUsed} onChange={e => setFormData({...formData, hoursUsed: Number(e.target.value)})} /><p className="text-[10px] text-muted-foreground">Remaining: {hoursRemaining}h</p></div>
-                        <div className="space-y-2"><Label>Status</Label><Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-2">
+                            <Label>Hours Used</Label>
+                            <Input type="number" step="0.5" value={hoursUsed} onChange={e => setHoursUsed(Number(e.target.value))} />
+                            <p className="text-[10px] text-muted-foreground">Remaining: {hoursRemaining}h</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Status</Label>
+                            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="expired">Expired</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button></DialogFooter>
                 </form>
