@@ -546,7 +546,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                         .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
                         .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
                         .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
-                        .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+                        .summary-grid { grid-template-columns: 1fr 1fr 1fr; display: grid; gap: 15px; margin-bottom: 25px; }
                         .summary-card { border: 1px solid #000; padding: 12px; text-align: center; }
                         .summary-card .label { font-size: 10px; font-weight: bold; color: #666; margin-bottom: 5px; }
                         .summary-card .value { font-size: 18px; font-weight: bold; color: #000; }
@@ -693,7 +693,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 <th>Date</th>
                                 <th>Member ID</th>
                                 <th>Member Name</th>
-                                <th>Package Name (Hrs Purchased)</th>
+                                <th>Package Name</th>
                                 <th>Duration</th>
                                 <th>Rate</th>
                                 <th>Cumulative</th>
@@ -707,13 +707,16 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 const client = clients.find(c => c.id === session?.client_id);
                                 const pkg = session ? packages.find(p => p.id === session.purchase_id) : null;
                                 const dateOnly = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+                                
+                                // Abbreviate package name by removing " Package"
+                                const shortPackageName = pkg ? pkg.package_name.replace(' Package', '') : '-';
 
                                 return `
                                     <tr>
                                         <td>${dateOnly}</td>
                                         <td>${client?.member_id || '-'}</td>
                                         <td>${client?.name || '-'}</td>
-                                        <td>${pkg ? `${pkg.package_name} (${pkg.hours_purchased}h)` : '-'}</td>
+                                        <td>${pkg ? `${shortPackageName} (${pkg.hours_purchased}h)` : '-'}</td>
                                         <td>${comm.duration_hours}h</td>
                                         <td>${formatCurrency(comm.hourly_rate_applied)}</td>
                                         <td>${comm.cumulative_hours_before}h → ${comm.cumulative_hours_after}h</td>
@@ -982,8 +985,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                             </Select>
                         </div>
                     </div>
-                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button></DialogFooter>
-                </form>
+                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button></form>
             </DialogContent>
         </Dialog>
     )
