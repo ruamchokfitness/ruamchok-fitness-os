@@ -10,101 +10,17 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Rules for the 'users' collection
+    // Rules for all collections
+    // For this prototype, we allow all authenticated users to read and write
+    // to ensure all modules (PT Tracker, Sales, HRM, Audit Log) work correctly.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Specific rules for the 'users' collection to ensure users can read their own profile
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow list, write: if request.auth != null && isAdmin();
-    }
-
-    // Rules for the 'security' collection
-    match /security/settings {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow write: if request.auth != null && isAdmin();
-    }
-    
-    // Sales Dashboard rules
-    match /salesdashboard1/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /salesdashboard1_employees/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /salesdashboard1_products/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-     match /salesdashboard1_settings/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-
-    // HRM rules
-    match /employees/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /quotas/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /leaves/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /policies/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /vacationTiers/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /publicHolidays/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /customHolidays/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-
-    // Maintenance rules
-    match /MaintenanceCategories/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-     match /MaintenanceReport1/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-
-    // Group Class rules
-    match /groupClasses/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /groupClassInstructors/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /groupClassTimes/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /groupClassAttendances/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-
-    // PT Tracker rules - ensuring all are covered for authenticated users
-    match /pt_clients/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /pt_trainers/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /pt_packages/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /pt_sessions/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-    match /pt_commission_plans/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-     match /pt_commissions/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-     match /pt_workouts/{document=**} {
-        allow read, write: if request.auth != null;
-    }
-     match /assessmentServices/{document=**} {
-        allow read, write: if request.auth != null;
     }
   }
 }

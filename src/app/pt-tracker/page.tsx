@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -1187,7 +1186,9 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     </div>
                     <DialogFooter className="pt-4 border-t">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Update Session</Button>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending && <Loader2 className="animate-spin mr-2"/>} Update Session
+                        </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>
