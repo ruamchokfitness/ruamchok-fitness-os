@@ -32,6 +32,11 @@ const formatDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
+const formatDateOnly = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
 function PTTrackerPageContent() {
@@ -706,17 +711,20 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 const session = sessions.find(s => s.id === comm.session_id);
                                 const client = clients.find(c => c.id === session?.client_id);
                                 const pkg = session ? packages.find(p => p.id === session.purchase_id) : null;
-                                const dateOnly = session?.session_datetime ? new Date(session.session_datetime).toLocaleDateString('en-GB') : '-';
+                                const dateOnly = session?.session_datetime ? formatDateOnly(session.session_datetime) : '-';
                                 
-                                // Abbreviate package name by removing " Package"
-                                const shortPackageName = pkg ? pkg.package_name.replace(' Package', '') : '-';
+                                // Abbreviate package name
+                                let shortName = pkg?.package_name || '-';
+                                shortName = shortName.replace('Personal Training Package', 'Personal Training');
+                                shortName = shortName.replace('Boxing Training Package', 'Boxing Training');
+                                const displayPkgName = pkg ? `${shortName} (${pkg.hours_purchased}h)` : '-';
 
                                 return `
                                     <tr>
                                         <td>${dateOnly}</td>
                                         <td>${client?.member_id || '-'}</td>
                                         <td>${client?.name || '-'}</td>
-                                        <td>${pkg ? `${shortPackageName} (${pkg.hours_purchased}h)` : '-'}</td>
+                                        <td>${displayPkgName}</td>
                                         <td>${comm.duration_hours}h</td>
                                         <td>${formatCurrency(comm.hourly_rate_applied)}</td>
                                         <td>${comm.cumulative_hours_before}h → ${comm.cumulative_hours_after}h</td>
@@ -839,7 +847,7 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
         startTransition(async () => {
             try {
                 if (client) await updateDoc(doc(db, "pt_clients", client.id), data);
-                else await addDoc(collection(db, "pt_clients"), { ...data });
+                else await addDoc(collection(db, "pt_clients"), { ...data, status: data.status || 'active' });
                 toast({ title: "Success" });
                 onOpenChange(false);
             } catch (error) { toast({ title: "Error", variant: "destructive" }); }
@@ -985,7 +993,15 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                             </Select>
                         </div>
                     </div>
-                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Package</Button></form>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending && <Loader2 className="animate-spin mr-2"/>} Save Package
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     )
@@ -1185,3 +1201,4 @@ export default function PTTrackerPage() {
         </FirebaseClientProvider>
     );
 }
+
