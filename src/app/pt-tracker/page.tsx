@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -1201,4 +1200,3 @@ export default function PTTrackerPage() {
         </FirebaseClientProvider>
     );
 }
-
