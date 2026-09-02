@@ -1,8 +1,9 @@
+
 'use client';
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature, ClipboardCheck } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature, ClipboardCheck, History } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,13 @@ export default function Home() {
       description: 'Track and manage equipment maintenance.',
       href: '/maintenance',
       icon: <Wrench className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
+    {
+      title: 'Audit Log',
+      description: 'View system change history and deletions.',
+      href: '/audit-log',
+      icon: <History className="w-8 h-8 text-primary" />,
       disabled: false,
     },
     {

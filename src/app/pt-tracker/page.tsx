@@ -1,11 +1,12 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
 import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
-import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc, useUser } from '@/firebase';
 
-import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan } from '@/lib/types';
+import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +24,7 @@ import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Firestore } from 'firebase/firestore';
+import { recordAuditLog } from '@/lib/audit-logger';
 
 // Helper Functions
 const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -40,6 +42,7 @@ const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String
 
 function PTTrackerPageContent() {
     const { firestore: db } = useFirebase();
+    const { user } = useUser();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -117,13 +120,13 @@ function PTTrackerPageContent() {
                         <DashboardTab clients={clients||[]} trainers={trainers||[]} packages={packages||[]} sessions={sessions||[]} commissions={commissions||[]} />
                     </TabsContent>
                     <TabsContent value="clients">
-                        <ClientsTab clients={clients||[]} packages={packages||[]} db={db} />
+                        <ClientsTab clients={clients||[]} packages={packages||[]} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="trainers">
-                        <TrainersTab trainers={trainers||[]} commissions={commissions||[]} commissionPlans={commissionPlans||[]} db={db} />
+                        <TrainersTab trainers={trainers||[]} commissions={commissions||[]} commissionPlans={commissionPlans||[]} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="sessions">
-                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} commissionPlans={commissionPlans || []} db={db} />
+                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} commissionPlans={commissionPlans || []} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="commissions">
                         <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} packages={packages||[]} />
@@ -221,7 +224,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     )
 }
 
-function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: PTPackage[], db: Firestore | null }) {
+function ClientsTab({ clients, packages, db, user }: { clients: PTClient[], packages: PTPackage[], db: Firestore | null, user: User }) {
     const [search, setSearch] = useState('');
     const [clientModalOpen, setClientModalOpen] = useState(false);
     const [packageModalOpen, setPackageModalOpen] = useState(false);
@@ -279,13 +282,13 @@ function ClientsTab({ clients, packages, db }: { clients: PTClient[], packages: 
                     })}
                 </Accordion>
             </Card>
-            {db && <ClientModal open={clientModalOpen} onOpenChange={setClientModalOpen} client={selectedClient} db={db} />}
-            {db && <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} />}
+            {db && <ClientModal open={clientModalOpen} onOpenChange={setClientModalOpen} client={selectedClient} db={db} user={user} />}
+            {db && <PackageModal open={packageModalOpen} onOpenChange={setPackageModalOpen} pkg={selectedPackage} client={selectedClient} clients={clients} db={db} user={user} />}
         </div>
     )
 }
 
-function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore | null }) { 
+function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
     const [trainerModalOpen, setTrainerModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
@@ -318,12 +321,12 @@ function TrainersTab({ trainers, commissions, commissionPlans, db }: { trainers:
                     </TableBody>
                 </Table>
             </Card>
-            {db && <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} />}
+            {db && <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} user={user} />}
         </div>
     )
 }
 
-function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore | null }) { 
+function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db, user }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
     const { toast } = useToast();
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
@@ -346,6 +349,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
             try {
                 const session = sessions.find(s => s.id === sessionToDelete);
                 if (session) {
+                    const client = clients.find(c => c.id === session.client_id);
                     // Update Package hours back
                     const pkg = packages.find(p => p.id === session.purchase_id);
                     if (pkg) {
@@ -363,6 +367,15 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                     const batch = writeBatch(db);
                     commSnap.forEach(d => batch.delete(d.ref));
                     await batch.commit();
+
+                    // Audit Log before delete
+                    await recordAuditLog(db, user, {
+                        action: 'delete',
+                        module: 'PTTracker',
+                        resourceId: session.id,
+                        details: `Deleted PT session for client ${client?.name || 'Unknown'} (Date: ${formatDateTime(session.session_datetime)})`,
+                        previousData: session
+                    });
 
                     // Delete Session
                     await deleteDoc(doc(db, "pt_sessions", session.id));
@@ -420,7 +433,7 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                     </TableBody>
                 </Table>
             </Card>
-            {db && <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} commissionPlans={commissionPlans} />}
+            {db && <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} commissionPlans={commissionPlans} user={user} />}
             
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>
@@ -836,7 +849,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     )
 }
 
-function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore }) {
+function ClientModal({ open, onOpenChange, client, db, user }: { open: boolean, onOpenChange: (open: boolean) => void, client: PTClient | null, db: Firestore, user: User }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -845,8 +858,14 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
         const data = { name: formData.get('name') as string, member_id: formData.get('member_id') as string, phone: formData.get('phone') as string, status: formData.get('status') as any };
         startTransition(async () => {
             try {
-                if (client) await updateDoc(doc(db, "pt_clients", client.id), data);
-                else await addDoc(collection(db, "pt_clients"), { ...data, status: data.status || 'active' });
+                if (client) {
+                    await updateDoc(doc(db, "pt_clients", client.id), data);
+                    await recordAuditLog(db, user, { action: 'update', module: 'PTTracker', resourceId: client.id, details: `Updated client info for ${data.name}`, previousData: client, newData: data });
+                }
+                else {
+                    const newDoc = await addDoc(collection(db, "pt_clients"), { ...data, status: data.status || 'active' });
+                    await recordAuditLog(db, user, { action: 'create', module: 'PTTracker', resourceId: newDoc.id, details: `Added new client: ${data.name}` });
+                }
                 toast({ title: "Success" });
                 onOpenChange(false);
             } catch (error) { toast({ title: "Error", variant: "destructive" }); }
@@ -868,7 +887,7 @@ function ClientModal({ open, onOpenChange, client, db }: { open: boolean, onOpen
     )
 }
 
-function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore }) {
+function PackageModal({ open, onOpenChange, pkg, client, db, clients, user }: { open: boolean, onOpenChange: (open: boolean) => void, pkg: PTPackage | null, client: PTClient | null, clients: PTClient[], db: Firestore, user: User }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -913,6 +932,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
         if (!selectedClientId) return;
         startTransition(async () => {
             try {
+                const clientObj = clients.find(c => c.id === selectedClientId);
                 const finalData = { 
                     client_id: selectedClientId, 
                     package_name: packageName, 
@@ -925,8 +945,14 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
                     hours_used: Number(hoursUsed), 
                     hours_remaining: hoursRemaining 
                 };
-                if (pkg) await updateDoc(doc(db, "pt_packages", pkg.id), finalData);
-                else await addDoc(collection(db, "pt_packages"), finalData);
+                if (pkg) {
+                    await updateDoc(doc(db, "pt_packages", pkg.id), finalData);
+                    await recordAuditLog(db, user, { action: 'update', module: 'PTTracker', resourceId: pkg.id, details: `Updated package ${packageName} for client ${clientObj?.name}`, previousData: pkg, newData: finalData });
+                }
+                else {
+                    const newPkg = await addDoc(collection(db, "pt_packages"), finalData);
+                    await recordAuditLog(db, user, { action: 'create', module: 'PTTracker', resourceId: newPkg.id, details: `Added new package ${packageName} for client ${clientObj?.name}` });
+                }
                 toast({ title: "Success" });
                 onOpenChange(false);
             } catch (error) { toast({ title: "Error", variant: "destructive" }); }
@@ -1006,7 +1032,7 @@ function PackageModal({ open, onOpenChange, pkg, client, db, clients }: { open: 
     )
 }
 
-function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, commissionPlans: PTCommissionPlan[], db: Firestore }) {
+function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db, user }: { open: boolean, onOpenChange: (open: boolean) => void, trainer: PTTrainer | null, commissionPlans: PTCommissionPlan[], db: Firestore, user: User }) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1015,8 +1041,14 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { op
         const data = { name: formData.get('name') as string, email: formData.get('email') as string, phone: formData.get('phone') as string, status: formData.get('status') as any, commission_plan: formData.get('commission_plan') as string };
         startTransition(async () => {
             try {
-                if (trainer) await updateDoc(doc(db, "pt_trainers", trainer.id), data);
-                else await addDoc(collection(db, "pt_trainers"), data);
+                if (trainer) {
+                    await updateDoc(doc(db, "pt_trainers", trainer.id), data);
+                    await recordAuditLog(db, user, { action: 'update', module: 'PTTracker', resourceId: trainer.id, details: `Updated trainer info for ${data.name}`, previousData: trainer, newData: data });
+                }
+                else {
+                    const newTrainer = await addDoc(collection(db, "pt_trainers"), data);
+                    await recordAuditLog(db, user, { action: 'create', module: 'PTTracker', resourceId: newTrainer.id, details: `Added new trainer: ${data.name}` });
+                }
                 toast({ title: "Success" });
                 onOpenChange(false);
             } catch (error) { toast({ title: "Error", variant: "destructive" }); }
@@ -1039,7 +1071,7 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db }: { op
     )
 }
 
-function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, commissionPlans }: any) {
+function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, commissionPlans, user }: any) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -1058,13 +1090,25 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
         
         startTransition(async () => {
             try {
-                // Update Session
-                await updateDoc(doc(db, "pt_sessions", session.id), { 
+                const newData = { 
                     duration_hours: newDuration,
                     trainer_id: newTrainerId,
                     session_datetime: new Date(newDateTime).toISOString()
-                });
+                };
+
+                // Update Session
+                await updateDoc(doc(db, "pt_sessions", session.id), newData);
                 
+                // Audit Log
+                await recordAuditLog(db, user, { 
+                    action: 'update', 
+                    module: 'PTTracker', 
+                    resourceId: session.id, 
+                    details: `Edited PT session for client ${client?.name}. Duration changed ${session.duration_hours}h -> ${newDuration}h`, 
+                    previousData: session, 
+                    newData 
+                });
+
                 // Update Package
                 if (pkg) {
                     const newUsed = (pkg.hours_used || 0) + diff;
@@ -1128,7 +1172,7 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                         </div>
                     </div>
                     <DialogFooter className="pt-4 border-t">
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Update Session</Button>
                     </DialogFooter>
                 </form>
