@@ -408,13 +408,27 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                         {sessions.map(session => {
                             const client = clients.find(c => c.id === session.client_id);
                             const trainer = trainers.find(t => t.id === session.trainer_id);
+                            const pkg = packages.find(p => p.id === session.purchase_id);
+                            
+                            // Construct usage string like "2/10 PT"
+                            let usageInfo = '';
+                            if (pkg) {
+                                const typeSuffix = pkg.package_name.toLowerCase().includes('boxing') ? 'BT' : 'PT';
+                                usageInfo = `${pkg.hours_used}/${pkg.hours_purchased} ${typeSuffix}`;
+                            }
+
                             return (
                                 <TableRow key={session.id} className={cn(session.is_checked && "bg-green-50/50 hover:bg-green-100/50")}>
                                     <TableCell>{formatDateTime(session.session_datetime)}</TableCell>
                                     <TableCell>{client?.member_id}</TableCell>
                                     <TableCell>{client?.name}</TableCell>
                                     <TableCell>{trainer?.name}</TableCell>
-                                    <TableCell>{session.duration_hours}h</TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span>{session.duration_hours}h</span>
+                                            {usageInfo && <span className="text-[10px] text-muted-foreground font-medium">{usageInfo}</span>}
+                                        </div>
+                                    </TableCell>
                                     <TableCell><Badge variant="outline">{session.session_status}</Badge></TableCell>
                                     <TableCell className="text-right flex items-center justify-end gap-2">
                                         <div className="flex items-center gap-2 mr-2 border-r pr-2">
