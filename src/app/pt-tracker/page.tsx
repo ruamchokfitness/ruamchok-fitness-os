@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Firestore } from 'firebase/firestore';
 import { recordAuditLog } from '@/lib/audit-logger';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Helper Functions
 const formatCurrency = (amount: number) => `฿${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -90,6 +91,16 @@ function PTTrackerPageContent() {
         return map;
     }, [sessions]);
 
+    // Identify packages with mismatched data (Data Drift)
+    const packagesWithDrift = useMemo(() => {
+        if (!packages || !sessions) return [];
+        return packages.filter(pkg => {
+            const actualUsed = packageUsageMap[pkg.id] || 0;
+            // Rounding to handle potential float precision issues (0.5 hours)
+            return Math.abs(pkg.hours_used - actualUsed) > 0.01;
+        });
+    }, [packages, packageUsageMap, sessions]);
+
     const handleSyncPackages = () => {
         if (!db || !packages || !sessions) return;
         startSyncTransition(async () => {
@@ -97,22 +108,20 @@ function PTTrackerPageContent() {
                 const batch = writeBatch(db);
                 let count = 0;
 
-                for (const pkg of packages) {
+                for (const pkg of packagesWithDrift) {
                     const actualUsed = packageUsageMap[pkg.id] || 0;
-                    if (pkg.hours_used !== actualUsed) {
-                        const actualRemaining = pkg.hours_purchased - actualUsed;
-                        batch.update(doc(db, "pt_packages", pkg.id), {
-                            hours_used: actualUsed,
-                            hours_remaining: actualRemaining,
-                            status: actualRemaining <= 0 ? 'completed' : 'active'
-                        });
-                        count++;
-                    }
+                    const actualRemaining = pkg.hours_purchased - actualUsed;
+                    batch.update(doc(db, "pt_packages", pkg.id), {
+                        hours_used: actualUsed,
+                        hours_remaining: actualRemaining,
+                        status: actualRemaining <= 0 ? 'completed' : 'active'
+                    });
+                    count++;
                 }
 
                 if (count > 0) {
                     await batch.commit();
-                    toast({ title: `Successfully synced ${count} packages.` });
+                    toast({ title: `Successfully synced ${count} packages with errors.` });
                 } else {
                     toast({ title: "All packages are already in sync." });
                 }
@@ -144,10 +153,17 @@ function PTTrackerPageContent() {
                             <p className="text-slate-300 text-sm md:text-base">Track personal training sessions and commissions.</p>
                         </div>
                     </div>
-                    <Button onClick={handleSyncPackages} disabled={isSyncing} variant="outline" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
-                        {isSyncing ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
-                        Sync Package Data
-                    </Button>
+                    <div className="relative">
+                        <Button onClick={handleSyncPackages} disabled={isSyncing} variant="outline" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                            {isSyncing ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <RefreshCw className={cn("mr-2 h-4 w-4", packagesWithDrift.length > 0 && "text-orange-400 animate-pulse")} />}
+                            Sync Package Data
+                        </Button>
+                        {packagesWithDrift.length > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ring-2 ring-slate-900">
+                                {packagesWithDrift.length}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </header>
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -164,6 +180,17 @@ function PTTrackerPageContent() {
                 </div>
 
                 <div className="container mx-auto py-6">
+                    {packagesWithDrift.length > 0 && (
+                        <Alert variant="destructive" className="mb-6 bg-orange-50 border-orange-200 text-orange-800">
+                            <AlertCircle className="h-4 w-4 text-orange-600" />
+                            <AlertTitle className="font-bold">Data Mismatch Detected</AlertTitle>
+                            <AlertDescription className="flex justify-between items-center">
+                                <span>Found <strong>{packagesWithDrift.length}</strong> packages where "Hours Used" does not match the actual number of signed sessions.</span>
+                                <Button size="sm" onClick={handleSyncPackages} variant="outline" className="ml-4 border-orange-300 bg-white hover:bg-orange-100 text-orange-800">Fix All Now</Button>
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
                     <TabsContent value="dashboard">
                         <DashboardTab clients={clients||[]} trainers={trainers||[]} packages={packages||[]} sessions={sessions||[]} commissions={commissions||[]} />
                     </TabsContent>
@@ -287,7 +314,10 @@ function ClientsTab({ clients, packages, packageUsageMap, db, user }: { clients:
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <Input type="text" placeholder="Search clients..." className="max-w-sm" value={search} onChange={e => setSearch(e.target.value)} />
+                <div className="relative max-w-sm w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input type="text" placeholder="Search clients..." className="pl-10" value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
                 <Button onClick={() => { setSelectedClient(null); setClientModalOpen(true); }}><Plus className="mr-2"/> Add Client</Button>
             </div>
             <Card>
@@ -314,14 +344,28 @@ function ClientsTab({ clients, packages, packageUsageMap, db, user }: { clients:
                                     <Table>
                                         <TableHeader><TableRow><TableHead>Package</TableHead><TableHead>Hours (Used/Total)</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                                         <TableBody>
-                                            {clientPackages.map(pkg => (
-                                                <TableRow key={pkg.id}>
-                                                    <TableCell className="font-medium">{pkg.package_name}</TableCell>
-                                                    <TableCell>{packageUsageMap[pkg.id] || 0} / {pkg.hours_purchased}</TableCell>
-                                                    <TableCell><Badge variant="outline">{pkg.status}</Badge></TableCell>
-                                                    <TableCell className="text-right"><Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button></TableCell>
-                                                </TableRow>
-                                            ))}
+                                            {clientPackages.map(pkg => {
+                                                const actualUsed = packageUsageMap[pkg.id] || 0;
+                                                const hasMismatch = Math.abs(pkg.hours_used - actualUsed) > 0.01;
+
+                                                return (
+                                                    <TableRow key={pkg.id}>
+                                                        <TableCell className="font-medium">
+                                                            <div className="flex items-center gap-2">
+                                                                {pkg.package_name}
+                                                                {hasMismatch && <AlertCircle className="h-3 w-3 text-orange-500" title="Data mismatch detected" />}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <span className={cn(hasMismatch && "text-orange-600 font-bold")}>
+                                                                {actualUsed} / {pkg.hours_purchased}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell><Badge variant="outline">{pkg.status}</Badge></TableCell>
+                                                        <TableCell className="text-right"><Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button></TableCell>
+                                                    </TableRow>
+                                                )
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </AccordionContent>
@@ -419,13 +463,12 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
                     // 3. Delete Session
                     await deleteDoc(doc(db, "pt_sessions", session.id));
 
-                    // 4. Update Package hours (now using recalculation logic)
+                    // 4. Update Package hours
                     if (pkg) {
-                        // We will recalculate the actual usage after deletion
                         const actualUsed = (packageUsageMap[pkg.id] || 0) - session.duration_hours;
                         await updateDoc(doc(db, "pt_packages", pkg.id), {
-                            hours_used: actualUsed,
-                            hours_remaining: pkg.hours_purchased - actualUsed,
+                            hours_used: Math.max(0, actualUsed),
+                            hours_remaining: Math.max(0, pkg.hours_purchased - actualUsed),
                             status: 'active'
                         });
                     }
@@ -1173,12 +1216,12 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     newData 
                 });
 
-                // Update Package
+                // Update Package (Immediate summary update)
                 if (pkg) {
                     const newUsed = (pkg.hours_used || 0) + diff;
                     await updateDoc(doc(db, "pt_packages", pkg.id), { 
-                        hours_used: newUsed,
-                        hours_remaining: pkg.hours_purchased - newUsed 
+                        hours_used: Math.max(0, newUsed),
+                        hours_remaining: Math.max(0, pkg.hours_purchased - newUsed) 
                     });
                 }
                 
