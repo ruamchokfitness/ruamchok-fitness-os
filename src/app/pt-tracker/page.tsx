@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -96,7 +95,6 @@ function PTTrackerPageContent() {
         if (!packages || !sessions) return [];
         return packages.filter(pkg => {
             const actualUsed = packageUsageMap[pkg.id] || 0;
-            // Rounding to handle potential float precision issues (0.5 hours)
             return Math.abs(pkg.hours_used - actualUsed) > 0.01;
         });
     }, [packages, packageUsageMap, sessions]);
@@ -426,7 +424,7 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    // Calculate historical cumulative usage for each session row
+    // Calculate historical cumulative usage for each session row (Dae Hyun Fix)
     const sessionHistoricalUsage = useMemo(() => {
         const history: Record<string, number> = {};
         const packageGroups: Record<string, PTSession[]> = {};
