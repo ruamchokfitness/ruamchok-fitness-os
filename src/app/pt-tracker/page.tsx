@@ -426,6 +426,32 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
+    // Calculate historical cumulative usage for each session row
+    const sessionHistoricalUsage = useMemo(() => {
+        const history: Record<string, number> = {};
+        const packageGroups: Record<string, PTSession[]> = {};
+
+        // Group sessions by package
+        sessions.forEach(s => {
+            if (!packageGroups[s.purchase_id]) packageGroups[s.purchase_id] = [];
+            packageGroups[s.purchase_id].push(s);
+        });
+
+        // For each package, sort ascending and calculate cumulative hours
+        Object.keys(packageGroups).forEach(pkgId => {
+            const pkgSessions = [...packageGroups[pkgId]].sort((a, b) => 
+                new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime()
+            );
+            let runningTotal = 0;
+            pkgSessions.forEach(s => {
+                runningTotal += (s.duration_hours || 0);
+                history[s.id] = runningTotal;
+            });
+        });
+
+        return history;
+    }, [sessions]);
+
     const handleToggleCheck = async (session: PTSession, checked: boolean) => {
         if (!db) return;
         try {
@@ -505,9 +531,9 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
                             
                             let usageInfo = '';
                             if (pkg) {
-                                const actualUsed = packageUsageMap[pkg.id] || 0;
+                                const actualUsedAtTime = sessionHistoricalUsage[session.id] || 0;
                                 const typeSuffix = pkg.package_name.toLowerCase().includes('boxing') ? 'BT' : 'PT';
-                                usageInfo = `${actualUsed}/${pkg.hours_purchased} ${typeSuffix}`;
+                                usageInfo = `${actualUsedAtTime}/${pkg.hours_purchased} ${typeSuffix}`;
                             }
 
                             return (
