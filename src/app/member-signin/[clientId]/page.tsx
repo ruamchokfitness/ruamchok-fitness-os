@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan } from '@/lib/types';
+import type { PTClient, PTPackage, PTTrainer, PTCommissionPlan, PTSession } from '@/lib/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,19 +26,38 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const clientRef = useMemoFirebase(() => firestore ? doc(firestore, 'pt_clients', clientId) : null, [firestore, clientId]);
     const { data: client, isLoading: loadingClient } = useDoc<PTClient>(clientRef);
 
-    // Fetch all packages and filter/sort on the client to avoid composite index errors
+    // Fetch all packages for the client
     const allPackagesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_packages'), where('client_id', '==', clientId)) : null, [firestore, clientId]);
     const { data: allPackagesData, isLoading: loadingPackages } = useCollection<PTPackage>(allPackagesQuery);
 
+    // Fetch all sessions for this client to calculate accurate usage
+    const sessionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_sessions'), where('client_id', '==', clientId)) : null, [firestore, clientId]);
+    const { data: sessions, isLoading: loadingSessions } = useCollection<PTSession>(sessionsQuery);
+
     const allPackages = useMemo(() => {
         if (!allPackagesData) return [];
+        
+        // Calculate usage map from actual sessions for 100% accuracy
+        const usageMap: Record<string, number> = {};
+        if (sessions) {
+            sessions.forEach(s => {
+                if (!usageMap[s.purchase_id]) usageMap[s.purchase_id] = 0;
+                usageMap[s.purchase_id] += (s.duration_hours || 0);
+            });
+        }
+
         return allPackagesData
+            .map(pkg => ({
+                ...pkg,
+                hours_used: usageMap[pkg.id] || 0,
+                hours_remaining: pkg.hours_purchased - (usageMap[pkg.id] || 0)
+            }))
             .sort((a, b) => {
                 if (a.status === 'active' && b.status !== 'active') return -1;
                 if (a.status !== 'active' && b.status === 'active') return 1;
                 return new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime();
             });
-    }, [allPackagesData]);
+    }, [allPackagesData, sessions]);
     
     const trainersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'pt_trainers') : null, [firestore]);
     const { data: trainers, isLoading: loadingTrainers } = useCollection<PTTrainer>(trainersQuery);
@@ -45,7 +65,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
     const commissionPlansQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'pt_commission_plans'), orderBy('name')) : null, [firestore]);
     const { data: commissionPlans, isLoading: loadingPlans } = useCollection<PTCommissionPlan>(commissionPlansQuery);
 
-    const isLoading = loadingClient || loadingPackages || loadingTrainers || loadingPlans;
+    const isLoading = loadingClient || loadingPackages || loadingSessions || loadingTrainers || loadingPlans;
     
     if (isLoading) {
         return (
@@ -104,7 +124,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <p className="font-semibold text-xl">{pkg.package_name}</p>
-                                                    {pkg.status === 'active' ? (
+                                                    {pkg.status === 'active' || pkg.hours_remaining > 0 ? (
                                                         <p className="text-sm text-green-600 font-bold">{pkg.hours_remaining || 0}/{pkg.hours_purchased} hours remaining</p>
                                                     ) : (
                                                         <p className="text-sm text-red-600 font-bold capitalize">{pkg.status}</p>
@@ -112,7 +132,7 @@ function ClientProfile({ params: paramsPromise }: { params: Promise<{ clientId: 
                                                     <p className="text-xs text-muted-foreground">Expires: {new Date(pkg.expiry_date).toLocaleDateString()}</p>
                                                 </div>
                                                 
-                                                {pkg.status === 'active' && (
+                                                {(pkg.status === 'active' || pkg.hours_remaining > 0) && (
                                                     <SessionSigningDialog
                                                         client={client}
                                                         pkg={pkg}

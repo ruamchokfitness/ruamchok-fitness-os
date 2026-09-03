@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check, RefreshCw } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ function PTTrackerPageContent() {
     const { user } = useUser();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
+    const [isSyncing, startSyncTransition] = useTransition();
 
     const { data: clients, isLoading: l1 } = useCollection<PTClient>(useMemoFirebase(() => db ? collection(db, "pt_clients") : null, [db]));
     const { data: trainers, isLoading: l2 } = useCollection<PTTrainer>(useMemoFirebase(() => db ? collection(db, "pt_trainers") : null, [db]));
@@ -77,6 +79,49 @@ function PTTrackerPageContent() {
         seedCommissionPlans();
     }, [db, commissionPlans, l6]);
 
+    // Calculate usage map from sessions for 100% accuracy
+    const packageUsageMap = useMemo(() => {
+        const map: Record<string, number> = {};
+        if (!sessions) return map;
+        sessions.forEach(s => {
+            if (!map[s.purchase_id]) map[s.purchase_id] = 0;
+            map[s.purchase_id] += (s.duration_hours || 0);
+        });
+        return map;
+    }, [sessions]);
+
+    const handleSyncPackages = () => {
+        if (!db || !packages || !sessions) return;
+        startSyncTransition(async () => {
+            try {
+                const batch = writeBatch(db);
+                let count = 0;
+
+                for (const pkg of packages) {
+                    const actualUsed = packageUsageMap[pkg.id] || 0;
+                    if (pkg.hours_used !== actualUsed) {
+                        const actualRemaining = pkg.hours_purchased - actualUsed;
+                        batch.update(doc(db, "pt_packages", pkg.id), {
+                            hours_used: actualUsed,
+                            hours_remaining: actualRemaining,
+                            status: actualRemaining <= 0 ? 'completed' : 'active'
+                        });
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    await batch.commit();
+                    toast({ title: `Successfully synced ${count} packages.` });
+                } else {
+                    toast({ title: "All packages are already in sync." });
+                }
+            } catch (e) {
+                toast({ title: "Sync failed", variant: "destructive" });
+            }
+        });
+    };
+
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
@@ -99,6 +144,10 @@ function PTTrackerPageContent() {
                             <p className="text-slate-300 text-sm md:text-base">Track personal training sessions and commissions.</p>
                         </div>
                     </div>
+                    <Button onClick={handleSyncPackages} disabled={isSyncing} variant="outline" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+                        {isSyncing ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                        Sync Package Data
+                    </Button>
                 </div>
             </header>
              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -119,13 +168,13 @@ function PTTrackerPageContent() {
                         <DashboardTab clients={clients||[]} trainers={trainers||[]} packages={packages||[]} sessions={sessions||[]} commissions={commissions||[]} />
                     </TabsContent>
                     <TabsContent value="clients">
-                        <ClientsTab clients={clients||[]} packages={packages||[]} db={db} user={user as any} />
+                        <ClientsTab clients={clients||[]} packages={packages||[]} packageUsageMap={packageUsageMap} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="trainers">
                         <TrainersTab trainers={trainers||[]} commissions={commissions||[]} commissionPlans={commissionPlans||[]} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="sessions">
-                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} commissionPlans={commissionPlans || []} db={db} user={user as any} />
+                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} packageUsageMap={packageUsageMap} commissionPlans={commissionPlans || []} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="commissions">
                         <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} packages={packages||[]} />
@@ -223,7 +272,7 @@ function DashboardTab({ clients, trainers, packages, sessions, commissions }: { 
     )
 }
 
-function ClientsTab({ clients, packages, db, user }: { clients: PTClient[], packages: PTPackage[], db: Firestore | null, user: User }) {
+function ClientsTab({ clients, packages, packageUsageMap, db, user }: { clients: PTClient[], packages: PTPackage[], packageUsageMap: Record<string, number>, db: Firestore | null, user: User }) {
     const [search, setSearch] = useState('');
     const [clientModalOpen, setClientModalOpen] = useState(false);
     const [packageModalOpen, setPackageModalOpen] = useState(false);
@@ -245,7 +294,7 @@ function ClientsTab({ clients, packages, db, user }: { clients: PTClient[], pack
                 <Accordion type="single" collapsible className="w-full">
                     {filteredClients.map(client => {
                         const clientPackages = packages.filter(p => p.client_id === client.id).sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
-                        const activeHours = clientPackages.filter(p => p.status === 'active').reduce((sum, p) => sum + (p.hours_remaining || 0), 0);
+                        const activeHours = clientPackages.filter(p => p.status === 'active').reduce((sum, p) => sum + Math.max(0, p.hours_purchased - (packageUsageMap[p.id] || 0)), 0);
                         return (
                             <AccordionItem value={client.id} key={client.id} className="border-b last:border-b-0">
                                 <AccordionTrigger className="p-4 hover:bg-slate-50">
@@ -268,7 +317,7 @@ function ClientsTab({ clients, packages, db, user }: { clients: PTClient[], pack
                                             {clientPackages.map(pkg => (
                                                 <TableRow key={pkg.id}>
                                                     <TableCell className="font-medium">{pkg.package_name}</TableCell>
-                                                    <TableCell>{pkg.hours_used || 0} / {pkg.hours_purchased}</TableCell>
+                                                    <TableCell>{packageUsageMap[pkg.id] || 0} / {pkg.hours_purchased}</TableCell>
                                                     <TableCell><Badge variant="outline">{pkg.status}</Badge></TableCell>
                                                     <TableCell className="text-right"><Button variant="ghost" size="sm" onClick={() => { setSelectedClient(client); setSelectedPackage(pkg); setPackageModalOpen(true); }}>Edit</Button></TableCell>
                                                 </TableRow>
@@ -325,7 +374,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { tra
     )
 }
 
-function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, db, user }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
+function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, commissionPlans, db, user }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], packageUsageMap: Record<string, number>, commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
     const { toast } = useToast();
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
@@ -349,25 +398,16 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                 const session = sessions.find(s => s.id === sessionToDelete);
                 if (session) {
                     const client = clients.find(c => c.id === session.client_id);
-                    // Update Package hours back
                     const pkg = packages.find(p => p.id === session.purchase_id);
-                    if (pkg) {
-                        const newUsed = Math.max(0, (pkg.hours_used || 0) - session.duration_hours);
-                        await updateDoc(doc(db, "pt_packages", pkg.id), {
-                            hours_used: newUsed,
-                            hours_remaining: pkg.hours_purchased - newUsed,
-                            status: 'active'
-                        });
-                    }
 
-                    // Delete Commission
+                    // 1. Delete Commission
                     const commQuery = query(collection(db, "pt_commissions"), where("session_id", "==", session.id));
                     const commSnap = await getDocs(commQuery);
                     const batch = writeBatch(db);
                     commSnap.forEach(d => batch.delete(d.ref));
                     await batch.commit();
 
-                    // Audit Log before delete
+                    // 2. Audit Log before delete
                     await recordAuditLog(db, user, {
                         action: 'delete',
                         module: 'PTTracker',
@@ -376,8 +416,19 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                         previousData: session
                     });
 
-                    // Delete Session
+                    // 3. Delete Session
                     await deleteDoc(doc(db, "pt_sessions", session.id));
+
+                    // 4. Update Package hours (now using recalculation logic)
+                    if (pkg) {
+                        // We will recalculate the actual usage after deletion
+                        const actualUsed = (packageUsageMap[pkg.id] || 0) - session.duration_hours;
+                        await updateDoc(doc(db, "pt_packages", pkg.id), {
+                            hours_used: actualUsed,
+                            hours_remaining: pkg.hours_purchased - actualUsed,
+                            status: 'active'
+                        });
+                    }
                     
                     toast({ title: "Session deleted." });
                 }
@@ -409,11 +460,11 @@ function SessionsTab({ sessions, clients, trainers, packages, commissionPlans, d
                             const trainer = trainers.find(t => t.id === session.trainer_id);
                             const pkg = packages.find(p => p.id === session.purchase_id);
                             
-                            // Construct usage string like "2/10 PT"
                             let usageInfo = '';
                             if (pkg) {
+                                const actualUsed = packageUsageMap[pkg.id] || 0;
                                 const typeSuffix = pkg.package_name.toLowerCase().includes('boxing') ? 'BT' : 'PT';
-                                usageInfo = `${pkg.hours_used}/${pkg.hours_purchased} ${typeSuffix}`;
+                                usageInfo = `${actualUsed}/${pkg.hours_purchased} ${typeSuffix}`;
                             }
 
                             return (
