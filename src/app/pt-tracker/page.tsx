@@ -1323,106 +1323,59 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
 
 function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
     const { toast } = useToast();
-    const [isPending, startTransition] = useTransition();
-    const [editingPlan, setEditingPlan] = useState<PTCommissionPlan | null>(null);
-    const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+    const [isSaving, startSaveTransition] = useTransition();
+    const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+    const [editFormData, setEditFormData] = useState({
+        name: '',
+        type: 'Fixed Rate' as 'Fixed Rate' | 'Tiered Rate',
+        tier1Hours: 70,
+        tier1Rate: 150,
+        tier2Rate: 180,
+        fixedRate: 250
+    });
 
-    const handleDeletePlan = (plan: PTCommissionPlan) => {
-        if (!db) return;
-        startTransition(async () => {
-            try {
-                await deleteDoc(doc(db, "pt_commission_plans", plan.id));
-                await recordAuditLog(db, user, { action: 'delete', module: 'PTTracker', resourceId: plan.id, details: `Deleted commission plan: ${plan.name}` });
-                toast({ title: "Plan deleted." });
-            } catch (e) {
-                toast({ title: "Error deleting plan", variant: "destructive" });
-            }
-        });
-    };
-
-    return (
-        <>
-            <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Manage Commission Plans</DialogTitle>
-                        <DialogDescription>Define rates and tiers for trainers.</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Button className="mb-4" onClick={() => { setEditingPlan(null); setPlanModalOpen(true); }}><Plus className="mr-2 h-4 w-4"/> Add New Plan</Button>
-                        <ScrollArea className="h-[300px]">
-                            <div className="space-y-3">
-                                {plans.map((plan: PTCommissionPlan) => (
-                                    <div key={plan.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                                        <div>
-                                            <p className="font-bold">{plan.name}</p>
-                                            <div className="flex flex-wrap gap-2 mt-1">
-                                                {plan.tiers.map((t, i) => (
-                                                    <Badge key={i} variant="secondary" className="text-[10px]">
-                                                        {t.maxHours === Infinity ? `>${plan.tiers[i-1]?.maxHours || 0}h` : `<=${t.maxHours}h`}: ฿{t.rate}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button variant="ghost" size="icon" onClick={() => { setEditingPlan(plan); setPlanModalOpen(true); }}><Edit className="h-4 w-4"/></Button>
-                                            {plan.isDeletable !== false && (
-                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeletePlan(plan)}><Trash2 className="h-4 w-4"/></Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </ScrollArea>
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            {db && <CommissionPlanEditModal open={isPlanModalOpen} onOpenChange={setPlanModalOpen} plan={editingPlan} db={db} user={user} />}
-        </>
-    );
-}
-
-function CommissionPlanEditModal({ open, onOpenChange, plan, db, user }: any) {
-    const { toast } = useToast();
-    const [isPending, startTransition] = useTransition();
-    const [name, setName] = useState('');
-    const [tiers, setTiers] = useState<any[]>([]);
+    const selectedPlan = plans.find((p: any) => p.id === selectedPlanId);
 
     useEffect(() => {
-        if (open) {
-            if (plan) {
-                setName(plan.name);
-                setTiers([...plan.tiers]);
-            } else {
-                setName('');
-                setTiers([{ maxHours: 70, rate: 150 }, { maxHours: Infinity, rate: 180 }]);
-            }
+        if (selectedPlan) {
+            const isTiered = selectedPlan.tiers.length > 1;
+            setEditFormData({
+                name: selectedPlan.name,
+                type: isTiered ? 'Tiered Rate' : 'Fixed Rate',
+                tier1Hours: isTiered ? selectedPlan.tiers[0].maxHours : 70,
+                tier1Rate: isTiered ? selectedPlan.tiers[0].rate : 150,
+                tier2Rate: isTiered ? selectedPlan.tiers[1].rate : 180,
+                fixedRate: !isTiered ? selectedPlan.tiers[0].rate : 250
+            });
         }
-    }, [open, plan]);
+    }, [selectedPlan]);
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name) return;
-        startTransition(async () => {
+    const handleSave = () => {
+        if (!db || !selectedPlanId) return;
+        startSaveTransition(async () => {
             try {
-                const data = { 
-                    name, 
-                    tiers: tiers.map(t => ({ ...t, maxHours: Number(t.maxHours) })), 
-                    isDeletable: plan ? (plan.isDeletable ?? true) : true 
+                const finalTiers = editFormData.type === 'Fixed Rate' 
+                    ? [{ maxHours: Infinity, rate: editFormData.fixedRate }]
+                    : [
+                        { maxHours: Number(editFormData.tier1Hours), rate: editFormData.tier1Rate },
+                        { maxHours: Infinity, rate: editFormData.tier2Rate }
+                    ];
+
+                const updateData = {
+                    name: editFormData.name,
+                    tiers: finalTiers
                 };
-                if (plan) {
-                    await updateDoc(doc(db, "pt_commission_plans", plan.id), data);
-                    await recordAuditLog(db, user, { action: 'update', module: 'PTTracker', resourceId: plan.id, details: `Updated commission plan: ${name}`, previousData: plan, newData: data });
-                } else {
-                    const id = name.toUpperCase().replace(/\s+/g, '_') + '_' + Date.now();
-                    await setDoc(doc(db, "pt_commission_plans", id), data);
-                    await recordAuditLog(db, user, { action: 'create', module: 'PTTracker', resourceId: id, details: `Created new commission plan: ${name}` });
-                }
-                toast({ title: "Plan saved." });
-                onOpenChange(false);
+
+                await updateDoc(doc(db, "pt_commission_plans", selectedPlanId), updateData);
+                await recordAuditLog(db, user, { 
+                    action: 'update', 
+                    module: 'PTTracker', 
+                    resourceId: selectedPlanId, 
+                    details: `Updated commission plan: ${editFormData.name}`,
+                    previousData: selectedPlan,
+                    newData: updateData
+                });
+                toast({ title: "Changes saved successfully" });
             } catch (e) {
                 toast({ title: "Error saving plan", variant: "destructive" });
             }
@@ -1431,58 +1384,143 @@ function CommissionPlanEditModal({ open, onOpenChange, plan, db, user }: any) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader><DialogTitle>{plan ? 'Edit Plan' : 'Create Plan'}</DialogTitle></DialogHeader>
-                <form onSubmit={handleSave} className="space-y-4">
-                    <div>
-                        <Label>Plan Name</Label>
-                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Plan D" required />
-                    </div>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <Label>Tiers</Label>
-                            <Button type="button" variant="outline" size="sm" onClick={() => setTiers([...tiers, { maxHours: Infinity, rate: 200 }])}><Plus className="h-3 w-3 mr-1"/> Add Tier</Button>
+            <DialogContent className="max-w-4xl p-0 overflow-hidden">
+                <div className="p-6 border-b bg-slate-50/50">
+                    <DialogTitle className="text-xl font-bold">Manage Commission Plans</DialogTitle>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-x h-[500px]">
+                    {/* Left Column: List */}
+                    <div className="p-6 space-y-4 overflow-y-auto">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Existing Plans</h3>
+                        <div className="space-y-3">
+                            {plans.map((plan: PTCommissionPlan) => {
+                                const isTiered = plan.tiers.length > 1;
+                                const isSelected = selectedPlanId === plan.id;
+                                return (
+                                    <div 
+                                        key={plan.id} 
+                                        onClick={() => setSelectedPlanId(plan.id)}
+                                        className={cn(
+                                            "p-4 border rounded-xl cursor-pointer transition-all flex items-center justify-between group",
+                                            isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-slate-300 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <div>
+                                            <p className="font-bold text-slate-800">{plan.name}</p>
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                {isTiered 
+                                                    ? `Tiers: ฿${plan.tiers[0].rate} / ฿${plan.tiers[1].rate}` 
+                                                    : `Fixed: ฿${plan.tiers[0].rate}/hr`
+                                                }
+                                            </p>
+                                        </div>
+                                        <Edit className={cn("h-4 w-4", isSelected ? "text-primary" : "text-slate-300 group-hover:text-slate-600")} />
+                                    </div>
+                                )
+                            })}
                         </div>
-                        {tiers.map((tier, index) => (
-                            <div key={index} className="grid grid-cols-2 gap-2 p-2 border rounded-md bg-slate-50 relative group">
-                                <div>
-                                    <Label className="text-[10px]">Max Hours (use -1 for Infinity)</Label>
-                                    <Input 
-                                        type="number" 
-                                        value={tier.maxHours === Infinity ? -1 : tier.maxHours} 
-                                        onChange={e => {
-                                            const val = parseInt(e.target.value);
-                                            const newTiers = [...tiers];
-                                            newTiers[index].maxHours = val === -1 ? Infinity : val;
-                                            setTiers(newTiers);
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-[10px]">Rate (฿/hour)</Label>
-                                    <Input 
-                                        type="number" 
-                                        value={tier.rate} 
-                                        onChange={e => {
-                                            const newTiers = [...tiers];
-                                            newTiers[index].rate = parseInt(e.target.value);
-                                            setTiers(newTiers);
-                                        }}
-                                    />
-                                </div>
-                                {tiers.length > 1 && (
-                                    <Button type="button" variant="ghost" size="icon" className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setTiers(tiers.filter((_, i) => i !== index))}>
-                                        <X className="h-3 w-3"/>
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Plan</Button>
-                    </DialogFooter>
-                </form>
+
+                    {/* Right Column: Editor */}
+                    <div className="p-6 bg-slate-50/30 overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Edit Plan</h3>
+                        </div>
+
+                        {selectedPlanId ? (
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-600">Plan Name</Label>
+                                    <Input 
+                                        value={editFormData.name} 
+                                        onChange={e => setEditFormData({...editFormData, name: e.target.value})}
+                                        className="bg-white"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-600">Plan Type</Label>
+                                    <Select 
+                                        value={editFormData.type} 
+                                        onValueChange={(v:any) => setEditFormData({...editFormData, type: v})}
+                                    >
+                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Fixed Rate">Fixed Rate</SelectItem>
+                                            <SelectItem value="Tiered Rate">Tiered Rate</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Card className="border-slate-200 shadow-none">
+                                    <CardContent className="p-4 space-y-4">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tiers</p>
+                                        
+                                        {editFormData.type === 'Tiered Rate' ? (
+                                            <>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-semibold text-slate-700">Tier 1: Up to (hours)</Label>
+                                                    <Input 
+                                                        type="number" 
+                                                        value={editFormData.tier1Hours} 
+                                                        onChange={e => setEditFormData({...editFormData, tier1Hours: Number(e.target.value)})}
+                                                        className="bg-white h-9"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-semibold text-slate-700">Tier 1: Rate per Hour</Label>
+                                                    <Input 
+                                                        type="number" 
+                                                        value={editFormData.tier1Rate} 
+                                                        onChange={e => setEditFormData({...editFormData, tier1Rate: Number(e.target.value)})}
+                                                        className="bg-white h-9"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-semibold text-slate-700">Tier 2: Rate (Above Tier 1)</Label>
+                                                    <Input 
+                                                        type="number" 
+                                                        value={editFormData.tier2Rate} 
+                                                        onChange={e => setEditFormData({...editFormData, tier2Rate: Number(e.target.value)})}
+                                                        className="bg-white h-9"
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                <Label className="text-[11px] font-semibold text-slate-700">Rate per Hour</Label>
+                                                <Input 
+                                                    type="number" 
+                                                    value={editFormData.fixedRate} 
+                                                    onChange={e => setEditFormData({...editFormData, fixedRate: Number(e.target.value)})}
+                                                    className="bg-white h-9"
+                                                />
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                <div className="flex justify-end items-center gap-4 pt-4">
+                                    <Button variant="ghost" onClick={() => setSelectedPlanId(null)} className="text-slate-500">Cancel Edit</Button>
+                                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90 px-8">
+                                        {isSaving && <Loader2 className="animate-spin mr-2 h-4 w-4"/>}
+                                        Save Changes
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 opacity-60">
+                                <Settings className="h-10 w-10" />
+                                <p className="text-sm">Select a plan from the left to edit</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 border-t bg-slate-50 flex justify-end">
+                    <DialogClose asChild><Button variant="outline" className="bg-white">Close</Button></DialogClose>
+                </div>
             </DialogContent>
         </Dialog>
     );
@@ -1551,4 +1589,3 @@ export default function PTTrackerPage() {
         </FirebaseClientProvider>
     );
 }
-
