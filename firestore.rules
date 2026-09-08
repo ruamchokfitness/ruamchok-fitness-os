@@ -3,21 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Rules for all collections
-    // For this prototype, we allow all authenticated users to read and write
-    // to ensure all modules (PT Tracker, Sales, HRM, Audit Log, Group Class) work correctly.
+    // Allow all authenticated users to read and write to all collections
+    // to ensure all modules (PT Tracker, Sales, HRM, Audit Log, Group Class, etc.) 
+    // work correctly for both Admin and Staff users during this phase.
     match /{document=**} {
       allow read, write: if request.auth != null;
-    }
-
-    // Specific rules for the 'users' collection to ensure users can read their own profile
-    match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow write: if request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }

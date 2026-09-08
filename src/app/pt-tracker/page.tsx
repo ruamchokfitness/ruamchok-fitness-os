@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
@@ -81,7 +80,6 @@ function PTTrackerPageContent() {
         seedCommissionPlans();
     }, [db, commissionPlans, l6]);
 
-    // Calculate usage map from sessions for 100% accuracy
     const packageUsageMap = useMemo(() => {
         const map: Record<string, number> = {};
         if (!sessions) return map;
@@ -92,7 +90,6 @@ function PTTrackerPageContent() {
         return map;
     }, [sessions]);
 
-    // Identify packages with mismatched data (Data Drift)
     const packagesWithDrift = useMemo(() => {
         if (!packages || !sessions) return [];
         return packages.filter(pkg => {
@@ -201,7 +198,7 @@ function PTTrackerPageContent() {
                         <TrainersTab trainers={trainers||[]} commissions={commissions||[]} commissionPlans={commissionPlans||[]} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="sessions">
-                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} packageUsageMap={packageUsageMap} commissionPlans={commissionPlans || []} db={db} user={user as any} />
+                        <SessionsTab sessions={sessions||[]} clients={clients||[]} trainers={trainers||[]} packages={packages||[]} packageUsageMap={packageUsageMap} db={db} user={user as any} />
                     </TabsContent>
                     <TabsContent value="commissions">
                         <CommissionsTab commissions={commissions||[]} trainers={trainers||[]} sessions={sessions||[]} clients={clients || []} commissionPlans={commissionPlans||[]} packages={packages||[]} />
@@ -423,7 +420,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { tra
     )
 }
 
-function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, commissionPlans, db, user }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], packageUsageMap: Record<string, number>, commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
+function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, db, user }: { sessions: PTSession[], clients: PTClient[], trainers: PTTrainer[], packages: PTPackage[], packageUsageMap: Record<string, number>, db: Firestore | null, user: User }) { 
     const { toast } = useToast();
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [sessionToEdit, setSessionToEdit] = useState<PTSession | null>(null);
@@ -431,18 +428,15 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    // Calculate historical cumulative usage for each session row
     const sessionHistoricalUsage = useMemo(() => {
         const history: Record<string, number> = {};
         const packageGroups: Record<string, PTSession[]> = {};
 
-        // Group sessions by package
         sessions.forEach(s => {
             if (!packageGroups[s.purchase_id]) packageGroups[s.purchase_id] = [];
             packageGroups[s.purchase_id].push(s);
         });
 
-        // For each package, sort ascending and calculate cumulative hours
         Object.keys(packageGroups).forEach(pkgId => {
             const pkgSessions = [...packageGroups[pkgId]].sort((a, b) => 
                 new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime()
@@ -475,14 +469,12 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
                     const client = clients.find(c => c.id === session.client_id);
                     const pkg = packages.find(p => p.id === session.purchase_id);
 
-                    // 1. Delete Commission
                     const commQuery = query(collection(db, "pt_commissions"), where("session_id", "==", session.id));
                     const commSnap = await getDocs(commQuery);
                     const batch = writeBatch(db);
                     commSnap.forEach(d => batch.delete(d.ref));
                     await batch.commit();
 
-                    // 2. Audit Log before delete
                     await recordAuditLog(db, user, {
                         action: 'delete',
                         module: 'PTTracker',
@@ -491,10 +483,8 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
                         previousData: session
                     });
 
-                    // 3. Delete Session
                     await deleteDoc(doc(db, "pt_sessions", session.id));
 
-                    // 4. Update Package hours
                     if (pkg) {
                         const actualUsed = (packageUsageMap[pkg.id] || 0) - session.duration_hours;
                         await updateDoc(doc(db, "pt_packages", pkg.id), {
@@ -571,7 +561,7 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
                     </TableBody>
                 </Table>
             </Card>
-            {db && <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} commissionPlans={commissionPlans} user={user} />}
+            {db && <SessionEditModal open={editModalOpen} onOpenChange={setEditModalOpen} session={sessionToEdit} clients={clients} trainers={trainers} packages={packages} db={db} user={user} />}
             
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>
@@ -685,7 +675,6 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
 
     const generateCommissionPDF = () => {
         if (trainerFilter === 'all') {
-            // Summary for all trainers
             const totalHours = recalculatedCommissions.reduce((sum, c) => sum + c.duration_hours, 0);
             const totalAmount = recalculatedCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
 
@@ -863,7 +852,6 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 const pkg = session ? packages.find(p => p.id === session.purchase_id) : null;
                                 const dateOnly = session?.session_datetime ? formatDateOnly(session.session_datetime) : '-';
                                 
-                                // Abbreviate package name
                                 let shortName = pkg?.package_name || '-';
                                 shortName = shortName.replace('Personal Training Package', 'Personal Training');
                                 shortName = shortName.replace('Boxing Training Package', 'Boxing Training');
@@ -1217,7 +1205,7 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db, user }
     )
 }
 
-function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, commissionPlans, user }: any) {
+function SessionEditModal({ open, onOpenChange, session, clients, trainers, packages, db, user }: any) {
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -1242,10 +1230,8 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     session_datetime: new Date(newDateTime).toISOString()
                 };
 
-                // Update Session
                 await updateDoc(doc(db, "pt_sessions", session.id), newData);
                 
-                // Audit Log
                 await recordAuditLog(db, user, { 
                     action: 'update', 
                     module: 'PTTracker', 
@@ -1255,7 +1241,6 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     newData 
                 });
 
-                // Update Package (Immediate summary update)
                 if (pkg) {
                     const newUsed = (pkg.hours_used || 0) + diff;
                     await updateDoc(doc(db, "pt_packages", pkg.id), { 
@@ -1264,15 +1249,6 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
                     });
                 }
                 
-                // Recalculate Commissions
-                const monthRef = getMonthReference(new Date(newDateTime));
-                const trainer = trainers.find((t:any) => t.id === newTrainerId);
-                if (trainer) await recalculateCommissions(db, trainer.id, trainer.commission_plan, commissionPlans, monthRef);
-                if (newTrainerId !== session.trainer_id) {
-                    const oldTrainer = trainers.find((t:any) => t.id === session.trainer_id);
-                    if (oldTrainer) await recalculateCommissions(db, oldTrainer.id, oldTrainer.commission_plan, commissionPlans, getMonthReference(new Date(session.session_datetime)));
-                }
-
                 toast({ title: "Success" });
                 onOpenChange(false);
             } catch (error) { toast({ title: "Error", variant: "destructive" }); }
@@ -1447,7 +1423,6 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-x h-[550px]">
-                    {/* Left Column: List */}
                     <div className="p-6 space-y-4 overflow-y-auto">
                         <div className="flex justify-between items-center">
                             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Existing Plans</h3>
@@ -1499,7 +1474,6 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
                         </div>
                     </div>
 
-                    {/* Right Column: Editor */}
                     <div className="p-6 bg-slate-50/30 overflow-y-auto">
                         {(selectedPlanId || isAdding) ? (
                             <div className="space-y-6">
@@ -1604,62 +1578,6 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
             </DialogContent>
         </Dialog>
     );
-}
-
-async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: string, allPlans: PTCommissionPlan[], monthRef: string) {
-    const [year, month] = monthRef.split('-').map(Number);
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0, 23, 59, 59);
-
-    const sessionsQuery = query(collection(db, "pt_sessions"), where("trainer_id", "==", trainerId));
-    const sessionsSnapshot = await getDocs(sessionsQuery);
-    const sessionsThisMonth = sessionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSession))
-        .filter(s => s.session_status === 'completed' && new Date(s.session_datetime) >= firstDay && new Date(s.session_datetime) <= lastDay)
-        .sort((a, b) => a.session_datetime.localeCompare(b.session_datetime));
-
-    const packagesSnapshot = await getDocs(collection(db, "pt_packages"));
-    const allPackages = packagesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTPackage));
-    
-    const commissionsQuery = query(collection(db, "pt_commissions"), where("trainer_id", "==", trainerId), where("month_reference", "==", monthRef));
-    const commissionsSnapshot = await getDocs(commissionsQuery);
-
-    const batch = writeBatch(db);
-    commissionsSnapshot.forEach(doc => batch.delete(doc.ref));
-
-    let cumHours = 0;
-    let cumBoxing = 0;
-    const plan = allPlans.find(p => p.id === newPlanId);
-    const boxingPlan = allPlans.find(p => p.id === 'BOXING');
-
-    for (const session of sessionsThisMonth) {
-        const pkg = allPackages.find(p => p.id === session.purchase_id);
-        if (!pkg) continue;
-        const isBoxing = pkg.package_name.toLowerCase().includes('boxing');
-        const dur = session.duration_hours;
-        let rate = 0, before = 0, type = '';
-
-        if (isBoxing && boxingPlan) {
-            rate = boxingPlan.tiers[0].rate;
-            before = cumBoxing; cumBoxing += dur;
-            type = 'Boxing Package';
-        } else if (plan) {
-            if (plan.tiers.length === 1) rate = plan.tiers[0].rate;
-            else {
-                const t1 = plan.tiers.find(t => t.maxHours !== Infinity);
-                const t2 = plan.tiers.find(t => t.maxHours === Infinity);
-                if (t1 && t2) {
-                    if (cumHours >= t1.maxHours) rate = t2.rate;
-                    else if (cumHours + dur <= t1.maxHours) rate = t1.rate;
-                    else rate = (( (t1.maxHours - cumHours) * t1.rate) + ((dur - (t1.maxHours - cumHours)) * t2.rate)) / dur;
-                }
-            }
-            before = cumHours; cumHours += dur;
-            type = plan.name;
-        }
-
-        batch.set(doc(collection(db, "pt_commissions")), { trainer_id: trainerId, session_id: session.id, duration_hours: dur, hourly_rate_applied: Math.round(rate), commission_amount: Math.round(rate * dur), cumulative_hours_before: before, cumulative_hours_after: before + dur, commission_plan: isBoxing ? 'BOXING' : newPlanId, commission_type: type, month_reference: monthRef });
-    }
-    await batch.commit();
 }
 
 export default function PTTrackerPage() {
