@@ -1325,6 +1325,7 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
     const { toast } = useToast();
     const [isSaving, startSaveTransition] = useTransition();
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
     const [editFormData, setEditFormData] = useState({
         name: '',
         type: 'Fixed Rate' as 'Fixed Rate' | 'Tiered Rate',
@@ -1338,6 +1339,7 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
 
     useEffect(() => {
         if (selectedPlan) {
+            setIsAdding(false);
             const isTiered = selectedPlan.tiers.length > 1;
             setEditFormData({
                 name: selectedPlan.name,
@@ -1350,8 +1352,21 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
         }
     }, [selectedPlan]);
 
+    const handleAddNew = () => {
+        setSelectedPlanId(null);
+        setIsAdding(true);
+        setEditFormData({
+            name: 'New Commission Plan',
+            type: 'Fixed Rate',
+            tier1Hours: 70,
+            tier1Rate: 150,
+            tier2Rate: 180,
+            fixedRate: 250
+        });
+    };
+
     const handleSave = () => {
-        if (!db || !selectedPlanId) return;
+        if (!db) return;
         startSaveTransition(async () => {
             try {
                 const finalTiers = editFormData.type === 'Fixed Rate' 
@@ -1361,23 +1376,57 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
                         { maxHours: Infinity, rate: editFormData.tier2Rate }
                     ];
 
-                const updateData = {
+                const planData = {
                     name: editFormData.name,
                     tiers: finalTiers
                 };
 
-                await updateDoc(doc(db, "pt_commission_plans", selectedPlanId), updateData);
-                await recordAuditLog(db, user, { 
-                    action: 'update', 
-                    module: 'PTTracker', 
-                    resourceId: selectedPlanId, 
-                    details: `Updated commission plan: ${editFormData.name}`,
-                    previousData: selectedPlan,
-                    newData: updateData
-                });
-                toast({ title: "Changes saved successfully" });
+                if (selectedPlanId) {
+                    await updateDoc(doc(db, "pt_commission_plans", selectedPlanId), planData);
+                    await recordAuditLog(db, user, { 
+                        action: 'update', 
+                        module: 'PTTracker', 
+                        resourceId: selectedPlanId, 
+                        details: `Updated commission plan: ${editFormData.name}`,
+                        previousData: selectedPlan,
+                        newData: planData
+                    });
+                } else if (isAdding) {
+                    const newPlanRef = await addDoc(collection(db, "pt_commission_plans"), {
+                        ...planData,
+                        isDeletable: true
+                    });
+                    await recordAuditLog(db, user, { 
+                        action: 'create', 
+                        module: 'PTTracker', 
+                        resourceId: newPlanRef.id, 
+                        details: `Created new commission plan: ${editFormData.name}`
+                    });
+                    setIsAdding(false);
+                    setSelectedPlanId(newPlanRef.id);
+                }
+                toast({ title: "Plan saved successfully" });
             } catch (e) {
                 toast({ title: "Error saving plan", variant: "destructive" });
+            }
+        });
+    };
+
+    const handleDeletePlan = (id: string, name: string) => {
+        if (!db) return;
+        startSaveTransition(async () => {
+            try {
+                await deleteDoc(doc(db, "pt_commission_plans", id));
+                await recordAuditLog(db, user, { 
+                    action: 'delete', 
+                    module: 'PTTracker', 
+                    resourceId: id, 
+                    details: `Deleted commission plan: ${name}`
+                });
+                if (selectedPlanId === id) setSelectedPlanId(null);
+                toast({ title: "Plan deleted successfully" });
+            } catch (e) {
+                toast({ title: "Error deleting plan", variant: "destructive" });
             }
         });
     };
@@ -1385,14 +1434,19 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl p-0 overflow-hidden">
-                <div className="p-6 border-b bg-slate-50/50">
+                <div className="p-6 border-b bg-slate-50/50 flex justify-between items-center">
                     <DialogTitle className="text-xl font-bold">Manage Commission Plans</DialogTitle>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-x h-[500px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-x h-[550px]">
                     {/* Left Column: List */}
                     <div className="p-6 space-y-4 overflow-y-auto">
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Existing Plans</h3>
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Existing Plans</h3>
+                            <Button size="sm" onClick={handleAddNew} variant="outline" className="h-8 text-primary border-primary hover:bg-primary/5">
+                                <Plus className="h-4 w-4 mr-1" /> Add New Plan
+                            </Button>
+                        </div>
                         <div className="space-y-3">
                             {plans.map((plan: PTCommissionPlan) => {
                                 const isTiered = plan.tiers.length > 1;
@@ -1415,7 +1469,22 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
                                                 }
                                             </p>
                                         </div>
-                                        <Edit className={cn("h-4 w-4", isSelected ? "text-primary" : "text-slate-300 group-hover:text-slate-600")} />
+                                        <div className="flex items-center gap-2">
+                                            {plan.isDeletable !== false && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeletePlan(plan.id, plan.name);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <Edit className={cn("h-4 w-4", isSelected ? "text-primary" : "text-slate-300 group-hover:text-slate-600")} />
+                                        </div>
                                     </div>
                                 )
                             })}
@@ -1424,18 +1493,21 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
 
                     {/* Right Column: Editor */}
                     <div className="p-6 bg-slate-50/30 overflow-y-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Edit Plan</h3>
-                        </div>
-
-                        {selectedPlanId ? (
+                        {(selectedPlanId || isAdding) ? (
                             <div className="space-y-6">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
+                                        {isAdding ? 'Create New Plan' : 'Edit Plan'}
+                                    </h3>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600">Plan Name</Label>
                                     <Input 
                                         value={editFormData.name} 
                                         onChange={e => setEditFormData({...editFormData, name: e.target.value})}
                                         className="bg-white"
+                                        placeholder="e.g. Plan D"
                                     />
                                 </div>
 
@@ -1455,7 +1527,7 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
 
                                 <Card className="border-slate-200 shadow-none">
                                     <CardContent className="p-4 space-y-4">
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tiers</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pricing Setup</p>
                                         
                                         {editFormData.type === 'Tiered Rate' ? (
                                             <>
@@ -1502,17 +1574,17 @@ function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
                                 </Card>
 
                                 <div className="flex justify-end items-center gap-4 pt-4">
-                                    <Button variant="ghost" onClick={() => setSelectedPlanId(null)} className="text-slate-500">Cancel Edit</Button>
+                                    <Button variant="ghost" onClick={() => { setSelectedPlanId(null); setIsAdding(false); }} className="text-slate-500">Cancel</Button>
                                     <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90 px-8">
                                         {isSaving && <Loader2 className="animate-spin mr-2 h-4 w-4"/>}
-                                        Save Changes
+                                        {isAdding ? 'Create Plan' : 'Save Changes'}
                                     </Button>
                                 </div>
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 opacity-60">
                                 <Settings className="h-10 w-10" />
-                                <p className="text-sm">Select a plan from the left to edit</p>
+                                <p className="text-sm">Select a plan to edit or click "Add New Plan"</p>
                             </div>
                         )}
                     </div>
