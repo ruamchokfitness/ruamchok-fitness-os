@@ -1202,8 +1202,7 @@ function TrainerModal({ open, onOpenChange, trainer, commissionPlans, db, user }
                     <div><Label>Phone</Label><Input name="phone" defaultValue={trainer?.phone} /></div>
                     <div><Label>Plan *</Label><Select name="commission_plan" defaultValue={trainer?.commission_plan || 'PLAN_A'}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{commissionPlans.filter(p=>p.id!=='BOXING').map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
                     <div><Label>Status</Label><Select name="status" defaultValue={trainer?.status || 'active'}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div>
-                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Trainer</Button></DialogFooter>
-                </form>
+                    <DialogFooter><DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Trainer</Button></form>
             </DialogContent>
         </Dialog>
     )
