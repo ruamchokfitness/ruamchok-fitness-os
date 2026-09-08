@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
-import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc, useUser } from '@/firebase';
 
 import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, User } from '@/lib/types';
@@ -22,6 +23,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Firestore } from 'firebase/firestore';
 import { recordAuditLog } from '@/lib/audit-logger';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -380,6 +382,7 @@ function ClientsTab({ clients, packages, packageUsageMap, db, user }: { clients:
 
 function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { trainers: PTTrainer[], commissions: PTCommission[], commissionPlans: PTCommissionPlan[], db: Firestore | null, user: User }) { 
     const [trainerModalOpen, setTrainerModalOpen] = useState(false);
+    const [managePlansModalOpen, setManagePlansModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState<PTTrainer | null>(null);
     const thisMonthRef = getMonthReference();
     
@@ -387,7 +390,10 @@ function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { tra
         <div className="space-y-6">
              <div className="flex justify-between items-center">
                  <h3 className="text-lg font-semibold">Trainer Roster</h3>
-                 <Button onClick={() => { setSelectedTrainer(null); setTrainerModalOpen(true); }}><Plus className="mr-2"/> Add Trainer</Button>
+                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setManagePlansModalOpen(true)}><Settings className="mr-2 h-4 w-4"/> Manage Plans</Button>
+                    <Button onClick={() => { setSelectedTrainer(null); setTrainerModalOpen(true); }}><Plus className="mr-2"/> Add Trainer</Button>
+                 </div>
             </div>
             <Card>
                 <Table>
@@ -412,6 +418,7 @@ function TrainersTab({ trainers, commissions, commissionPlans, db, user }: { tra
                 </Table>
             </Card>
             {db && <TrainerModal open={trainerModalOpen} onOpenChange={setTrainerModalOpen} trainer={selectedTrainer} commissionPlans={commissionPlans} db={db} user={user} />}
+            {db && <ManagePlansDialog open={managePlansModalOpen} onOpenChange={setManagePlansModalOpen} plans={commissionPlans} db={db} user={user} />}
         </div>
     )
 }
@@ -424,7 +431,7 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, c
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    // Calculate historical cumulative usage for each session row (Dae Hyun Fix)
+    // Calculate historical cumulative usage for each session row
     const sessionHistoricalUsage = useMemo(() => {
         const history: Record<string, number> = {};
         const packageGroups: Record<string, PTSession[]> = {};
@@ -1314,6 +1321,173 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
     )
 }
 
+function ManagePlansDialog({ open, onOpenChange, plans, db, user }: any) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const [editingPlan, setEditingPlan] = useState<PTCommissionPlan | null>(null);
+    const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+
+    const handleDeletePlan = (plan: PTCommissionPlan) => {
+        if (!db) return;
+        startTransition(async () => {
+            try {
+                await deleteDoc(doc(db, "pt_commission_plans", plan.id));
+                await recordAuditLog(db, user, { action: 'delete', module: 'PTTracker', resourceId: plan.id, details: `Deleted commission plan: ${plan.name}` });
+                toast({ title: "Plan deleted." });
+            } catch (e) {
+                toast({ title: "Error deleting plan", variant: "destructive" });
+            }
+        });
+    };
+
+    return (
+        <>
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Manage Commission Plans</DialogTitle>
+                        <DialogDescription>Define rates and tiers for trainers.</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Button className="mb-4" onClick={() => { setEditingPlan(null); setPlanModalOpen(true); }}><Plus className="mr-2 h-4 w-4"/> Add New Plan</Button>
+                        <ScrollArea className="h-[300px]">
+                            <div className="space-y-3">
+                                {plans.map((plan: PTCommissionPlan) => (
+                                    <div key={plan.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                                        <div>
+                                            <p className="font-bold">{plan.name}</p>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {plan.tiers.map((t, i) => (
+                                                    <Badge key={i} variant="secondary" className="text-[10px]">
+                                                        {t.maxHours === Infinity ? `>${plan.tiers[i-1]?.maxHours || 0}h` : `<=${t.maxHours}h`}: ฿{t.rate}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button variant="ghost" size="icon" onClick={() => { setEditingPlan(plan); setPlanModalOpen(true); }}><Edit className="h-4 w-4"/></Button>
+                                            {plan.isDeletable !== false && (
+                                                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeletePlan(plan)}><Trash2 className="h-4 w-4"/></Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {db && <CommissionPlanEditModal open={isPlanModalOpen} onOpenChange={setPlanModalOpen} plan={editingPlan} db={db} user={user} />}
+        </>
+    );
+}
+
+function CommissionPlanEditModal({ open, onOpenChange, plan, db, user }: any) {
+    const { toast } = useToast();
+    const [isPending, startTransition] = useTransition();
+    const [name, setName] = useState('');
+    const [tiers, setTiers] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (open) {
+            if (plan) {
+                setName(plan.name);
+                setTiers([...plan.tiers]);
+            } else {
+                setName('');
+                setTiers([{ maxHours: 70, rate: 150 }, { maxHours: Infinity, rate: 180 }]);
+            }
+        }
+    }, [open, plan]);
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name) return;
+        startTransition(async () => {
+            try {
+                const data = { 
+                    name, 
+                    tiers: tiers.map(t => ({ ...t, maxHours: Number(t.maxHours) })), 
+                    isDeletable: plan ? (plan.isDeletable ?? true) : true 
+                };
+                if (plan) {
+                    await updateDoc(doc(db, "pt_commission_plans", plan.id), data);
+                    await recordAuditLog(db, user, { action: 'update', module: 'PTTracker', resourceId: plan.id, details: `Updated commission plan: ${name}`, previousData: plan, newData: data });
+                } else {
+                    const id = name.toUpperCase().replace(/\s+/g, '_') + '_' + Date.now();
+                    await setDoc(doc(db, "pt_commission_plans", id), data);
+                    await recordAuditLog(db, user, { action: 'create', module: 'PTTracker', resourceId: id, details: `Created new commission plan: ${name}` });
+                }
+                toast({ title: "Plan saved." });
+                onOpenChange(false);
+            } catch (e) {
+                toast({ title: "Error saving plan", variant: "destructive" });
+            }
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>{plan ? 'Edit Plan' : 'Create Plan'}</DialogTitle></DialogHeader>
+                <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                        <Label>Plan Name</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Plan D" required />
+                    </div>
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <Label>Tiers</Label>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setTiers([...tiers, { maxHours: Infinity, rate: 200 }])}><Plus className="h-3 w-3 mr-1"/> Add Tier</Button>
+                        </div>
+                        {tiers.map((tier, index) => (
+                            <div key={index} className="grid grid-cols-2 gap-2 p-2 border rounded-md bg-slate-50 relative group">
+                                <div>
+                                    <Label className="text-[10px]">Max Hours (use -1 for Infinity)</Label>
+                                    <Input 
+                                        type="number" 
+                                        value={tier.maxHours === Infinity ? -1 : tier.maxHours} 
+                                        onChange={e => {
+                                            const val = parseInt(e.target.value);
+                                            const newTiers = [...tiers];
+                                            newTiers[index].maxHours = val === -1 ? Infinity : val;
+                                            setTiers(newTiers);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px]">Rate (฿/hour)</Label>
+                                    <Input 
+                                        type="number" 
+                                        value={tier.rate} 
+                                        onChange={e => {
+                                            const newTiers = [...tiers];
+                                            newTiers[index].rate = parseInt(e.target.value);
+                                            setTiers(newTiers);
+                                        }}
+                                    />
+                                </div>
+                                {tiers.length > 1 && (
+                                    <Button type="button" variant="ghost" size="icon" className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setTiers(tiers.filter((_, i) => i !== index))}>
+                                        <X className="h-3 w-3"/>
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                        <Button type="submit" disabled={isPending}>{isPending && <Loader2 className="animate-spin mr-2"/>} Save Plan</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 async function recalculateCommissions(db: Firestore, trainerId: string, newPlanId: string, allPlans: PTCommissionPlan[], monthRef: string) {
     const [year, month] = monthRef.split('-').map(Number);
     const firstDay = new Date(year, month - 1, 1);
@@ -1377,3 +1551,4 @@ export default function PTTrackerPage() {
         </FirebaseClientProvider>
     );
 }
+
