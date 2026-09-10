@@ -306,13 +306,20 @@ function SalesPageContent() {
             return;
         }
 
+        // Sort chronologically: Oldest to Newest
+        const sortedSales = [...filteredSales].sort((a: any, b: any) => {
+            const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+            const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+            return dateA - dateB;
+        });
+
         // CSV Header with Thai language support (BOM)
         let csvContent = "\uFEFF"; 
         const headers = ["Date", "Member ID", "Member Name", "Salesperson", "Package", "Revenue Type", "Payment Type", "Amount"];
         csvContent += headers.join(",") + "\n";
 
         // Rows
-        filteredSales.forEach((sale: any) => {
+        sortedSales.forEach((sale: any) => {
             const dateStr = sale.date?.toDate ? sale.date.toDate().toLocaleDateString('en-GB') : new Date(sale.date).toLocaleDateString('en-GB');
             const row = [
                 `"${dateStr}"`,
@@ -328,7 +335,7 @@ function SalesPageContent() {
         });
 
         // Grand Total row
-        const totalAmount = filteredSales.reduce((sum, s) => sum + s.amount, 0);
+        const totalAmount = sortedSales.reduce((sum, s) => sum + s.amount, 0);
         csvContent += `\n,,,,"GRAND TOTAL",,,${totalAmount}\n`;
 
         // Download link
@@ -1150,4 +1157,3 @@ export default function SalesPage() {
         </FirebaseClientProvider>
     );
 }
-
