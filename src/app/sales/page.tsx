@@ -69,58 +69,7 @@ function SalesPageContent() {
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterSalesperson, setFilterSalesperson] = useState('all');
 
-    // Initialize default data
-    useEffect(() => {
-        if (loading || !db) return;
-        
-        const initDefaults = async () => {
-            const productsCollectionRef = collection(db, "salesdashboard1_products");
-            const productsSnapshot = await getDocs(productsCollectionRef);
-            if (productsSnapshot.empty) {
-                 const defaultProducts: Omit<Product, 'id'>[] = [
-                    { name: 'Annual Full', category: 'Membership', defaultPrice: 15000, order: 1 },
-                    { name: 'Annual GO', category: 'Membership', defaultPrice: 12000, order: 2 },
-                    { name: '6-Month Full', category: 'Membership', defaultPrice: 9000, order: 3 },
-                    { name: '6-Month GO', category: 'Membership', defaultPrice: 7200, order: 4 },
-                    { name: '3-Month Full', category: 'Membership', defaultPrice: 6000, order: 5 },
-                    { name: '3-Month GO', category: 'Membership', defaultPrice: 4800, order: 6 },
-                    { name: '1-Month Full', category: 'Membership', defaultPrice: 2500, order: 7 },
-                    { name: '1-Month GO', category: 'Membership', defaultPrice: 2000, order: 8 },
-                    { name: 'Punch Card 100 Visits', category: 'Membership', defaultPrice: 12000, order: 9 },
-                    { name: 'Punch Card 50 Visits', category: 'Membership', defaultPrice: 7000, order: 10 },
-                    { name: 'Punch Card 30 Visits', category: 'Membership', defaultPrice: 4500, order: 11 },
-                    { name: 'Punch Card 20 Visits', category: 'Membership', defaultPrice: 3400, order: 12 },
-                    { name: 'Punch Card 10 Visits', category: 'Membership', defaultPrice: 1800, order: 13 },
-                    { name: 'PT 100 Sessions', category: 'Personal Training', defaultPrice: 47000, order: 14 },
-                    { name: 'PT 50 Sessions', category: 'Personal Training', defaultPrice: 25000, order: 15 },
-                    { name: 'PT 30 Sessions', category: 'Personal Training', defaultPrice: 15900, order: 16 },
-                    { name: 'PT 20 Sessions', category: 'Personal Training', defaultPrice: 11000, order: 17 },
-                    { name: 'PT 10 Sessions', category: 'Personal Training', defaultPrice: 6000, order: 18 },
-                    { name: 'PT 1 Session', category: 'Personal Training', defaultPrice: 700, order: 19 },
-                    { name: 'Boxing 100 Sessions', category: 'Personal Training', defaultPrice: 57000, order: 20 },
-                    { name: 'Boxing 50 Sessions', category: 'Personal Training', defaultPrice: 30000, order: 21 },
-                    { name: 'Boxing 30 Sessions', category: 'Personal Training', defaultPrice: 18900, order: 22 },
-                    { name: 'Boxing 20 Sessions', category: 'Personal Training', defaultPrice: 13000, order: 23 },
-                    { name: 'Boxing 10 Sessions', category: 'Personal Training', defaultPrice: 7000, order: 24 },
-                    { name: 'Boxing 1 Session', category: 'Personal Training', defaultPrice: 700, order: 25 },
-                    { name: 'Daily Full', category: 'Daily Pass', defaultPrice: 300, order: 26 },
-                    { name: 'Daily GO', category: 'Daily Pass', defaultPrice: 200, order: 27 },
-                    { name: 'Proshop Item', category: 'Proshop', defaultPrice: 0, order: 28 },
-                    { name: 'Food & Beverage', category: 'Food & Beverage', defaultPrice: 0, order: 29 },
-                 ];
-                const batch = writeBatch(db);
-                defaultProducts.forEach(p => {
-                    const docRef = doc(collection(db, "salesdashboard1_products"));
-                    batch.set(docRef, p);
-                });
-                await batch.commit();
-            }
-        };
-        initDefaults();
-    }, [loading, db]);
-
-
-     // Set default filter dates
+    // Initialize default filter dates
     useEffect(() => {
         const today = new Date();
         const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
@@ -162,10 +111,10 @@ function SalesPageContent() {
         };
 
         try {
-            if (id) {
+            if (id && db) {
                 await updateDoc(doc(db, "salesdashboard1_employees", id), employeeData);
                 showAndHideToast("Success", "Employee updated.");
-            } else {
+            } else if (db) {
                 await addDoc(collection(db, "salesdashboard1_employees"), employeeData);
                 showAndHideToast("Success", "Employee added.");
             }
@@ -177,8 +126,10 @@ function SalesPageContent() {
      const handleDeleteEmployee = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this employee?", async () => {
              try {
-                await deleteDoc(doc(db, "salesdashboard1_employees", id));
-                showAndHideToast("Success", "Employee deleted.");
+                if (db) {
+                    await deleteDoc(doc(db, "salesdashboard1_employees", id));
+                    showAndHideToast("Success", "Employee deleted.");
+                }
             } catch (e) {
                 showAndHideToast("Error", "Could not delete employee.", "destructive");
             }
@@ -194,14 +145,14 @@ function SalesPageContent() {
         };
 
         try {
-            if (id) {
+            if (id && db) {
                 const existingProduct = products.find(p => p.id === id);
                 await updateDoc(doc(db, "salesdashboard1_products", id), {
                     ...productData,
                     order: existingProduct?.order
                 });
                 showAndHideToast("Success", "Product updated.");
-            } else {
+            } else if (db) {
                 const newOrder = (products?.length || 0) + 1;
                 await addDoc(collection(db, "salesdashboard1_products"), { 
                     ...productData, 
@@ -217,8 +168,10 @@ function SalesPageContent() {
     const handleDeleteProduct = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this product?", async () => {
              try {
-                await deleteDoc(doc(db, "salesdashboard1_products", id));
-                showAndHideToast("Success", "Product deleted.");
+                if (db) {
+                    await deleteDoc(doc(db, "salesdashboard1_products", id));
+                    showAndHideToast("Success", "Product deleted.");
+                }
             } catch (e) {
                 showAndHideToast("Error", "Could not delete product.", "destructive");
             }
@@ -241,9 +194,12 @@ function SalesPageContent() {
             amount: Number(formData.get('amount')),
         };
         try {
-            await addDoc(collection(db, "salesdashboard1"), saleData);
-            showAndHideToast("Success", "Sale recorded.");
-            return true;
+            if (db) {
+                await addDoc(collection(db, "salesdashboard1"), saleData);
+                showAndHideToast("Success", "Sale recorded.");
+                return true;
+            }
+            return false;
         } catch(e) {
             showAndHideToast("Error", "Could not save sale.", "destructive");
             return false;
@@ -276,9 +232,11 @@ function SalesPageContent() {
             amount: Number(formData.get('amount')),
         };
         try {
-            await updateDoc(doc(db, "salesdashboard1", id), saleData);
-            showAndHideToast("Success", "Sale updated.");
-            setEditSaleModal({ open: false, data: null });
+            if (db) {
+                await updateDoc(doc(db, "salesdashboard1", id), saleData);
+                showAndHideToast("Success", "Sale updated.");
+                setEditSaleModal({ open: false, data: null });
+            }
         } catch(e) {
             showAndHideToast("Error", "Could not update sale.", "destructive");
         }
@@ -286,8 +244,10 @@ function SalesPageContent() {
     const handleDeleteSale = (id: string) => {
         openConfirmDialog("Are you sure you want to delete this sale?", async () => {
              try {
-                await deleteDoc(doc(db, "salesdashboard1", id));
-                showAndHideToast("Success", "Sale deleted.");
+                if (db) {
+                    await deleteDoc(doc(db, "salesdashboard1", id));
+                    showAndHideToast("Success", "Sale deleted.");
+                }
             } catch (e) {
                 showAndHideToast("Error", "Could not delete sale.", "destructive");
             }
@@ -303,9 +263,11 @@ function SalesPageContent() {
             target3: Number(formData.get('target3')),
         };
         try {
-            await setDoc(doc(db, "salesdashboard1_settings", 'monthly_targets'), { targets });
-            showAndHideToast("Success", "Monthly targets saved.");
-            setMonthlyTargetsModal(false);
+            if (db) {
+                await setDoc(doc(db, "salesdashboard1_settings", 'monthly_targets'), { targets });
+                showAndHideToast("Success", "Monthly targets saved.");
+                setMonthlyTargetsModal(false);
+            }
         } catch (e) {
             showAndHideToast("Error", "Could not save targets.", "destructive");
         }
@@ -327,9 +289,11 @@ function SalesPageContent() {
         });
 
         try {
-            await setDoc(doc(db, "salesdashboard1_settings", 'salesperson_targets'), { targets: newTargets });
-            showAndHideToast("Success", "Salesperson targets saved.");
-            setSalespersonTargetsModal(false);
+            if (db) {
+                await setDoc(doc(db, "salesdashboard1_settings", 'salesperson_targets'), { targets: newTargets });
+                showAndHideToast("Success", "Salesperson targets saved.");
+                setSalespersonTargetsModal(false);
+            }
         } catch (e) {
             showAndHideToast("Error", "Could not save targets.", "destructive");
         }
@@ -586,14 +550,12 @@ function SalesPageContent() {
                 onOpenChange={(open) => setEmployeeModal({ open, data: null })}
                 employee={employeeModal.data}
                 onSave={handleSaveEmployee}
-                db={db}
             />
             <ProductModal 
                 open={productModal.open}
                 onOpenChange={(open) => setProductModal({ open, data: null })}
                 product={productModal.data}
                 onSave={handleSaveProduct}
-                db={db}
             />
              <EditSaleModal
                 open={editSaleModal.open}
@@ -602,14 +564,12 @@ function SalesPageContent() {
                 employees={employees}
                 products={products}
                 onSave={handleUpdateSale}
-                db={db}
             />
              <MonthlyTargetsModal
                 open={monthlyTargetsModal}
                 onOpenChange={setMonthlyTargetsModal}
                 targets={monthlyTargets}
                 onSave={handleSaveMonthlyTargets}
-                db={db}
             />
             <SalespersonTargetsModal
                 open={salespersonTargetsModal}
@@ -617,7 +577,6 @@ function SalesPageContent() {
                 targets={salespersonTargets}
                 employees={employees}
                 onSave={handleSaveSalespersonTargets}
-                db={db}
             />
             <PDFExportModal
                 open={pdfModalOpen}
@@ -632,10 +591,9 @@ function SalesPageContent() {
     );
 }
 
-// Sub-components for better organization
+// Sub-components
 
 function DashboardTab({ sales, employees, products, monthlyTargets, salespersonTargets, onSetMonthlyTargets, onSetSalespersonTargets, onNavigate }: any) {
-    
     const [todayDate, setTodayDate] = useState('');
     const [currentMonth, setCurrentMonth] = useState('');
 
@@ -650,7 +608,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
         setCurrentMonth(monthNames[now.getMonth()] + ' ' + now.getFullYear());
     }, []);
 
-    const { todaySales, monthlySales, totalTransactions, recentSales, salespersonChartData, productChartDataValue } = useMemo(() => {
+    const { todaySales, monthlySales, totalTransactions, salespersonChartData, productChartDataValue } = useMemo(() => {
         const today = new Date();
         today.setHours(0,0,0,0);
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -659,7 +617,6 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
         const monthlySalesList = sales.filter((s: Sale) => s.date?.toDate ? s.date.toDate() >= firstDayOfMonth : new Date(s.date) >= firstDayOfMonth);
         const monthlySalesValue = monthlySalesList.reduce((sum: number, s: Sale) => sum + s.amount, 0);
         const totalTransactionsValue = monthlySalesList.length;
-        const recentSalesData = sales.slice(0, 5);
 
         const salespersonData = employees.map((emp: SalesEmployee) => ({
             id: emp.id,
@@ -668,23 +625,15 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
         }));
 
         const productCategoryMap = new Map(products.map((p: Product) => [p.name, p.category]));
-
         const salesByCategory = monthlySalesList.reduce((acc, sale) => {
             const category = productCategoryMap.get(sale.product) || 'Other';
-            if (!acc[category]) {
-                acc[category] = 0;
-            }
-            acc[category] += sale.amount;
+            acc[category] = (acc[category] || 0) + sale.amount;
             return acc;
         }, {} as Record<string, number>);
 
-        const productChartDataValue = Object.entries(salesByCategory).map(([name, value]) => ({
-            name,
-            value,
-        })).filter(item => item.value > 0);
+        const productChartDataValue = Object.entries(salesByCategory).map(([name, value]) => ({ name, value })).filter(item => item.value > 0);
 
-
-        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, recentSales: recentSalesData, salespersonChartData: salespersonData, productChartDataValue};
+        return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, salespersonChartData: salespersonData, productChartDataValue};
     }, [sales, employees, products]);
     
     const productCategoryColors: {[key: string]: string} = {
@@ -703,7 +652,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
     return (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card className="bg-gradient-to-br from-primary to-blue-700 text-white hover-lift">
+                <Card className="bg-gradient-to-br from-primary to-blue-700 text-white shadow-lg">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-white/90">Today's Sales</CardTitle>
                     </CardHeader>
@@ -712,15 +661,15 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                         <p className="text-sm text-white/80 mt-2">{todayDate}</p>
                     </CardContent>
                 </Card>
-                <Card className="hover-lift bg-white">
+                <Card className="shadow-lg bg-white">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-lg font-semibold text-gray-700">Monthly Sales</CardTitle>
-                        <Button variant="link" className="text-primary" onClick={onSetMonthlyTargets}>Set Targets</Button>
+                        <Button variant="link" className="text-primary p-0 h-auto" onClick={onSetMonthlyTargets}>Set Targets</Button>
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
                         <p className="text-sm text-gray-500 mt-2">{currentMonth}</p>
-                         <div id="monthly-targets-display" className="mt-4 space-y-2">
+                         <div className="mt-4 space-y-2">
                             {Object.entries(monthlyTargets).sort(([keyA], [keyB]) => keyA.slice(-1).localeCompare(keyB.slice(-1))).map(([key, value]) => {
                                 if (!value) return null;
                                 const targetAmount = value as number;
@@ -729,19 +678,19 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                 const remaining = Math.max(0, targetAmount - monthlySales);
                                 return (
                                 <div key={key}>
-                                    <div className="flex justify-between text-sm text-gray-600">
+                                    <div className="flex justify-between text-[10px] text-gray-600">
                                         <span>Target {key.replace('target', '')}: {formatCurrency(targetAmount)}</span>
-                                        <span className="text-xs">{Math.round(progress)}% ({formatCurrency(remaining)})</span>
+                                        <span>{Math.round(progress)}% ({formatCurrency(remaining)} left)</span>
                                     </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                        <div className={`${progressColor} h-2 rounded-full`} style={{ width: `${progress}%` }}></div>
+                                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                                        <div className={`${progressColor} h-1.5 rounded-full transition-all`} style={{ width: `${progress}%` }}></div>
                                     </div>
                                 </div>
                             )})}
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="hover-lift bg-white">
+                <Card className="shadow-lg bg-white">
                     <CardHeader>
                         <CardTitle className="text-lg font-semibold text-gray-700">Total Transactions</CardTitle>
                     </CardHeader>
@@ -759,48 +708,38 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-6">
-                            {salespersonChartData.length > 0 ? (
-                                salespersonChartData.map((salesperson: any) => {
-                                    const currentSales = salesperson.sales || 0;
-                                    const targets = salespersonTargets[salesperson.name] || {};
-
-                                    return (
-                                        <div key={salesperson.id} className="p-4 bg-gray-50 rounded-lg">
-                                            <h4 className="font-semibold text-xl text-gray-800 mb-1">{salesperson.name}</h4>
-                                            <p className="text-sm text-gray-600 mb-4">Current Sales: {formatCurrency(currentSales)}</p>
-                                            
-                                            <div className="space-y-3">
-                                                {Object.keys(targets).length > 0 ? (
-                                                    Object.entries(targets).sort(([keyA], [keyB]) => keyA.slice(-1).localeCompare(keyB.slice(-1))).map(([targetKey, targetValue]) => {
-                                                        if (!targetValue || (targetValue as number) <= 0) return null;
-                                                        const targetAmount = targetValue as number;
-                                                        const progress = Math.min((currentSales / targetAmount) * 100, 100);
-                                                        const remaining = Math.max(0, targetAmount - currentSales);
-
-                                                        return (
-                                                            <div key={targetKey}>
-                                                                <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
-                                                                    <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
-                                                                    <span className="text-xs">{Math.round(progress)}% ({formatCurrency(remaining)})</span>
-                                                                </div>
-                                                                <Progress 
-                                                                    value={progress} 
-                                                                    className="h-2" 
-                                                                    indicatorClassName={progress >= 100 ? 'bg-green-500' : 'bg-primary'}
-                                                                />
-                                                            </div>
-                                                        );
-                                                    })
-                                                ) : (
-                                                    <p className="text-sm text-gray-400 italic">No targets set for this salesperson.</p>
-                                                )}
-                                            </div>
+                            {salespersonChartData.map((salesperson: any) => {
+                                const currentSales = salesperson.sales || 0;
+                                const targets = salespersonTargets[salesperson.name] || {};
+                                return (
+                                    <div key={salesperson.id} className="p-4 bg-gray-50 rounded-lg border">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="font-semibold text-gray-800">{salesperson.name}</h4>
+                                            <span className="font-bold text-primary">{formatCurrency(currentSales)}</span>
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                 <div className="text-gray-500 text-sm text-center py-4">No sales data for this period.</div>
-                            )}
+                                        <div className="space-y-2.5">
+                                            {Object.keys(targets).length > 0 ? (
+                                                Object.entries(targets).sort(([keyA], [keyB]) => keyA.slice(-1).localeCompare(keyB.slice(-1))).map(([targetKey, targetValue]) => {
+                                                    if (!targetValue || (targetValue as number) <= 0) return null;
+                                                    const targetAmount = targetValue as number;
+                                                    const progress = Math.min((currentSales / targetAmount) * 100, 100);
+                                                    return (
+                                                        <div key={targetKey}>
+                                                            <div className="flex justify-between items-center text-[10px] text-gray-500 mb-1">
+                                                                <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
+                                                                <span>{Math.round(progress)}%</span>
+                                                            </div>
+                                                            <Progress value={progress} className="h-1" />
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <p className="text-[10px] text-gray-400 italic">No targets set for this salesperson.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>
@@ -837,7 +776,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {recentSales.map((sale: Sale) => (
+                            {sales.slice(0, 5).map((sale: Sale) => (
                                 <TableRow key={sale.id}>
                                     <TableCell>{sale.date?.toDate ? sale.date.toDate().toLocaleDateString() : new Date(sale.date).toLocaleDateString()}</TableCell>
                                     <TableCell>{sale.salesperson}</TableCell>
@@ -853,23 +792,15 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
     )
 }
 
-function EmployeeModal({ open, onOpenChange, employee, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, employee: SalesEmployee | null, onSave: (data: FormData) => void, db: Firestore }) {
+function EmployeeModal({ open, onOpenChange, employee, onSave }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{employee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>{employee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle></DialogHeader>
                 <form action={onSave} className="space-y-4">
                     <input type="hidden" name="id" value={employee?.id || ''} />
-                    <div>
-                        <Label htmlFor="employee-name">Name</Label>
-                        <Input id="employee-name" name="name" defaultValue={employee?.name} required />
-                    </div>
-                    <div>
-                        <Label htmlFor="employee-position">Position</Label>
-                        <Input id="employee-position" name="position" defaultValue={employee?.position} required />
-                    </div>
+                    <div><Label>Name</Label><Input name="name" defaultValue={employee?.name} required /></div>
+                    <div><Label>Position</Label><Input name="position" defaultValue={employee?.position} required /></div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Save</Button>
@@ -880,33 +811,23 @@ function EmployeeModal({ open, onOpenChange, employee, onSave, db }: { open: boo
     )
 }
 
-function ProductModal({ open, onOpenChange, product, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, product: Product | null, onSave: (data: FormData) => void, db: Firestore }) {
+function ProductModal({ open, onOpenChange, product, onSave }: any) {
     const categories = ['Membership', 'Personal Training', 'Daily Pass', 'Proshop', 'Food & Beverage'];
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{product ? 'Edit Package' : 'Add New Package'}</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>{product ? 'Edit Package' : 'Add New Package'}</DialogTitle></DialogHeader>
                 <form action={onSave} className="space-y-4">
                     <input type="hidden" name="id" value={product?.id || ''} />
+                    <div><Label>Package Name</Label><Input name="name" defaultValue={product?.name} required /></div>
                     <div>
-                        <Label htmlFor="product-name">Package Name</Label>
-                        <Input id="product-name" name="name" defaultValue={product?.name} required />
-                    </div>
-                    <div>
-                         <Label htmlFor="product-category">Category</Label>
+                         <Label>Category</Label>
                          <Select name="category" defaultValue={product?.category}>
-                            <SelectTrigger id="product-category"><SelectValue placeholder="Select category"/></SelectTrigger>
-                            <SelectContent>
-                                {categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                            </SelectContent>
+                            <SelectTrigger><SelectValue placeholder="Select category"/></SelectTrigger>
+                            <SelectContent>{categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
                          </Select>
                     </div>
-                    <div>
-                        <Label htmlFor="product-price">Default Price (฿)</Label>
-                        <Input id="product-price" name="price" type="number" defaultValue={product?.defaultPrice} min="0" step="0.01" required />
-                    </div>
+                    <div><Label>Default Price (฿)</Label><Input name="price" type="number" defaultValue={product?.defaultPrice} min="0" step="0.01" required /></div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Save</Button>
@@ -917,60 +838,34 @@ function ProductModal({ open, onOpenChange, product, onSave, db }: { open: boole
     )
 }
 
-function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave, db }: { open: boolean, onOpenChange: (open: boolean) => void, sale: Sale | null, employees: SalesEmployee[], products: Product[], onSave: (data: FormData) => void, db: Firestore }) {
+function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Edit Sale</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Edit Sale</DialogTitle></DialogHeader>
                  <form action={onSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="hidden" name="id" value={sale?.id || ''} />
-                     <div>
-                        <Label htmlFor="edit-sale-date">Date</Label>
-                        <Input type="date" id="edit-sale-date" name="date" defaultValue={sale?.date?.toDate ? sale.date.toDate().toISOString().split('T')[0] : ''} required />
-                    </div>
+                     <div><Label>Date</Label><Input type="date" name="date" defaultValue={sale?.date?.toDate ? sale.date.toDate().toISOString().split('T')[0] : ''} required /></div>
                     <SalespersonSelect employees={employees} name="salesperson" defaultValue={sale?.salesperson} />
-
-                    <div>
-                        <Label htmlFor="edit-member-id">Member ID</Label>
-                        <Input id="edit-member-id" name="memberId" defaultValue={sale?.memberId} required />
-                    </div>
-                    <div>
-                        <Label htmlFor="edit-member-name">Member Name</Label>
-                        <Input id="edit-member-name" name="memberName" defaultValue={sale?.memberName} required />
-                    </div>
-                    
+                    <div><Label>Member ID</Label><Input name="memberId" defaultValue={sale?.memberId} required /></div>
+                    <div><Label>Member Name</Label><Input name="memberName" defaultValue={sale?.memberName} required /></div>
                     <ProductSelect products={products} name="product" defaultValue={sale?.product}/>
-
                     <div>
-                        <Label htmlFor="edit-revenue-type">Revenue Type</Label>
+                        <Label>Revenue Type</Label>
                         <Select name="revenueType" defaultValue={sale?.revenueType} required>
-                            <SelectTrigger id="edit-revenue-type"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="New">New</SelectItem>
-                                <SelectItem value="Renew">Renew</SelectItem>
-                                <SelectItem value="Upgrade">Upgrade</SelectItem>
-                            </SelectContent>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="New">New</SelectItem><SelectItem value="Renew">Renew</SelectItem><SelectItem value="Upgrade">Upgrade</SelectItem></SelectContent>
                         </Select>
                     </div>
-
                     <div>
-                        <Label htmlFor="edit-payment-type">Payment Type</Label>
+                        <Label>Payment Type</Label>
                         <Select name="paymentType" defaultValue={sale?.paymentType} required>
-                            <SelectTrigger id="edit-payment-type"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="Transfer">Transfer</SelectItem>
-                                <SelectItem value="Credit Card">Credit Card</SelectItem>
-                            </SelectContent>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="Transfer">Transfer</SelectItem><SelectItem value="Credit Card">Credit Card</SelectItem></SelectContent>
                         </Select>
                     </div>
-                    <div>
-                        <Label htmlFor="edit-sale-amount">Sale Amount (฿)</Label>
-                        <Input type="number" id="edit-sale-amount" name="amount" defaultValue={sale?.amount} min="0" step="0.01" required />
-                    </div>
-                     <DialogFooter className="md:col-span-2">
+                    <div><Label>Sale Amount (฿)</Label><Input name="amount" type="number" defaultValue={sale?.amount} min="0" step="0.01" required /></div>
+                     <DialogFooter className="md:col-span-2 pt-4">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Save Changes</Button>
                     </DialogFooter>
@@ -980,25 +875,16 @@ function EditSaleModal({ open, onOpenChange, sale, employees, products, onSave, 
     )
 }
 
-function MonthlyTargetsModal({ open, onOpenChange, targets, onSave, db }: any) {
+function MonthlyTargetsModal({ open, onOpenChange, targets, onSave }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader><DialogTitle>Set Monthly Sales Targets</DialogTitle></DialogHeader>
                  <form onSubmit={onSave} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <div>
-                        <Label htmlFor="monthly-target-1">Target 1 (฿)</Label>
-                        <Input type="number" id="monthly-target-1" name="target1" min="0" step="0.01" placeholder="550,000" defaultValue={targets?.target1} />
-                    </div>
-                    <div>
-                        <Label htmlFor="monthly-target-2">Target 2 (฿)</Label>
-                        <Input type="number" id="monthly-target-2" name="target2" min="0" step="0.01" placeholder="700,000" defaultValue={targets?.target2} />
-                    </div>
-                    <div>
-                        <Label htmlFor="monthly-target-3">Target 3 (฿)</Label>
-                        <Input type="number" id="monthly-target-3" name="target3" min="0" step="0.01" placeholder="900,000" defaultValue={targets?.target3} />
-                    </div>
-                     <DialogFooter className="md:col-span-3">
+                     <div><Label>Target 1 (฿)</Label><Input name="target1" type="number" min="0" step="0.01" placeholder="550,000" defaultValue={targets?.target1} /></div>
+                    <div><Label>Target 2 (฿)</Label><Input name="target2" type="number" min="0" step="0.01" placeholder="700,000" defaultValue={targets?.target2} /></div>
+                    <div><Label>Target 3 (฿)</Label><Input name="target3" type="number" min="0" step="0.01" placeholder="900,000" defaultValue={targets?.target3} /></div>
+                     <DialogFooter className="md:col-span-3 pt-4">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Save Targets</Button>
                     </DialogFooter>
@@ -1008,36 +894,27 @@ function MonthlyTargetsModal({ open, onOpenChange, targets, onSave, db }: any) {
     )
 }
 
-function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSave, db }: any) {
+function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSave }: any) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                  <DialogHeader><DialogTitle>Set Salesperson Targets</DialogTitle></DialogHeader>
                  <form onSubmit={onSave} className="space-y-4">
-                     <div className="max-h-96 overflow-y-auto pr-2">
+                     <ScrollArea className="h-96 pr-4">
                      {employees.map((emp: SalesEmployee) => (
-                         <div key={emp.id} className="p-4 border rounded-lg mb-4">
-                             <h4 className="font-semibold mb-2">{emp.name}</h4>
+                         <div key={emp.id} className="p-4 border rounded-lg mb-4 bg-slate-50">
+                             <h4 className="font-semibold mb-3 border-b pb-2">{emp.name}</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  <div>
-                                    <Label htmlFor={`${emp.name}_target1`}>Target 1 (฿)</Label>
-                                    <Input type="number" name={`${emp.name}_target1`} min="0" step="0.01" placeholder="150,000" defaultValue={targets?.[emp.name]?.target1} />
-                                </div>
-                                <div>
-                                    <Label htmlFor={`${emp.name}_target2`}>Target 2 (฿)</Label>
-                                    <Input type="number" name={`${emp.name}_target2`} min="0" step="0.01" placeholder="190,000" defaultValue={targets?.[emp.name]?.target2} />
-                                </div>
-                                <div>
-                                    <Label htmlFor={`${emp.name}_target3`}>Target 3 (฿)</Label>
-                                    <Input type="number" name={`${emp.name}_target3`} min="0" step="0.01" placeholder="250,000" defaultValue={targets?.[emp.name]?.target3} />
-                                </div>
+                                  <div><Label className="text-[10px]">Target 1</Label><Input type="number" name={`${emp.name}_target1`} min="0" step="0.01" defaultValue={targets?.[emp.name]?.target1} /></div>
+                                <div><Label className="text-[10px]">Target 2</Label><Input type="number" name={`${emp.name}_target2`} min="0" step="0.01" defaultValue={targets?.[emp.name]?.target2} /></div>
+                                <div><Label className="text-[10px]">Target 3</Label><Input type="number" name={`${emp.name}_target3`} min="0" step="0.01" defaultValue={targets?.[emp.name]?.target3} /></div>
                              </div>
                          </div>
                      ))}
-                     </div>
-                      <DialogFooter>
+                     </ScrollArea>
+                      <DialogFooter className="pt-4">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit">Save Targets</Button>
+                        <Button type="submit">Save All Targets</Button>
                     </DialogFooter>
                  </form>
             </DialogContent>
@@ -1045,73 +922,52 @@ function SalespersonTargetsModal({ open, onOpenChange, targets, employees, onSav
     )
 }
 
-function SalespersonSelect({ employees, value, onValueChange, includeAll = false, name = "salesperson", defaultValue = "" }: { employees: SalesEmployee[], value?: string, onValueChange?: (value: string) => void, includeAll?: boolean, name?: string, defaultValue?: string }) {
-    const uniqueEmployees = employees.filter(
-        (employee, index, self) => index === self.findIndex((e) => e.name === employee.name)
-    );
-    
+function SalespersonSelect({ employees, value, onValueChange, includeAll = false, name = "salesperson", defaultValue = "" }: any) {
+    const uniqueEmployees = employees.filter((employee:any, index:any, self:any) => index === self.findIndex((e:any) => e.name === employee.name));
     return (
         <div>
-            <Label htmlFor={name}>Salesperson</Label>
+            <Label>{includeAll ? "Filter Salesperson" : "Salesperson"}</Label>
             <Select name={name} value={value} onValueChange={onValueChange} defaultValue={defaultValue}>
-                <SelectTrigger id={name}><SelectValue placeholder={includeAll ? "All Salespersons" : "Select Salesperson"} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select Salesperson" /></SelectTrigger>
                 <SelectContent>
                     {includeAll && <SelectItem value="all">All Salespersons</SelectItem>}
-                    {uniqueEmployees.map(emp => <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>)}
+                    {uniqueEmployees.map((emp:any) => <SelectItem key={emp.id} value={emp.name}>{emp.name}</SelectItem>)}
                 </SelectContent>
             </Select>
         </div>
     )
 }
 
-function ProductSelect({ products, name = "product", defaultValue = "" } : { products: Product[], name?: string, defaultValue?: string }) {
-    const uniqueProducts = products.filter(
-        (product, index, self) => index === self.findIndex((p) => p.name === product.name)
-    );
-
+function ProductSelect({ products, name = "product", defaultValue = "" } : any) {
+    const uniqueProducts = products.filter((product:any, index:any, self:any) => index === self.findIndex((p:any) => p.name === product.name));
     return (
         <div>
-            <Label htmlFor={name}>Package</Label>
+            <Label>Package</Label>
              <Select name={name} defaultValue={defaultValue}>
-                <SelectTrigger id={name}><SelectValue placeholder="Select Package" /></SelectTrigger>
-                <SelectContent>
-                    {uniqueProducts.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
-                </SelectContent>
+                <SelectTrigger><SelectValue placeholder="Select Package" /></SelectTrigger>
+                <SelectContent>{uniqueProducts.map((p:any) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
         </div>
     )
 }
-function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm }: { open: boolean, onOpenChange: (open: boolean) => void, title: string, description: string, onConfirm: () => void }) {
-    const [isPending, startTransition] = useTransitionReact();
-    const handleConfirm = () => {
-        startTransition(async () => {
-            onConfirm();
-            onOpenChange(false);
-        });
-    }
 
+function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm }: any) {
+    const [isPending, startTransition] = useTransitionReact();
+    const handleConfirm = () => { startTransition(async () => { onConfirm(); onOpenChange(false); }); }
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
             <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>{title}</AlertDialogTitle>
-                    <AlertDialogDescription>{description}</AlertDialogDescription>
-                </AlertDialogHeader>
+                <AlertDialogHeader><AlertDialogTitle>{title}</AlertDialogTitle><AlertDialogDescription>{description}</AlertDialogDescription></AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                        <Button variant="destructive" onClick={handleConfirm} disabled={isPending}>
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirm
-                        </Button>
-                    </AlertDialogAction>
+                    <AlertDialogAction asChild><Button variant="destructive" onClick={handleConfirm} disabled={isPending}>{isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm</Button></AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
     );
 }
 
-function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalesperson, startDate, endDate }: { open: boolean, onOpenChange: (open: boolean) => void, employees: SalesEmployee[], sales: Sale[], defaultSalesperson: string, startDate: string, endDate: string }) {
+function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalesperson, startDate, endDate }: any) {
     const { toast } = useToast();
 
     const generateSalesReportPDF = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1122,18 +978,17 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
         const isAll = selectedSalesperson === 'all';
         const salespersonName = isAll ? 'All Salespersons' : selectedSalesperson;
 
-        const filtered = sales.filter(sale => {
+        const filtered = sales.filter((sale:any) => {
             const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
             const start = startDate ? new Date(startDate) : null;
             const end = endDate ? new Date(endDate) : null;
             if (start) start.setHours(0,0,0,0);
             if (end) end.setHours(23,59,59,999);
-            
             if(start && saleDate < start) return false;
             if(end && saleDate > end) return false;
             if(selectedSalesperson && selectedSalesperson !== 'all' && sale.salesperson !== selectedSalesperson) return false;
             return true;
-        }).sort((a, b) => {
+        }).sort((a:any, b:any) => {
             const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
             const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
             return dateA.getTime() - dateB.getTime();
@@ -1144,103 +999,61 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
             return;
         }
 
-        const totalAmount = filtered.reduce((sum, s) => sum + s.amount, 0);
+        const totalAmount = filtered.reduce((sum:number, s:any) => sum + s.amount, 0);
         const reportTitle = `Sales_Report_${salespersonName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
 
         let htmlContent = `
             <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>${reportTitle}</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: 'Tahoma', sans-serif; color: #333; line-height: 1.4; background: white; padding: 40px; }
-                    .header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-                    .header h1 { font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #1a365d; }
-                    .header-info { font-size: 13px; display: flex; justify-content: space-between; }
-                    .summary-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
-                    .summary-card { border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; text-align: center; background: #f8fafc; }
-                    .summary-card .label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
-                    .summary-card .value { font-size: 20px; font-weight: bold; color: #1e293b; }
-                    h2 { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #334155; border-left: 4px solid #3b82f6; padding-left: 10px; }
-                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-                    th { background: #f1f5f9; color: #475569; padding: 10px 8px; text-align: left; font-weight: bold; border-bottom: 2px solid #cbd5e1; }
-                    td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
-                    .amount { text-align: right; font-weight: bold; color: #0f172a; }
-                    .total-row { background: #f1f5f9; font-weight: bold; }
-                    .total-row td { border-top: 2px solid #333; font-size: 13px; padding: 12px 8px; }
-                    .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
-                    @media print {
-                        body { padding: 0; }
-                        @page { margin: 1cm; }
-                    }
-                </style>
-            </head>
-            <body>
+            <html><head><meta charset="UTF-8"><title>${reportTitle}</title>
+            <style>
+                body { font-family: 'Tahoma', sans-serif; color: #333; padding: 40px; }
+                .header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+                .header h1 { font-size: 24px; color: #1a365d; margin-bottom: 5px; }
+                .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                .card { border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; text-align: center; background: #f8fafc; }
+                table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                th { background: #f1f5f9; padding: 10px 8px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+                td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+                .amount { text-align: right; font-weight: bold; }
+                .total { background: #f1f5f9; font-weight: bold; border-top: 2px solid #333; }
+            </style>
+            </head><body>
                 <div class="header">
                     <h1>SALES REPORT</h1>
-                    <div class="header-info">
-                        <span><strong>Salesperson:</strong> ${salespersonName}</span>
-                        <span><strong>Period:</strong> ${new Date(startDate).toLocaleDateString('en-GB')} - ${new Date(endDate).toLocaleDateString('en-GB')}</span>
-                    </div>
+                    <p><strong>Salesperson:</strong> ${salespersonName} | <strong>Period:</strong> ${new Date(startDate).toLocaleDateString('en-GB')} - ${new Date(endDate).toLocaleDateString('en-GB')}</p>
                 </div>
-
-                <div class="summary-container">
-                    <div class="summary-card">
-                        <div class="label">Transactions</div>
-                        <div class="value">${filtered.length}</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="label">Total Revenue</div>
-                        <div class="value">${formatCurrency(totalAmount)}</div>
-                    </div>
+                <div class="summary">
+                    <div class="card"><strong>Transactions</strong><br/>${filtered.length}</div>
+                    <div class="card"><strong>Total Revenue</strong><br/>${formatCurrency(totalAmount)}</div>
                 </div>
-                
-                <h2>Transaction Details</h2>
                 <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            ${isAll ? '<th>Salesperson</th>' : ''}
-                            <th>Member ID</th>
-                            <th>Member Name</th>
-                            <th>Package</th>
-                            <th>Rev. Type</th>
-                            <th>Payment</th>
-                            <th style="text-align: right;">Amount</th>
-                        </tr>
-                    </thead>
+                    <thead><tr>
+                        <th>Date</th>
+                        ${isAll ? '<th>Salesperson</th>' : ''}
+                        <th>Member ID</th><th>Member Name</th><th>Package</th><th>Revenue</th><th>Payment</th>
+                        <th style="text-align: right;">Amount</th>
+                    </tr></thead>
                     <tbody>
-                        ${filtered.map(sale => `
+                        ${filtered.map((sale:any) => `
                             <tr>
                                 <td>${sale.date?.toDate ? sale.date.toDate().toLocaleDateString('en-GB') : new Date(sale.date).toLocaleDateString('en-GB')}</td>
                                 ${isAll ? `<td>${sale.salesperson}</td>` : ''}
-                                <td>${sale.memberId || '-'}</td>
-                                <td>${sale.memberName || '-'}</td>
-                                <td>${sale.product || '-'}</td>
-                                <td>${sale.revenueType || '-'}</td>
-                                <td>${sale.paymentType || '-'}</td>
+                                <td>${sale.memberId || '-'}</td><td>${sale.memberName || '-'}</td><td>${sale.product || '-'}</td><td>${sale.revenueType || '-'}</td><td>${sale.paymentType || '-'}</td>
                                 <td class="amount">${formatCurrency(sale.amount)}</td>
-                            </tr>
-                        `).join('')}
-                        <tr class="total-row">
+                            </tr>`).join('')}
+                        <tr class="total">
                             <td colspan="${isAll ? 7 : 6}" style="text-align: right;">GRAND TOTAL:</td>
                             <td class="amount">${formatCurrency(totalAmount)}</td>
                         </tr>
                     </tbody>
                 </table>
-                <div class="footer">
-                    <p>Ruamchok Fitness Management System - Confidential Report</p>
-                    <p>Generated on ${new Date().toLocaleString('en-GB')}</p>
-                </div>
-            </body>
-            </html>
+                <div style="margin-top: 40px; font-size: 10px; color: #94a3b8; text-align: center;">Generated on ${new Date().toLocaleString('en-GB')}</div>
+            </body></html>
         `;
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
-            toast({ title: 'Please allow pop-ups', description: 'Enable pop-ups to generate and download the PDF.', variant: 'destructive' });
+            toast({ title: 'Pop-up Blocked', description: 'Please allow pop-ups for this site to download the report.', variant: 'destructive' });
             return;
         }
 
@@ -1250,13 +1063,11 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
         
         setTimeout(() => {
             printWindow.print();
-            printWindow.onafterprint = function() {
-                printWindow.close();
-            };
+            printWindow.onafterprint = () => printWindow.close();
         }, 500);
 
         onOpenChange(false);
-        toast({ title: 'PDF Ready', description: 'Select "Save as PDF" to download the report.' });
+        toast({ title: 'PDF Ready', description: 'Please select "Save as PDF" in the printer settings to download.' });
     };
 
     return (
@@ -1264,17 +1075,10 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Generate Sales Report PDF</DialogTitle>
-                    <DialogDescription>
-                        The report will cover the selected date range:
-                        <br /><strong>{startDate}</strong> to <strong>{endDate}</strong>
-                    </DialogDescription>
+                    <DialogDescription>Select salesperson to include in the report for the period <strong>{startDate}</strong> to <strong>{endDate}</strong></DialogDescription>
                 </DialogHeader>
                 <form onSubmit={generateSalesReportPDF} className="space-y-4 pt-4">
-                    <SalespersonSelect 
-                        employees={employees} 
-                        includeAll 
-                        defaultValue={defaultSalesperson}
-                    />
+                    <SalespersonSelect employees={employees} includeAll defaultValue={defaultSalesperson} />
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                         <Button type="submit">Generate & Download</Button>
@@ -1292,4 +1096,3 @@ export default function SalesPage() {
         </FirebaseClientProvider>
     );
 }
-
