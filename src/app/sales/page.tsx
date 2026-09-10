@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import Link from 'next/link';
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText } from 'lucide-react';
+import { ArrowLeft, BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText, Download } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
@@ -299,6 +300,53 @@ function SalesPageContent() {
         }
     };
 
+    const generateExcelReport = () => {
+        if (filteredSales.length === 0) {
+            toast({ title: "No data", description: "No sales data found for the selected criteria.", variant: "destructive" });
+            return;
+        }
+
+        // CSV Header with Thai language support (BOM)
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Member ID", "Member Name", "Salesperson", "Package", "Revenue Type", "Payment Type", "Amount"];
+        csvContent += headers.join(",") + "\n";
+
+        // Rows
+        filteredSales.forEach((sale: any) => {
+            const dateStr = sale.date?.toDate ? sale.date.toDate().toLocaleDateString('en-GB') : new Date(sale.date).toLocaleDateString('en-GB');
+            const row = [
+                `"${dateStr}"`,
+                `"${sale.memberId || ''}"`,
+                `"${sale.memberName || ''}"`,
+                `"${sale.salesperson || ''}"`,
+                `"${sale.product || ''}"`,
+                `"${sale.revenueType || ''}"`,
+                `"${sale.paymentType || ''}"`,
+                sale.amount
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        // Grand Total row
+        const totalAmount = filteredSales.reduce((sum, s) => sum + s.amount, 0);
+        csvContent += `\n,,,,"GRAND TOTAL",,,${totalAmount}\n`;
+
+        // Download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const isAll = filterSalesperson === 'all';
+        const filename = `Sales_Report_${isAll ? 'All_Salespersons' : filterSalesperson.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({ title: "Excel Export Success", description: "The sales report has been downloaded." });
+    };
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -410,10 +458,16 @@ function SalesPageContent() {
                             <CardHeader>
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                                     <CardTitle className="mb-3 md:mb-0">Sales Report</CardTitle>
-                                    <Button onClick={() => setPdfModalOpen(true)}>
-                                        <FileText className="mr-2 h-4 w-4"/>
-                                        Generate PDF
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={generateExcelReport}>
+                                            <Download className="mr-2 h-4 w-4"/>
+                                            Export to Excel
+                                        </Button>
+                                        <Button onClick={() => setPdfModalOpen(true)}>
+                                            <FileText className="mr-2 h-4 w-4"/>
+                                            Generate PDF
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -1096,3 +1150,4 @@ export default function SalesPage() {
         </FirebaseClientProvider>
     );
 }
+
