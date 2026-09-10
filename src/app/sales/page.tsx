@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import Link from 'next/link';
@@ -20,6 +19,7 @@ import { ArrowLeft, BarChart2, Loader2, Plus, Trash2, Edit, Settings, FileText }
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
