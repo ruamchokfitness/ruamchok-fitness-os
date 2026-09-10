@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect, useMemo, useTransition as useTransitionReact } from 'react';
 import Link from 'next/link';
@@ -111,18 +112,6 @@ function SalesPageContent() {
                 defaultProducts.forEach(p => {
                     const docRef = doc(collection(db, "salesdashboard1_products"));
                     batch.set(docRef, p);
-                });
-                await batch.commit();
-            }
-
-            const employeesCollectionRef = collection(db, "salesdashboard1_employees");
-            const employeesSnapshot = await getDocs(employeesCollectionRef);
-            if (employeesSnapshot.empty) {
-                 const defaultEmployees: Omit<SalesEmployee, 'id'>[] = [];
-                const batch = writeBatch(db);
-                defaultEmployees.forEach(e => {
-                    const docRef = doc(collection(db, "salesdashboard1_employees"));
-                    batch.set(docRef, e);
                 });
                 await batch.commit();
             }
@@ -1303,3 +1292,4 @@ export default function SalesPage() {
         </FirebaseClientProvider>
     );
 }
+
