@@ -238,7 +238,6 @@ function SalesPageContent() {
 
     const handleSaveSale = async (formData: FormData): Promise<boolean> => {
         const dateStr = formData.get('date') as string;
-        // This ensures the date is interpreted in the local timezone, not UTC.
         const [year, month, day] = dateStr.split('-').map(Number);
         const saleDate = new Date(year, month - 1, day);
 
@@ -733,7 +732,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                         <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlySales)}</p>
                         <p className="text-sm text-gray-500 mt-2">{currentMonth}</p>
                          <div id="monthly-targets-display" className="mt-4 space-y-2">
-                            {Object.entries(monthlyTargets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([key, value]) => {
+                            {Object.entries(monthlyTargets).sort(([keyA], [keyB]) => keyA.slice(-1).localeCompare(keyB.slice(-1))).map(([key, value]) => {
                                 if (!value) return null;
                                 const targetAmount = value as number;
                                 const progress = Math.min((monthlySales / targetAmount) * 100, 100);
@@ -783,7 +782,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                             
                                             <div className="space-y-3">
                                                 {Object.keys(targets).length > 0 ? (
-                                                    Object.entries(targets).sort(([keyA], [keyB]) => keyA.localeCompare(keyB)).map(([targetKey, targetValue]) => {
+                                                    Object.entries(targets).sort(([keyA], [keyB]) => keyA.slice(-1).localeCompare(keyB.slice(-1))).map(([targetKey, targetValue]) => {
                                                         if (!targetValue || (targetValue as number) <= 0) return null;
                                                         const targetAmount = targetValue as number;
                                                         const progress = Math.min((currentSales / targetAmount) * 100, 100);
@@ -1012,7 +1011,7 @@ function MonthlyTargetsModal({ open, onOpenChange, targets, onSave, db }: any) {
                     </div>
                      <DialogFooter className="md:col-span-3">
                         <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                        <Button type="submit" Validation Save Targets</Button>
+                        <Button type="submit">Save Targets</Button>
                     </DialogFooter>
                  </form>
             </DialogContent>
@@ -1257,7 +1256,7 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
         }
 
         printWindow.document.write(htmlContent);
-        printWindow.document.title = reportTitle; // Sets the default filename when saving
+        printWindow.document.title = reportTitle;
         printWindow.document.close();
         
         setTimeout(() => {
@@ -1294,5 +1293,13 @@ function PDFExportModal({ open, onOpenChange, employees, sales, defaultSalespers
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+export default function SalesPage() {
+    return (
+        <FirebaseClientProvider>
+            <SalesPageContent />
+        </FirebaseClientProvider>
     );
 }
