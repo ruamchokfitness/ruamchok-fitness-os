@@ -1,14 +1,16 @@
+
 'use client';
-import { ArrowLeft, UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive } from "lucide-react";
+import { ArrowLeft, UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive, Download } from "lucide-react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { EmployeeGrid } from "@/components/employees/employee-grid";
 import { PolicyFooter } from "@/components/policies/policy-footer";
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection, query, writeBatch, doc, getDocs, limit } from 'firebase/firestore';
-import type { Employee, Quota, Policy, VacationTier, PublicHoliday, User } from "@/lib/types";
+import { collection, query, writeBatch, doc, getDocs, limit, orderBy } from 'firebase/firestore';
+import type { Employee, Leave, Quota, Policy, VacationTier, PublicHoliday, User } from "@/lib/types";
 import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 
 function HrmHeader() {
@@ -90,13 +92,53 @@ const seedInitialData = async (firestore: any) => {
 
 function HrmPageContent() {
     const { firestore } = useFirebase();
+    const { toast } = useToast();
     const [seeding, setSeeding] = useState(true);
+
+    const employeesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "employees"), orderBy('name')) : null, [firestore]);
+    const { data: employees } = useCollection<Employee>(employeesQuery);
+
+    const leavesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "leaves"), orderBy('date', 'desc')) : null, [firestore]);
+    const { data: leaves } = useCollection<Leave>(leavesQuery);
 
     useEffect(() => {
         if (firestore) {
             seedInitialData(firestore).finally(() => setSeeding(false));
         }
     }, [firestore]);
+
+    const generateExcelReport = () => {
+        if (!leaves || leaves.length === 0) {
+            toast({ title: "No data", description: "No leave records to export.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...leaves].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Employee Name", "Leave Type", "Duration (Days)"];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(l => {
+            const empName = employees?.find(e => e.id === l.employeeId)?.name || 'Unknown';
+            const row = [
+                `"${l.date}"`,
+                `"${empName}"`,
+                `"${l.type}"`,
+                l.days
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `HRM_Leave_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     if (seeding) {
         return (
@@ -149,7 +191,11 @@ function HrmPageContent() {
                     </Link>
                 </div>
             </div>
-            <div className="flex justify-end mb-8">
+            <div className="flex justify-end mb-8 gap-2">
+            <Button variant="outline" onClick={generateExcelReport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Leave Excel
+            </Button>
             <AddEmployeeDialog>
                 <Button className="transition-transform hover:scale-105">
                 <UserPlus className="mr-2 h-5 w-5" />

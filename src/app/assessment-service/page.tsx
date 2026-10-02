@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2, Search, List, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, ArrowUpDown, ClipboardCheck, User, Save, Edit, Trash2, Search, List, BarChart3, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -57,6 +57,41 @@ function AssessmentServicePageContent() {
             (record.memberId && record.memberId.toLowerCase().includes(searchQuery.toLowerCase()))
         );
     }, [records, searchQuery]);
+
+    const generateExcelReport = () => {
+        if (filteredRecords.length === 0) {
+            toast({ title: "No data", description: "No records to export.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...filteredRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Member ID", "Full Name", "Training Program", "Status", "Total Sessions", "Remark"];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(r => {
+            const row = [
+                `"${r.date}"`,
+                `"${r.memberId || ''}"`,
+                `"${r.fullName}"`,
+                `"${r.trainingProgram}"`,
+                `"${r.status}"`,
+                r.sessions?.length || 0,
+                `"${r.remark || ''}"`
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Assessment_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const handleViewDetails = (record: AssessmentServiceRecord) => {
         setSelectedRecord(record);
@@ -121,7 +156,10 @@ function AssessmentServicePageContent() {
                                         <CardTitle>All Records</CardTitle>
                                         <CardDescription>A log of all assessment services provided to clients.</CardDescription>
                                     </div>
-                                    <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={generateExcelReport}><Download className="mr-2 h-4 w-4"/>Export Excel</Button>
+                                        <Button onClick={() => setAddModalOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add New Record</Button>
+                                    </div>
                                 </div>
                                 <div className="relative pt-4">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -285,6 +323,7 @@ const RecordsTable = ({ records, onViewDetails, onEdit, onDelete }: {
 function SessionReportTab({ records, trainers }: { records: AssessmentServiceRecord[], trainers: PTTrainer[] }) {
     const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
     const [trainerFilter, setTrainerFilter] = useState('all');
+    const { toast } = useToast();
 
     // 1. Flatten all sessions from all records
     const allSessions = useMemo(() => {
@@ -326,12 +365,51 @@ function SessionReportTab({ records, trainers }: { records: AssessmentServiceRec
         return Object.entries(stats).sort(([, countA], [, countB]) => countB - countA);
     }, [filteredSessions]);
 
+    const generateSessionsExcel = () => {
+        if (filteredSessions.length === 0) {
+            toast({ title: "No data", description: "No sessions match the selected filters.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...filteredSessions].sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+        
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Member ID", "Client Name", "Trainer Name", "Training Program", "Session No."];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(s => {
+            const row = [
+                `"${new Date(s.dateTime).toLocaleDateString()}"`,
+                `"${s.memberId || ''}"`,
+                `"${s.clientName}"`,
+                `"${s.trainerName}"`,
+                `"${s.trainingProgram}"`,
+                s.sessionNumber
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Assessment_Sessions_Report_${monthFilter || 'All'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     // JSX for the new tab
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Session Report</CardTitle>
-                <CardDescription>Filter and view individual training sessions.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Session Report</CardTitle>
+                        <CardDescription>Filter and view individual training sessions.</CardDescription>
+                    </div>
+                    <Button variant="outline" onClick={generateSessionsExcel}><Download className="mr-2 h-4 w-4"/>Export Excel</Button>
+                </div>
                 <div className="flex gap-2 pt-4">
                     <Input 
                         type="month" 

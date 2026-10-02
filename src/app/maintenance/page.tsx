@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -16,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench, MessageSquarePlus, History as HistoryIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2, Edit, Settings, X, FileText, AlertTriangle, Wrench, MessageSquarePlus, History as HistoryIcon, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Firestore } from 'firebase/firestore';
 
@@ -234,6 +235,41 @@ function MaintenancePageContent() {
         }
     };
 
+    const generateExcelReport = () => {
+        if (filteredReports.length === 0) {
+            toast({ title: "No data", description: "No records to export.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...filteredReports].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Category", "Maintenance Item", "Responsible", "Status", "Latest Update"];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(r => {
+            const latestNote = r.followUps && r.followUps.length > 0 ? r.followUps[r.followUps.length - 1].note : '';
+            const row = [
+                `"${r.date}"`,
+                `"${getCategoryName(r.category)}"`,
+                `"${r.maintenanceItem}"`,
+                `"${r.responsible}"`,
+                `"${r.completed ? 'เสร็จสิ้น' : 'รอดำเนินการ'}"`,
+                `"${latestNote.replace(/"/g, '""')}"`
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Maintenance_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleFilterClick = (filter: string) => {
         setCurrentFilter(filter);
         setIsSearching(false); // Reset search state when using main filters
@@ -334,6 +370,7 @@ function MaintenancePageContent() {
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                             <CardTitle className="mb-3 md:mb-0">รายการซ่อมบำรุงทั้งหมด</CardTitle>
                             <div className="flex space-x-2">
+                                <Button variant="outline" onClick={generateExcelReport}><Download className="mr-2 h-4 w-4"/>Export Excel</Button>
                                 <Button variant={currentFilter === 'all' && !isSearching ? 'default' : 'outline'} onClick={() => handleFilterClick('all')}>ทั้งหมด</Button>
                                 <Button variant={currentFilter === 'completed' && !isSearching ? 'default' : 'outline'} onClick={() => handleFilterClick('completed')}>เสร็จสิ้น</Button>
                                 <Button variant={currentFilter === 'pending' && !isSearching ? 'default' : 'outline'} onClick={() => handleFilterClick('pending')}>รอดำเนินการ</Button>

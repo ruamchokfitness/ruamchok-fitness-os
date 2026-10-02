@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check, RefreshCw, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Users, Award, Calendar as CalendarIcon, BarChart2, Settings, Trash2, Trophy, Edit, Search, FileText, Check, RefreshCw, AlertCircle, X, Download } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -511,8 +511,60 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, d
         });
     };
 
+    const generateSessionsExcel = () => {
+        if (sessions.length === 0) {
+            toast({ title: "No data", description: "No sessions to export.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...sessions].sort((a, b) => new Date(a.session_datetime).getTime() - new Date(b.session_datetime).getTime());
+        
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date/Time", "Member ID", "Client Name", "Trainer Name", "Duration (h)", "Usage Info", "Status"];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(session => {
+            const client = clients.find(c => c.id === session.client_id);
+            const trainer = trainers.find(t => t.id === session.trainer_id);
+            const pkg = packages.find(p => p.id === session.purchase_id);
+            
+            let usageInfo = '';
+            if (pkg) {
+                const actualUsedAtTime = sessionHistoricalUsage[session.id] || 0;
+                usageInfo = `${actualUsedAtTime}/${pkg.hours_purchased}`;
+            }
+
+            const row = [
+                `"${formatDateTime(session.session_datetime)}"`,
+                `"${client?.member_id || ''}"`,
+                `"${client?.name || ''}"`,
+                `"${trainer?.name || ''}"`,
+                session.duration_hours,
+                `"${usageInfo}"`,
+                `"${session.session_status}"`
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `PT_Sessions_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
          <div className="space-y-6">
+             <div className="flex justify-between items-center">
+                 <h3 className="text-lg font-semibold">Training Sessions</h3>
+                 <Button onClick={generateSessionsExcel} variant="outline">
+                    <Download className="mr-2 h-4 w-4"/>
+                    Export to Excel
+                 </Button>
+             </div>
              <Card>
                 <Table>
                     <TableHeader>
@@ -592,9 +644,9 @@ function SessionsTab({ sessions, clients, trainers, packages, packageUsageMap, d
 function CommissionsTab({ commissions, trainers, sessions, clients, commissionPlans, packages }: { commissions: PTCommission[], trainers: PTTrainer[], sessions: PTSession[], clients: PTClient[], commissionPlans: PTCommissionPlan[], packages: PTPackage[] }) { 
     const [trainerFilter, setTrainerFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
+    const { toast } = useToast();
     
     const recalculatedCommissions = useMemo(() => {
-        // Source of truth: Sessions in that month
         const filteredSessions = sessions.filter(s => {
             const sMonth = s.session_datetime.slice(0, 7); // "YYYY-MM"
             const matchesMonth = sMonth === monthFilter;
@@ -689,6 +741,45 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             };
         }).sort((a, b) => a.name.localeCompare(b.name));
     }, [recalculatedCommissions, trainers, commissionPlans, trainerFilter]);
+
+    const generateCommissionExcel = () => {
+        if (recalculatedCommissions.length === 0) {
+            toast({ title: "No data", description: "No commissions to export for this period.", variant: "destructive" });
+            return;
+        }
+
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Member ID", "Member Name", "Trainer Name", "Commission Type", "Duration (h)", "Rate Applied", "Cumulative Hours", "Commission Amount"];
+        csvContent += headers.join(",") + "\n";
+
+        recalculatedCommissions.forEach(comm => {
+            const trainer = trainers.find(t => t.id === comm.trainer_id);
+            const session = sessions.find(s => s.id === comm.session_id);
+            const client = session ? clients.find(c => c.id === session.client_id) : null;
+            
+            const row = [
+                `"${formatDateOnly(session?.session_datetime || '')}"`,
+                `"${client?.member_id || ''}"`,
+                `"${client?.name || ''}"`,
+                `"${trainer?.name || ''}"`,
+                `"${comm.commission_type}"`,
+                comm.duration_hours,
+                comm.hourly_rate_applied,
+                `"${comm.cumulative_hours_before}h -> ${comm.cumulative_hours_after}h"`,
+                comm.commission_amount
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Commissions_Report_${monthFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const generateCommissionPDF = () => {
         if (trainerFilter === 'all') {
@@ -930,9 +1021,15 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     </Select>
                      <Input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="w-[180px] bg-white" />
                 </div>
-                <Button onClick={generateCommissionPDF} className="bg-primary text-white hover:bg-primary/90">
-                    <FileText className="mr-2 h-4 w-4"/>Generate PDF
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={generateCommissionExcel}>
+                        <Download className="mr-2 h-4 w-4"/>
+                        Export to Excel
+                    </Button>
+                    <Button onClick={generateCommissionPDF} className="bg-primary text-white hover:bg-primary/90">
+                        <FileText className="mr-2 h-4 w-4"/>Generate PDF
+                    </Button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1254,7 +1351,6 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
 
                 await updateDoc(doc(db, "pt_sessions", session.id), newData);
                 
-                // Recalculate month reference for commission
                 const newMonthRef = getMonthReference(sessionDate);
                 const commQuery = query(collection(db, "pt_commissions"), where("session_id", "==", session.id));
                 const commSnap = await getDocs(commQuery);

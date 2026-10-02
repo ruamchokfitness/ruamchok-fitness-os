@@ -11,11 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, ClipboardList, Search, Filter, History } from 'lucide-react';
+import { ArrowLeft, Loader2, ClipboardList, Search, Filter, History, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 function AuditLogPageContent() {
     const { firestore } = useFirebase();
+    const { toast } = useToast();
     const [searchQuery, setSearchQuery] = useState('');
     const [moduleFilter, setFilterModule] = useState('all');
     const [actionFilter, setFilterAction] = useState('all');
@@ -53,6 +55,38 @@ function AuditLogPageContent() {
             minute: '2-digit',
             second: '2-digit'
         });
+    };
+
+    const generateExcelReport = () => {
+        if (filteredLogs.length === 0) {
+            toast({ title: "No data", description: "No logs to export.", variant: "destructive" });
+            return;
+        }
+
+        let csvContent = "\uFEFF"; 
+        const headers = ["Timestamp", "User", "Module", "Action", "Resource ID", "Details"];
+        csvContent += headers.join(",") + "\n";
+
+        filteredLogs.forEach(log => {
+            const row = [
+                `"${formatTimestamp(log.timestamp)}"`,
+                `"${log.userName || ''}"`,
+                `"${log.module || ''}"`,
+                `"${log.action || ''}"`,
+                `"${log.resourceId || ''}"`,
+                `"${(log.details || '').replace(/"/g, '""')}"`
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Audit_Log_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const getActionBadge = (action: string) => {
@@ -94,6 +128,7 @@ function AuditLogPageContent() {
                                 <CardDescription>Showing recent administrative activities across all modules.</CardDescription>
                             </div>
                             <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                                <Button variant="outline" onClick={generateExcelReport}><Download className="mr-2 h-4 w-4"/>Export Excel</Button>
                                 <div className="relative flex-1 md:min-w-[250px]">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input 

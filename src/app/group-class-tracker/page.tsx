@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban, FileText, Edit } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Settings, Trash2, Save, FilePenLine, History, BarChart3, TrendingUp, Lightbulb, Users2, Dumbbell, UserSquare, Clock, X, Trophy, TrendingDown, Star, Ban, FileText, Edit, Download } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { SignaturePad } from '@/components/ui/signature-pad';
@@ -208,6 +208,7 @@ function HistoryTab({ attendances, classes, instructors, onDelete, onEdit }: { a
     const [monthFilter, setMonthFilter] = useState('');
     const [classFilter, setClassFilter] = useState('all');
     const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         setMonthFilter(new Date().toISOString().slice(0, 7));
@@ -223,6 +224,45 @@ function HistoryTab({ attendances, classes, instructors, onDelete, onEdit }: { a
             return monthMatch && classMatch;
         });
     }, [attendances, monthFilter, classFilter]);
+
+    const generateExcelReport = () => {
+        if (filteredHistory.length === 0) {
+            toast({ title: "No data", description: "No records to export for this period.", variant: "destructive" });
+            return;
+        }
+
+        const sorted = [...filteredHistory].sort((a, b) => {
+            const dateA = a.date.split('/').reverse().join('-');
+            const dateB = b.date.split('/').reverse().join('-');
+            return new Date(dateA).getTime() - new Date(dateB).getTime();
+        });
+
+        let csvContent = "\uFEFF"; 
+        const headers = ["Date", "Day", "Time", "Class", "Instructor", "Attendees", "Staff Name"];
+        csvContent += headers.join(",") + "\n";
+
+        sorted.forEach(r => {
+            const row = [
+                `"${r.date}"`,
+                `"${r.day_of_week}"`,
+                `"${r.time}"`,
+                `"${r.class_name}"`,
+                `"${r.instructor}"`,
+                r.attendance,
+                `"${r.staffName || ''}"`
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Group_Class_Report_${monthFilter || 'All'}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
     
     return (
         <Card>
@@ -241,6 +281,7 @@ function HistoryTab({ attendances, classes, instructors, onDelete, onEdit }: { a
                                 {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        <Button variant="outline" onClick={generateExcelReport}><Download className="mr-2 h-4 w-4"/>Export Excel</Button>
                         <Button onClick={() => setPdfDialogOpen(true)}><FileText className="mr-2 h-4 w-4"/>Generate PDF</Button>
                     </div>
                 </div>
