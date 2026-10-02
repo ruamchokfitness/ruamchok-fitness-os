@@ -703,28 +703,32 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     <title>Gym Commission Summary - ${monthFilter}</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
-                        .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
-                        .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
-                        .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
-                        .summary-grid { grid-template-columns: 1fr 1fr 1fr; display: grid; gap: 15px; margin-bottom: 25px; }
-                        .summary-card { border: 1px solid #000; padding: 12px; text-align: center; }
-                        .summary-card .label { font-size: 10px; font-weight: bold; color: #666; margin-bottom: 5px; }
-                        .summary-card .value { font-size: 18px; font-weight: bold; color: #000; }
-                        h2 { font-size: 14px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; text-transform: uppercase; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                        th { background: #f0f0f0; color: #000; padding: 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
-                        td { padding: 7px 8px; border: 1px solid #ccc; font-size: 11px; }
+                        body { font-family: Arial, sans-serif; color: #333; line-height: 1.2; background: white; padding: 10px; }
+                        .container { width: 100%; margin: 0 auto; }
+                        .header { border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+                        .header h1 { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+                        .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+                        .summary-card { border: 1px solid #000; padding: 8px; text-align: center; }
+                        .summary-card .label { font-size: 9px; font-weight: bold; color: #666; margin-bottom: 2px; }
+                        .summary-card .value { font-size: 16px; font-weight: bold; color: #000; }
+                        h2 { font-size: 12px; font-weight: bold; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #000; text-transform: uppercase; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                        th { background: #f0f0f0; color: #000; padding: 6px 4px; text-align: left; font-weight: bold; font-size: 10px; border: 1px solid #999; }
+                        td { padding: 4px 6px; border: 1px solid #ccc; font-size: 10px; }
                         .amount { text-align: right; font-weight: bold; }
                         .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
-                        .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
+                        .footer { margin-top: 15px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9px; color: #666; text-align: center; }
+                        @media print {
+                            body { padding: 0; }
+                            .container { padding: 5px; }
+                        }
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <div class="header">
                             <h1>GYM COMMISSION SUMMARY</h1>
-                            <div style="font-size: 12px;"><strong>Period:</strong> ${monthFilter}</div>
+                            <div style="font-size: 11px;"><strong>Period:</strong> ${monthFilter}</div>
                         </div>
                         <div class="summary-grid">
                             <div class="summary-card">
@@ -772,7 +776,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 </body>
                 </html>
             `;
-            const printWindow = window.open('', '', 'width=1000,height=800');
+            const printWindow = window.open('', '', 'width=1100,height=800');
             if (printWindow) {
                 printWindow.document.write(htmlContent);
                 printWindow.document.close();
@@ -799,25 +803,25 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 <title>Commission Report - ${trainer.name}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: Arial, sans-serif; color: #333; line-height: 1.4; background: white; }
-                    .container { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
-                    .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
-                    .header h1 { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
-                    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-                    .summary-card { border: 1px solid #000; padding: 12px; text-align: center; }
-                    .summary-card .label { font-size: 10px; font-weight: bold; color: #666; margin-bottom: 5px; }
-                    .summary-card .value { font-size: 18px; font-weight: bold; color: #000; }
-                    h2 { font-size: 14px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #000; text-transform: uppercase; }
-                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                    th { background: #f0f0f0; color: #000; padding: 8px; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #999; }
-                    td { padding: 7px 8px; border: 1px solid #ccc; font-size: 11px; }
+                    body { font-family: Arial, sans-serif; color: #333; line-height: 1.2; background: white; padding: 10px; }
+                    .container { width: 100%; margin: 0 auto; }
+                    .header { border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+                    .header h1 { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+                    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+                    .summary-card { border: 1px solid #000; padding: 8px; text-align: center; }
+                    .summary-card .label { font-size: 9px; font-weight: bold; color: #666; margin-bottom: 2px; }
+                    .summary-card .value { font-size: 16px; font-weight: bold; color: #000; }
+                    h2 { font-size: 12px; font-weight: bold; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #000; text-transform: uppercase; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                    th { background: #f0f0f0; color: #000; padding: 6px 4px; text-align: left; font-weight: bold; font-size: 10px; border: 1px solid #999; }
+                    td { padding: 4px 6px; border: 1px solid #ccc; font-size: 10px; }
                     .amount { text-align: right; font-weight: bold; }
                     .total-row { background: #e8e8e8; font-weight: bold; border-top: 2px solid #000; }
-                    .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 10px; color: #666; text-align: center; }
-                    .signature-img { max-height: 30px; width: auto; vertical-align: middle; }
+                    .footer { margin-top: 15px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9px; color: #666; text-align: center; }
+                    .signature-img { max-height: 22px; width: auto; vertical-align: middle; }
                     @media print {
-                        body { margin: 0; padding: 0; }
-                        .container { padding: 15px; }
+                        body { padding: 0; }
+                        .container { padding: 5px; }
                         table { page-break-inside: auto; }
                         tr { page-break-inside: avoid; }
                     }
@@ -827,7 +831,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                 <div class="container">
                     <div class="header">
                         <h1>TRAINING REPORT</h1>
-                        <div style="font-size: 12px;">
+                        <div style="font-size: 11px;">
                             <strong>Trainer:</strong> ${trainer.name} | <strong>Plan:</strong> ${plan?.name || '-'}
                         </div>
                     </div>
@@ -851,15 +855,15 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                     <table>
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Member ID</th>
+                                <th style="width: 70px;">Date</th>
+                                <th style="width: 70px;">Member ID</th>
                                 <th>Member Name</th>
                                 <th>Package Name</th>
-                                <th>Duration</th>
-                                <th>Rate</th>
-                                <th>Cumulative</th>
-                                <th style="text-align: right;">Amount</th>
-                                <th style="text-align: center;">Member Sign</th>
+                                <th style="width: 40px;">Dur</th>
+                                <th style="width: 60px;">Rate</th>
+                                <th style="width: 80px;">Cumulative</th>
+                                <th style="width: 70px; text-align: right;">Amount</th>
+                                <th style="text-align: center; width: 100px;">Member Sign</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -870,8 +874,8 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
                                 const dateOnly = session?.session_datetime ? formatDateOnly(session.session_datetime) : '-';
                                 
                                 let shortName = pkg?.package_name || '-';
-                                shortName = shortName.replace('Personal Training Package', 'Personal Training');
-                                shortName = shortName.replace('Boxing Training Package', 'Boxing Training');
+                                shortName = shortName.replace('Personal Training Package', 'PT');
+                                shortName = shortName.replace('Boxing Training Package', 'BT');
                                 const displayPkgName = pkg ? `${shortName} (${pkg.hours_purchased}h)` : '-';
 
                                 return `
@@ -905,7 +909,7 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
             </html>
         `;
 
-        const printWindow = window.open('', '', 'width=1000,height=800');
+        const printWindow = window.open('', '', 'width=1100,height=800');
         if (printWindow) {
             printWindow.document.write(htmlContent);
             printWindow.document.close();
