@@ -1,8 +1,13 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
 import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
 import { FirebaseClientProvider, useFirebase, useCollection, useMemoFirebase, useDoc, useUser } from '@/firebase';
 
 import type { PTClient, PTTrainer, PTPackage, PTSession, PTCommission, PTCommissionPlan, User } from '@/lib/types';
@@ -39,7 +44,10 @@ const formatDateOnly = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
-const getMonthReference = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+const getMonthReference = (date = new Date()) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 
 function PTTrackerPageContent() {
     const { firestore: db } = useFirebase();
@@ -586,10 +594,19 @@ function CommissionsTab({ commissions, trainers, sessions, clients, commissionPl
     const [monthFilter, setMonthFilter] = useState(() => getMonthReference());
     
     const recalculatedCommissions = useMemo(() => {
-        const filtered = commissions.filter(c => (trainerFilter === 'all' || c.trainer_id === trainerFilter) && c.month_reference === monthFilter);
-        const byTrainer: Record<string, PTCommission[]> = {};
+        // Source of truth: Sessions in that month
+        const filteredSessions = sessions.filter(s => {
+            const sMonth = s.session_datetime.slice(0, 7); // "YYYY-MM"
+            const matchesMonth = sMonth === monthFilter;
+            const matchesTrainer = trainerFilter === 'all' || s.trainer_id === trainerFilter;
+            return matchesMonth && matchesTrainer;
+        });
 
-        filtered.forEach(c => {
+        const sessionIds = new Set(filteredSessions.map(s => s.id));
+        const relevantCommissions = commissions.filter(c => sessionIds.has(c.session_id));
+        
+        const byTrainer: Record<string, PTCommission[]> = {};
+        relevantCommissions.forEach(c => {
             if (!byTrainer[c.trainer_id]) byTrainer[c.trainer_id] = [];
             byTrainer[c.trainer_id].push(c);
         });
@@ -1224,14 +1241,27 @@ function SessionEditModal({ open, onOpenChange, session, clients, trainers, pack
         
         startTransition(async () => {
             try {
+                const sessionDate = new Date(newDateTime);
                 const newData = { 
                     duration_hours: newDuration,
                     trainer_id: newTrainerId,
-                    session_datetime: new Date(newDateTime).toISOString()
+                    session_datetime: sessionDate.toISOString()
                 };
 
                 await updateDoc(doc(db, "pt_sessions", session.id), newData);
                 
+                // Recalculate month reference for commission
+                const newMonthRef = getMonthReference(sessionDate);
+                const commQuery = query(collection(db, "pt_commissions"), where("session_id", "==", session.id));
+                const commSnap = await getDocs(commQuery);
+                commSnap.forEach(async (d) => {
+                    await updateDoc(d.ref, { 
+                        duration_hours: newDuration, 
+                        month_reference: newMonthRef,
+                        trainer_id: newTrainerId
+                    });
+                });
+
                 await recordAuditLog(db, user, { 
                     action: 'update', 
                     module: 'PTTracker', 
