@@ -779,11 +779,12 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                                     if (!targetValue || (targetValue as number) <= 0) return null;
                                                     const targetAmount = targetValue as number;
                                                     const progress = Math.min((currentSales / targetAmount) * 100, 100);
+                                                    const remaining = Math.max(0, targetAmount - currentSales);
                                                     return (
                                                         <div key={targetKey}>
                                                             <div className="flex justify-between items-center text-[10px] text-gray-500 mb-1">
                                                                 <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
-                                                                <span>{Math.round(progress)}%</span>
+                                                                <span>{Math.round(progress)}% ({formatCurrency(remaining)} left)</span>
                                                             </div>
                                                             <Progress value={progress} className="h-1" />
                                                         </div>
