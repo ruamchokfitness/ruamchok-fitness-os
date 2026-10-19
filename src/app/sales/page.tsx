@@ -786,7 +786,11 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                                                 <span>Target {targetKey.replace('target', '')}: {formatCurrency(targetAmount)}</span>
                                                                 <span>{Math.round(progress)}% ({formatCurrency(remaining)} left)</span>
                                                             </div>
-                                                            <Progress value={progress} className="h-1" />
+                                                            <Progress 
+                                                                value={progress} 
+                                                                className="h-1" 
+                                                                indicatorClassName={progress >= 100 ? "bg-green-500" : ""} 
+                                                            />
                                                         </div>
                                                     );
                                                 })
