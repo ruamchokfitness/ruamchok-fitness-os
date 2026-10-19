@@ -21,6 +21,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import type { Firestore } from 'firebase/firestore';
 
 ChartJS.register(ArcElement, ChartJsTooltip, ChartJsLegend, CategoryScale, LinearScale, BarElement, Title);
@@ -46,13 +48,14 @@ function SalesPageContent() {
     const { data: productsData, isLoading: loadingProducts } = useCollection<Product>(productsQuery);
     const products = productsData || [];
 
+    const EMPTY_OBJECT = {};
     const monthlyTargetsDoc = useMemoFirebase(() => db ? doc(db, "salesdashboard1_settings", 'monthly_targets') : null, [db]);
     const { data: monthlyTargetsData, isLoading: loadingMonthlyTargets } = useDoc<{targets: MonthlyTargets}>(monthlyTargetsDoc);
-    const monthlyTargets = monthlyTargetsData?.targets || {};
+    const monthlyTargets = monthlyTargetsData?.targets || EMPTY_OBJECT as MonthlyTargets;
 
     const salespersonTargetsDoc = useMemoFirebase(() => db ? doc(db, "salesdashboard1_settings", 'salesperson_targets') : null, [db]);
     const { data: salespersonTargetsData, isLoading: loadingSalespersonTargets } = useDoc<{targets: SalespersonTargets}>(salespersonTargetsDoc);
-    const salespersonTargets = salespersonTargetsData?.targets || {};
+    const salespersonTargets = salespersonTargetsData?.targets || EMPTY_OBJECT as SalespersonTargets;
     
     const loading = loadingSales || loadingEmployees || loadingProducts || loadingMonthlyTargets || loadingSalespersonTargets;
 
@@ -789,7 +792,7 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
                                                             <Progress 
                                                                 value={progress} 
                                                                 className="h-1" 
-                                                                indicatorClassName={progress >= 100 ? "bg-green-500" : ""} 
+                                                                indicatorClassName={progress >= 100 ? "bg-green-500" : "bg-primary"} 
                                                             />
                                                         </div>
                                                     );
