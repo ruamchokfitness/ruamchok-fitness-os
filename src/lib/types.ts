@@ -295,12 +295,11 @@ export interface AssessmentServiceRecord {
 
 // Day Pass Coupon Types
 export type DayPassPackageType = 
-  | 'Full Package'
-  | 'Full Package (SN/STD)'
-  | 'Gym Only'
-  | 'Gym Only (SN/STD)'
-  | 'Full Package (MB)'
-  | 'Gym Only (MB)';
+  | 'Daily Full Membership'
+  | 'Daily Standard Membership'
+  | 'Daily Full Membership (SN/STD)'
+  | 'Daily Standard Membership (SN/STD)'
+  | string;
 
 export type DayPassPaymentMethod = 'cash' | 'transfer' | 'credit_card';
 

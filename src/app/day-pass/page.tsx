@@ -39,11 +39,9 @@ import {
   ArrowLeft,
   Ticket,
   Download,
-  Printer,
   Search,
   Trash2,
   Eye,
-  CheckCircle2,
   Calendar,
   CreditCard,
   Banknote,
@@ -53,17 +51,36 @@ import {
   History,
   PlusCircle,
   Loader2,
-  Sparkles,
-  FileText,
+  UserCheck,
+  ShieldCheck,
+  ClipboardList,
 } from 'lucide-react';
 
 const PACKAGES: { type: DayPassPackageType; label: string; price: number; desc: string }[] = [
-  { type: 'Full Package', label: 'Full Package', price: 300, desc: 'รวมฟิตเนสและคลาสทั้งหมด' },
-  { type: 'Full Package (SN/STD)', label: 'Full Package (SN/STD)', price: 270, desc: 'ผู้สูงอายุ / นักเรียน-นักศึกษา' },
-  { type: 'Gym Only', label: 'Gym Only', price: 200, desc: 'เฉพาะเข้าใช้บริการฟิตเนส' },
-  { type: 'Gym Only (SN/STD)', label: 'Gym Only (SN/STD)', price: 180, desc: 'ผู้สูงอายุ / นักเรียน-นักศึกษา' },
-  { type: 'Full Package (MB)', label: 'Full Package (MB)', price: 150, desc: 'ราคาพิเศษสำหรับผู้ติดตามสมาชิก' },
-  { type: 'Gym Only (MB)', label: 'Gym Only (MB)', price: 100, desc: 'เฉพาะฟิตเนส ผู้ติดตามสมาชิก' },
+  {
+    type: 'Daily Full Membership',
+    label: 'Daily Full Membership',
+    price: 300,
+    desc: 'All-access pass including gym facilities and group classes.',
+  },
+  {
+    type: 'Daily Standard Membership',
+    label: 'Daily Standard Membership',
+    price: 200,
+    desc: 'Access to gym fitness facilities only.',
+  },
+  {
+    type: 'Daily Full Membership (SN/STD)',
+    label: 'Daily Full Membership (SN/STD)',
+    price: 270,
+    desc: 'Full pass for Seniors (60+) or Students with valid ID.',
+  },
+  {
+    type: 'Daily Standard Membership (SN/STD)',
+    label: 'Daily Standard Membership (SN/STD)',
+    price: 180,
+    desc: 'Standard pass for Seniors (60+) or Students with valid ID.',
+  },
 ];
 
 export default function DayPassPage() {
@@ -87,7 +104,7 @@ export default function DayPassPage() {
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
   const [lockerNo, setLockerNo] = useState('');
-  const [packageType, setPackageType] = useState<DayPassPackageType>('Full Package');
+  const [packageType, setPackageType] = useState<DayPassPackageType>('Daily Full Membership');
   const [paymentMethod, setPaymentMethod] = useState<DayPassPaymentMethod>('cash');
   const [ticketDate, setTicketDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [clientSignature, setClientSignature] = useState('');
@@ -209,7 +226,7 @@ export default function DayPassPage() {
     setClientName('');
     setPhone('');
     setLockerNo('');
-    setPackageType('Full Package');
+    setPackageType('Daily Full Membership');
     setPaymentMethod('cash');
     setTicketDate(new Date().toISOString().split('T')[0]);
     setClientSignature('');
@@ -406,42 +423,42 @@ export default function DayPassPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 pb-16">
-      {/* ================= HEADER ================= */}
-      <header className="bg-slate-900 text-white py-4 md:py-6 shadow-md print:hidden">
+    <div className="min-h-screen bg-slate-100/50 pb-16">
+      {/* ================= HEADER (SUBTLE, CALM THEME) ================= */}
+      <header className="bg-slate-900 text-white py-4 md:py-5 border-b border-slate-800 shadow-sm print:hidden">
         <div className="container mx-auto px-4 md:px-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/">
               <Button
                 variant="outline"
                 size="icon"
-                className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700 h-10 w-10 rounded-xl"
+                className="bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 h-9 w-9 rounded-lg"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <div className="w-11 h-11 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Ticket className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center">
+              <Ticket className="w-5 h-5 text-slate-200" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight">Day Pass Coupon</h1>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                <h1 className="text-xl font-bold tracking-tight text-white">Day Pass Coupon</h1>
+                <span className="bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-mono font-semibold px-2 py-0.5 rounded">
                   No. {nextTicketNumber}
                 </span>
               </div>
               <p className="text-slate-400 text-xs md:text-sm">
-                สร้างคูปองค่าบริการรายวัน ออกไฟล์ PDF อัตโนมัติสำหรับ Google Drive
+                Daily pass coupon for Ruamchok Fitness.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-1.5 text-right hidden sm:block">
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-800/60 border border-slate-700/80 rounded-lg px-3 py-1.5 text-right hidden sm:block">
               <span className="text-[10px] uppercase text-slate-400 block font-semibold">
-                คูปองออกวันนี้
+                ออกวันนี้ / Today
               </span>
-              <span className="text-sm font-bold text-amber-400">
+              <span className="text-sm font-bold text-slate-200 font-mono">
                 {stats.todayCount} ใบ (฿{stats.todayRevenue.toLocaleString()})
               </span>
             </div>
@@ -452,16 +469,25 @@ export default function DayPassPage() {
       {/* ================= MAIN CONTAINER ================= */}
       <main className="container mx-auto px-4 md:px-8 mt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white border p-1 shadow-sm rounded-xl grid grid-cols-3 max-w-md print:hidden">
-            <TabsTrigger value="new" className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">
+          <TabsList className="bg-white border border-slate-200 p-1 shadow-sm rounded-xl grid grid-cols-3 max-w-md print:hidden">
+            <TabsTrigger
+              value="new"
+              className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white text-xs md:text-sm"
+            >
               <PlusCircle className="w-4 h-4" />
               ออกคูปองใหม่
             </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">
+            <TabsTrigger
+              value="history"
+              className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white text-xs md:text-sm"
+            >
               <History className="w-4 h-4" />
               ประวัติ ({tickets ? tickets.length : 0})
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white">
+            <TabsTrigger
+              value="settings"
+              className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white text-xs md:text-sm"
+            >
               <Settings className="w-4 h-4" />
               ตั้งค่าเลขรัน
             </TabsTrigger>
@@ -469,64 +495,61 @@ export default function DayPassPage() {
 
           {/* ================= TAB 1: NEW COUPON FORM ================= */}
           <TabsContent value="new" className="space-y-6">
-            {/* iPad / Tablet Banner with Next No. */}
-            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl p-4 md:p-6 text-white shadow-lg shadow-orange-500/10 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <span className="text-amber-100 text-xs font-bold uppercase tracking-wider block">
-                  เลขที่คูปองใบถัดไป (Auto Run No.)
-                </span>
-                <span className="text-3xl md:text-4xl font-black font-mono tracking-wider drop-shadow-sm">
-                  {nextTicketNumber}
-                </span>
+            {/* Subtle Sleek Ticket Number Bar */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 font-mono font-bold">
+                  DP
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    เลขที่คูปองที่จะออก (Next Ticket No.)
+                  </span>
+                  <span className="text-2xl md:text-3xl font-black font-mono text-slate-900 tracking-wider">
+                    {nextTicketNumber}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-xs md:text-sm bg-black/20 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/10">
-                <Calendar className="w-4 h-4 text-amber-200" />
-                <span>วันที่ออกคูปอง: <strong className="underline underline-offset-2">{ticketDate}</strong></span>
+              <div className="flex items-center gap-2 text-xs md:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg text-slate-700">
+                <Calendar className="w-4 h-4 text-slate-500" />
+                <span>วันที่ออกคูปอง: <strong className="font-semibold text-slate-900">{ticketDate}</strong></span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Form Controls */}
-              <div className="lg:col-span-7 space-y-6">
-                {/* 1. Customer Information Card */}
-                <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden">
-                  <CardHeader className="bg-slate-50/80 border-b pb-3">
-                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold">
+            {/* FORM CONTAINER - ORDERED PRECISELY AS REQUESTED */}
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* ================= SECTION A: CUSTOMER FACING ================= */}
+              <div className="space-y-5">
+                {/* 1. ข้อมูลลูกค้า (Customer Details) */}
+                <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
+                    <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center font-bold">
                         1
                       </span>
-                      ข้อมูลลูกค้า (Customer Details)
+                      1. ข้อมูลลูกค้า (Customer Details)
                     </CardTitle>
-                    <CardDescription className="text-xs">
-                      กรอกข้อมูลตามที่ระบุในแบบฟอร์มคูปอง (มาร์กสีเหลือง)
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4 md:p-6 space-y-4">
+                  <CardContent className="p-5 space-y-4">
                     {/* Full Name */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="clientName" className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
-                        <span className="bg-yellow-200 text-yellow-900 px-1.5 py-0.5 rounded text-[11px] font-bold">
-                          จำเป็น
-                        </span>
-                        Full Name / ชื่อ-สกุลลูกค้า:
+                      <Label htmlFor="clientName" className="font-semibold text-slate-800 text-sm">
+                        Full Name / ชื่อ-สกุลลูกค้า: <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="clientName"
                         value={clientName}
                         onChange={(e) => setClientName(e.target.value)}
                         placeholder="เช่น นายรักสุขภาพ มั่นคง หรือ John Doe"
-                        className="text-base py-5 border-amber-300 focus-visible:ring-amber-500 bg-amber-50/30 rounded-xl"
+                        className="text-base py-5 border-slate-300 focus-visible:ring-slate-700 bg-white rounded-lg"
                       />
                     </div>
 
                     {/* Phone & Locker No */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <Label htmlFor="phone" className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
-                          <span className="bg-yellow-200 text-yellow-900 px-1.5 py-0.5 rounded text-[11px] font-bold">
-                            จำเป็น
-                          </span>
-                          Phone / เบอร์โทรศัพท์:
+                        <Label htmlFor="phone" className="font-semibold text-slate-800 text-sm">
+                          Phone / เบอร์โทรศัพท์: <span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="phone"
@@ -534,7 +557,7 @@ export default function DayPassPage() {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="เช่น 081-234-5678"
-                          className="text-base py-5 border-amber-300 focus-visible:ring-amber-500 bg-amber-50/30 rounded-xl font-mono"
+                          className="text-base py-5 border-slate-300 focus-visible:ring-slate-700 bg-white rounded-lg font-mono"
                         />
                       </div>
 
@@ -547,152 +570,69 @@ export default function DayPassPage() {
                           value={lockerNo}
                           onChange={(e) => setLockerNo(e.target.value)}
                           placeholder="เช่น L-05 หรือ 12"
-                          className="text-base py-5 rounded-xl font-mono"
+                          className="text-base py-5 border-slate-300 focus-visible:ring-slate-700 rounded-lg font-mono"
                         />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* 2. Package Selection Card */}
-                <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden">
-                  <CardHeader className="bg-slate-50/80 border-b pb-3">
-                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold">
-                        2
-                      </span>
-                      เลือกประเภทแพ็กเกจ (Package Options)
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      เลือกแพ็กเกจ Day Pass ราคาจะถูกคำนวณและระบุในคูปองอัตโนมัติ
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 md:p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {PACKAGES.map((pkg) => {
-                        const isSelected = packageType === pkg.type;
-                        return (
-                          <div
-                            key={pkg.type}
-                            onClick={() => setPackageType(pkg.type)}
-                            className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all active:scale-[0.98] select-none ${
-                              isSelected
-                                ? 'border-amber-500 bg-amber-50/80 shadow-md shadow-amber-500/10'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold text-slate-900 text-sm">
-                                {pkg.label}
-                              </span>
-                              <span
-                                className={`text-sm font-black px-2 py-0.5 rounded-md ${
-                                  isSelected
-                                    ? 'bg-amber-500 text-white'
-                                    : 'bg-slate-100 text-slate-800'
-                                }`}
-                              >
-                                ฿{pkg.price}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500">{pkg.desc}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 3. Payment Method Card */}
-                <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden">
-                  <CardHeader className="bg-slate-50/80 border-b pb-3">
-                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold">
-                        3
-                      </span>
-                      ช่องทางชำระเงิน (Payment Method)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 md:p-6">
-                    <div className="grid grid-cols-3 gap-3">
-                      {/* Cash */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('cash')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
-                          paymentMethod === 'cash'
-                            ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-sm'
-                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-                        }`}
-                      >
-                        <Banknote className="w-6 h-6 text-emerald-600" />
-                        <span className="text-sm">Cash (เงินสด)</span>
-                      </button>
-
-                      {/* Transfer / QR */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('transfer')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
-                          paymentMethod === 'transfer'
-                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold shadow-sm'
-                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-                        }`}
-                      >
-                        <QrCode className="w-6 h-6 text-indigo-600" />
-                        <span className="text-sm">Transfer / QR</span>
-                      </button>
-
-                      {/* Credit Card */}
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('credit_card')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
-                          paymentMethod === 'credit_card'
-                            ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold shadow-sm'
-                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600'
-                        }`}
-                      >
-                        <CreditCard className="w-6 h-6 text-blue-600" />
-                        <span className="text-sm">Credit Card</span>
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Right Column: Signatures & Rules */}
-              <div className="lg:col-span-5 space-y-6">
-                {/* Policy Notice Box */}
-                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 text-xs space-y-2 text-slate-700">
-                  <div className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
+                {/* ข้อกำหนดการใช้บริการ / Ruamchok Fitness Policy 2 ภาษา */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2.5 text-slate-700">
+                  <div className="font-bold text-slate-900 flex items-center gap-2 text-xs border-b border-slate-200 pb-1.5">
+                    <ShieldCheck className="w-4 h-4 text-slate-700" />
                     ข้อกำหนดการใช้บริการ / Ruamchok Fitness Policy
                   </div>
-                  <p className="leading-relaxed">
-                    • รวมโชค ฟิตเนสขอสงวนสิทธิ์ไม่รับผิดชอบต่อทรัพย์สินที่สูญหายหรือถูกโจรกรรม
-                  </p>
-                  <p className="leading-relaxed">
-                    • รวมโชค ฟิตเนสไม่รับผิดชอบต่อการบาดเจ็บหรือความเสียหายใด ๆ ที่อาจเกิดขึ้นระหว่างการใช้บริการ กรุณาปรึกษาแพทย์ก่อนใช้บริการหากมีปัญหาสุขภาพ
-                  </p>
+                  <div className="space-y-1">
+                    <p className="font-medium text-slate-800">
+                      1. รวมโชค ฟิตเนสขอสงวนสิทธิ์ไม่รับผิดชอบต่อทรัพย์สินที่สูญหายหรือถูกโจรกรรม
+                    </p>
+                    <p className="text-slate-600 italic pl-3">
+                      Ruamchok Fitness is not responsible for lost or stolen items.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-slate-800">
+                      2. รวมโชค ฟิตเนสไม่รับผิดชอบต่อการบาดเจ็บหรือความเสียหายใด ๆ ที่อาจเกิดขึ้นระหว่างการใช้บริการ กรุณาปรึกษาแพทย์ก่อนใช้บริการหากมีปัญหาสุขภาพ
+                    </p>
+                    <p className="text-slate-600 italic pl-3">
+                      Ruamchok Fitness is not liable for any injury or damage that may occur during your visit. Please consult your doctor if you have any health concerns.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-slate-800">
+                      3. สมาชิกและผู้ใช้บริการต้องปฏิบัติตามกฎระเบียบของฟิตเนส สวมใส่ชุดและรองเท้ากีฬาที่เหมาะสมขณะออกกำลังกาย
+                    </p>
+                    <p className="text-slate-600 italic pl-3">
+                      Guests must comply with fitness rules and wear appropriate athletic attire and footwear at all times.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-slate-800">
+                      4. คูปองนี้ใช้ได้เฉพาะบุคคลและมีอายุการใช้งานภายในวันที่ระบุเท่านั้น ไม่สามารถโอนสิทธิ์หรือขอคืนเงินได้
+                    </p>
+                    <p className="text-slate-600 italic pl-3">
+                      This day pass is non-refundable, non-transferable, and valid only on the date of issuance.
+                    </p>
+                  </div>
                 </div>
 
-                {/* 4. Customer Signature Card (Optimized for iPad touch) */}
-                <Card className="shadow-sm border-2 border-amber-400 bg-amber-50/20 rounded-2xl overflow-hidden">
-                  <CardHeader className="bg-amber-100/70 border-b border-amber-200 py-3 px-4">
+                {/* 2. ลายเซ็นสมาชิก / Member's Signature */}
+                <Card className="shadow-sm border-slate-300 rounded-xl overflow-hidden bg-white">
+                  <CardHeader className="bg-slate-50 border-b border-slate-200 py-3 px-5">
                     <CardTitle className="text-sm font-bold text-slate-900 flex items-center justify-between">
                       <span className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-amber-600 text-white text-xs flex items-center justify-center font-bold">
-                          4
+                        <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center font-bold">
+                          2
                         </span>
-                        ลายเซ็นสมาชิก / Member's Signature
+                        2. ลายเซ็นสมาชิก / Member's Signature
                       </span>
-                      <span className="bg-yellow-300 text-yellow-950 font-bold text-[10px] px-2 py-0.5 rounded uppercase">
-                        ลูกค้าเซ็นที่นี่
+                      <span className="text-xs text-slate-500 font-normal">
+                        (ลูกค้ารับทราบข้อกำหนดและเซ็นชื่อที่นี่)
                       </span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4">
+                  <CardContent className="p-4 md:p-5">
                     <SignaturePad
                       label=""
                       onSignatureChange={setClientSignature}
@@ -700,18 +640,135 @@ export default function DayPassPage() {
                     />
                   </CardContent>
                 </Card>
+              </div>
 
-                {/* 5. Staff Signature / Details */}
-                <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden">
-                  <CardHeader className="bg-slate-50/80 border-b py-3 px-4">
-                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              {/* ================= SECTION B: STAFF ONLY ================= */}
+              <div className="pt-4 border-t-2 border-dashed border-slate-300 space-y-5">
+                {/* Staff Section Divider Banner */}
+                <div className="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-lg flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-white">
+                    <UserCheck className="w-4 h-4 text-slate-300" />
+                    ส่วนสำหรับเจ้าหน้าที่ / Staff Only (พนักงานเป็นผู้เลือกและบันทึก)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    เจ้าหน้าที่: <strong>{staffName}</strong>
+                  </span>
+                </div>
+
+                {/* 3. เลือกประเภทแพ็กเกจ (Package Options) */}
+                <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
+                    <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-700 text-white text-xs flex items-center justify-center font-bold">
+                        3
+                      </span>
+                      3. เลือกประเภทแพ็กเกจ (Package Options)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {PACKAGES.map((pkg) => {
+                        const isSelected = packageType === pkg.type;
+                        return (
+                          <div
+                            key={pkg.type}
+                            onClick={() => setPackageType(pkg.type)}
+                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                              isSelected
+                                ? 'border-slate-900 bg-slate-50 shadow-sm'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-bold text-slate-900 text-sm">
+                                {pkg.label}
+                              </span>
+                              <span
+                                className={`text-sm font-black px-2.5 py-0.5 rounded ${
+                                  isSelected
+                                    ? 'bg-slate-900 text-white'
+                                    : 'bg-slate-100 text-slate-800'
+                                }`}
+                              >
+                                ฿{pkg.price}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 leading-snug">{pkg.desc}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 4. ช่องทางชำระเงิน (Payment Method) */}
+                <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
+                    <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-700 text-white text-xs flex items-center justify-center font-bold">
+                        4
+                      </span>
+                      4. ช่องทางชำระเงิน (Payment Method)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-5">
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Cash */}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('cash')}
+                        className={`p-3.5 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
+                          paymentMethod === 'cash'
+                            ? 'border-slate-900 bg-slate-900 text-white font-bold shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        <Banknote className={`w-5 h-5 ${paymentMethod === 'cash' ? 'text-white' : 'text-slate-600'}`} />
+                        <span className="text-xs md:text-sm font-medium">Cash (เงินสด)</span>
+                      </button>
+
+                      {/* Transfer / QR */}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('transfer')}
+                        className={`p-3.5 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
+                          paymentMethod === 'transfer'
+                            ? 'border-slate-900 bg-slate-900 text-white font-bold shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        <QrCode className={`w-5 h-5 ${paymentMethod === 'transfer' ? 'text-white' : 'text-slate-600'}`} />
+                        <span className="text-xs md:text-sm font-medium">Transfer / QR</span>
+                      </button>
+
+                      {/* Credit Card */}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('credit_card')}
+                        className={`p-3.5 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${
+                          paymentMethod === 'credit_card'
+                            ? 'border-slate-900 bg-slate-900 text-white font-bold shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        <CreditCard className={`w-5 h-5 ${paymentMethod === 'credit_card' ? 'text-white' : 'text-slate-600'}`} />
+                        <span className="text-xs md:text-sm font-medium">Credit Card</span>
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 5. ลายเซ็นพนักงานขาย / Staff Signature */}
+                <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
+                    <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-slate-700 text-white text-xs flex items-center justify-center font-bold">
                         5
                       </span>
-                      ลายเซ็นพนักงานขาย / Staff Signature
+                      5. ลายเซ็นพนักงานขาย / Staff Signature
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-3">
+                  <CardContent className="p-5 space-y-3">
                     <div className="space-y-1">
                       <Label htmlFor="staffName" className="text-xs font-medium text-slate-600">
                         ชื่อพนักงานผู้รับเงิน / ออกคูปอง:
@@ -721,24 +778,24 @@ export default function DayPassPage() {
                         value={staffName}
                         onChange={(e) => setStaffName(e.target.value)}
                         placeholder="ชื่อพนักงาน"
-                        className="text-sm h-9 rounded-lg"
+                        className="text-sm h-10 rounded-lg max-w-sm"
                       />
                     </div>
                     <SignaturePad
-                      label="ลายเซ็นพนักงาน (ไม่บังคับ):"
+                      label="ลายเซ็นพนักงาน (Staff Signature):"
                       onSignatureChange={setStaffSignature}
                       className="w-full"
                     />
                   </CardContent>
                 </Card>
 
-                {/* Action Buttons */}
-                <div className="space-y-3 pt-2">
+                {/* Submit Action Bar */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <Button
                     size="lg"
                     onClick={handleSaveAndExport}
                     disabled={isSaving}
-                    className="w-full py-6 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 rounded-xl gap-2 active:scale-[0.99]"
+                    className="flex-1 py-6 text-sm md:text-base font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2 active:scale-[0.99]"
                   >
                     {isSaving ? (
                       <>
@@ -757,7 +814,7 @@ export default function DayPassPage() {
                     variant="outline"
                     type="button"
                     onClick={handleResetForm}
-                    className="w-full py-4 rounded-xl text-slate-600 hover:bg-slate-100 gap-1.5"
+                    className="py-6 px-6 rounded-xl text-slate-600 hover:bg-slate-100 gap-1.5"
                   >
                     <RotateCcw className="w-4 h-4" />
                     ล้างฟอร์ม (Reset)
@@ -770,7 +827,7 @@ export default function DayPassPage() {
           {/* ================= TAB 2: HISTORY LIST ================= */}
           <TabsContent value="history" className="space-y-4">
             {/* Search and Filters Bar */}
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <Card className="rounded-xl border-slate-200 shadow-sm bg-white">
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="relative md:col-span-2">
@@ -779,7 +836,7 @@ export default function DayPassPage() {
                       placeholder="ค้นหาตามเลข No., ชื่อลูกค้า, เบอร์โทร..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 rounded-xl"
+                      className="pl-9 rounded-lg"
                     />
                   </div>
 
@@ -787,7 +844,7 @@ export default function DayPassPage() {
                     <select
                       value={filterPayment}
                       onChange={(e) => setFilterPayment(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       <option value="all">ทุกช่องทางชำระเงิน</option>
                       <option value="cash">เงินสด (Cash)</option>
@@ -801,7 +858,7 @@ export default function DayPassPage() {
                       type="date"
                       value={filterDate}
                       onChange={(e) => setFilterDate(e.target.value)}
-                      className="rounded-xl"
+                      className="rounded-lg"
                     />
                   </div>
                 </div>
@@ -809,10 +866,10 @@ export default function DayPassPage() {
             </Card>
 
             {/* Tickets Table */}
-            <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden">
+            <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-100/80 text-slate-600 text-xs uppercase font-bold border-b">
+                  <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                     <tr>
                       <th className="py-3 px-4">เลขที่คูปอง (No.)</th>
                       <th className="py-3 px-4">วันที่</th>
@@ -855,7 +912,7 @@ export default function DayPassPage() {
                           <td className="py-3 px-4 font-mono text-slate-600 text-xs">
                             {ticket.phone || '-'}
                           </td>
-                          <td className="py-3 px-4 font-mono text-indigo-700 font-bold">
+                          <td className="py-3 px-4 font-mono text-slate-700 font-bold">
                             {ticket.locker_no || '-'}
                           </td>
                           <td className="py-3 px-4 text-xs text-slate-700">
@@ -865,15 +922,7 @@ export default function DayPassPage() {
                             ฿{(ticket.price || 0).toLocaleString()}
                           </td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                ticket.payment_method === 'cash'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : ticket.payment_method === 'transfer'
-                                  ? 'bg-indigo-100 text-indigo-800'
-                                  : 'bg-blue-100 text-blue-800'
-                              }`}
-                            >
+                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
                               {ticket.payment_method === 'cash'
                                 ? 'Cash'
                                 : ticket.payment_method === 'transfer'
@@ -925,8 +974,8 @@ export default function DayPassPage() {
 
           {/* ================= TAB 3: SETTINGS ================= */}
           <TabsContent value="settings" className="space-y-6 max-w-xl mx-auto">
-            <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden">
-              <CardHeader className="bg-slate-50/80 border-b">
+            <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b border-slate-200">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <Settings className="w-5 h-5 text-slate-700" />
                   ตั้งค่าเลขที่คูปอง (Running Number Sequence)
@@ -936,11 +985,11 @@ export default function DayPassPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
-                <div className="bg-slate-100/70 p-4 rounded-xl border border-slate-200 space-y-1">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                     ตัวอย่างเลขที่คูปองใบถัดไปที่จะออก:
                   </span>
-                  <span className="text-2xl font-black font-mono text-red-600">
+                  <span className="text-2xl font-black font-mono text-slate-900">
                     {settingsPrefix.trim().toUpperCase() || 'DP'}
                     {String(settingsNextSeq || 9770).padStart(5, '0')}
                   </span>
@@ -955,7 +1004,7 @@ export default function DayPassPage() {
                     value={settingsPrefix}
                     onChange={(e) => setSettingsPrefix(e.target.value)}
                     placeholder="เช่น DP"
-                    className="font-mono rounded-xl"
+                    className="font-mono rounded-lg"
                   />
                 </div>
 
@@ -969,7 +1018,7 @@ export default function DayPassPage() {
                     value={settingsNextSeq}
                     onChange={(e) => setSettingsNextSeq(e.target.value)}
                     placeholder="เช่น 9770"
-                    className="font-mono rounded-xl"
+                    className="font-mono rounded-lg"
                   />
                   <p className="text-xs text-slate-500">
                     * ระบบจะจัดรูปแบบ 5 หลักอัตโนมัติ เช่น 9770 จะแสดงเป็น 09770
@@ -980,7 +1029,7 @@ export default function DayPassPage() {
                   <Button
                     onClick={handleSaveSettings}
                     disabled={isUpdatingSettings}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-5 rounded-xl"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-5 rounded-lg"
                   >
                     {isUpdatingSettings ? (
                       <>

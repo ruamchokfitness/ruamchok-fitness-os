@@ -22,7 +22,7 @@ export default function Home() {
   const menuItems = [
     {
       title: 'Day Pass Coupon',
-      description: 'คูปองค่าบริการรายวัน เซ็นชื่อดิจิทัล และส่งออก PDF สำหรับ Google Drive',
+      description: 'Daily pass coupon with digital signature and export to PDF.',
       href: '/day-pass',
       icon: <Ticket className="w-8 h-8 text-primary" />,
       disabled: false,

@@ -77,7 +77,7 @@ export function DayPassPreviewDialog({
                 variant="outline"
                 size="sm"
                 onClick={handlePrint}
-                className="gap-1.5"
+                className="gap-1.5 border-slate-300 text-slate-700"
               >
                 <Printer className="w-4 h-4" />
                 พิมพ์ (Print)
@@ -86,7 +86,7 @@ export function DayPassPreviewDialog({
                 size="sm"
                 onClick={handleDownloadPdf}
                 disabled={isExporting}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="gap-1.5 bg-slate-900 hover:bg-slate-800 text-white"
               >
                 {isExporting ? (
                   <>
