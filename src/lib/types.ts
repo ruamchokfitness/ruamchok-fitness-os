@@ -320,3 +320,10 @@ export interface DayPassTicket {
   created_at: any;            // Firestore Timestamp
 }
 
+export interface DayPassStaff {
+  id: string;
+  name: string;
+  created_at?: any;
+}
+
+

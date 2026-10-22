@@ -11,15 +11,23 @@ import {
   serverTimestamp,
   runTransaction,
   setDoc,
+  addDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import type { DayPassTicket, DayPassPackageType, DayPassPaymentMethod } from '@/lib/types';
+import type { DayPassTicket, DayPassPackageType, DayPassPaymentMethod, DayPassStaff } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { DayPassVoucher } from '@/components/day-pass/day-pass-voucher';
 import { DayPassPreviewDialog } from '@/components/day-pass/day-pass-preview-dialog';
@@ -53,33 +61,44 @@ import {
   Loader2,
   UserCheck,
   ShieldCheck,
-  ClipboardList,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 
-const PACKAGES: { type: DayPassPackageType; label: string; price: number; desc: string }[] = [
+const PACKAGES: {
+  type: DayPassPackageType;
+  label: string;
+  price: number;
+  descTh: string;
+  descEn: string;
+}[] = [
   {
     type: 'Daily Full Membership',
     label: 'Daily Full Membership',
     price: 300,
-    desc: 'All-access pass including gym facilities and group classes.',
+    descTh: 'เข้าใช้บริการฟิตเนสและคลาสออกกำลังกายได้ทั้งหมด',
+    descEn: 'All-access pass including gym facilities and group classes.',
   },
   {
     type: 'Daily Standard Membership',
     label: 'Daily Standard Membership',
     price: 200,
-    desc: 'Access to gym fitness facilities only.',
+    descTh: 'เฉพาะเข้าใช้บริการฟิตเนส (ไม่รวมคลาส)',
+    descEn: 'Access to gym fitness facilities only.',
   },
   {
     type: 'Daily Full Membership (SN/STD)',
     label: 'Daily Full Membership (SN/STD)',
     price: 270,
-    desc: 'Full pass for Seniors (60+) or Students with valid ID.',
+    descTh: 'เข้าใช้บริการฟิตเนสและคลาส สำหรับผู้สูงอายุ (60+) หรือนักเรียน-นักศึกษา',
+    descEn: 'Full pass for Seniors (60+) or Students with valid ID.',
   },
   {
     type: 'Daily Standard Membership (SN/STD)',
     label: 'Daily Standard Membership (SN/STD)',
     price: 180,
-    desc: 'Standard pass for Seniors (60+) or Students with valid ID.',
+    descTh: 'เฉพาะเข้าใช้บริการฟิตเนส สำหรับผู้สูงอายุ (60+) หรือนักเรียน-นักศึกษา',
+    descEn: 'Standard pass for Seniors (60+) or Students with valid ID.',
   },
 ];
 
@@ -109,7 +128,18 @@ export default function DayPassPage() {
   const [ticketDate, setTicketDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [clientSignature, setClientSignature] = useState('');
   const [staffSignature, setStaffSignature] = useState('');
-  const [staffName, setStaffName] = useState(user?.displayName || user?.email?.split('@')[0] || 'Staff');
+  const [staffName, setStaffName] = useState('');
+
+  // Staff members query
+  const staffQuery = useMemoFirebase(
+    () => (db ? query(collection(db, 'day_pass_staff'), orderBy('name')) : null),
+    [db]
+  );
+  const { data: staffMembers, isLoading: isLoadingStaff } = useCollection<DayPassStaff>(staffQuery);
+
+  // New staff name in settings
+  const [newStaffInput, setNewStaffInput] = useState('');
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
 
   // Modal / Preview state
   const [previewTicket, setPreviewTicket] = useState<DayPassTicket | null>(null);
@@ -119,7 +149,7 @@ export default function DayPassPage() {
   // Hidden voucher ref for immediate export
   const hiddenVoucherRef = useRef<HTMLDivElement>(null);
 
-  // Settings tab form state
+  // Settings tab sequence form state
   const [settingsNextSeq, setSettingsNextSeq] = useState('9770');
   const [settingsPrefix, setSettingsPrefix] = useState('DP');
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
@@ -132,12 +162,12 @@ export default function DayPassPage() {
   const [filterPayment, setFilterPayment] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('');
 
-  // Update staff name if user loads
+  // Set default staff name when staff list loads
   useEffect(() => {
-    if (user && (!staffName || staffName === 'Staff')) {
-      setStaffName(user.displayName || user.email?.split('@')[0] || 'Staff');
+    if (staffMembers && staffMembers.length > 0 && !staffName) {
+      setStaffName(staffMembers[0].name);
     }
-  }, [user]);
+  }, [staffMembers, staffName]);
 
   // Listen to Sequence settings in real time
   useEffect(() => {
@@ -255,6 +285,15 @@ export default function DayPassPage() {
       return;
     }
 
+    if (!staffName.trim()) {
+      toast({
+        title: 'กรุณาระบุชื่อพนักงาน',
+        description: 'กรุณาเลือกหรือระบุชื่อพนักงานผู้รับเงิน / ออกคูปอง',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -299,7 +338,7 @@ export default function DayPassPage() {
           payment_method: paymentMethod,
           client_signature: clientSignature,
           staff_signature: staffSignature,
-          staff_name: staffName,
+          staff_name: staffName.trim(),
           created_at: serverTimestamp(),
         };
 
@@ -422,6 +461,50 @@ export default function DayPassPage() {
     }
   };
 
+  // Add new staff member
+  const handleAddStaff = async () => {
+    if (!db || !newStaffInput.trim()) return;
+    setIsAddingStaff(true);
+    try {
+      await addDoc(collection(db, 'day_pass_staff'), {
+        name: newStaffInput.trim(),
+        created_at: serverTimestamp(),
+      });
+      toast({
+        title: 'เพิ่มพนักงานสำเร็จ',
+        description: `เพิ่ม "${newStaffInput.trim()}" เรียบร้อยแล้ว`,
+      });
+      setNewStaffInput('');
+    } catch (error) {
+      console.error('Add staff error:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถเพิ่มรายชื่อพนักงานได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  // Delete staff member
+  const handleDeleteStaff = async (staffId: string, name: string) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'day_pass_staff', staffId));
+      toast({
+        title: 'ลบรายชื่อสำเร็จ',
+        description: `ลบ "${name}" ออกจากรายชื่อพนักงานแล้ว`,
+      });
+    } catch (error) {
+      console.error('Delete staff error:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาดในการลบ',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/50 pb-16">
       {/* ================= HEADER (SUBTLE, CALM THEME) ================= */}
@@ -489,7 +572,7 @@ export default function DayPassPage() {
               className="gap-2 data-[state=active]:bg-slate-900 data-[state=active]:text-white text-xs md:text-sm"
             >
               <Settings className="w-4 h-4" />
-              ตั้งค่าเลขรัน
+              ตั้งค่า
             </TabsTrigger>
           </TabsList>
 
@@ -651,11 +734,11 @@ export default function DayPassPage() {
                     ส่วนสำหรับเจ้าหน้าที่ / Staff Only (พนักงานเป็นผู้เลือกและบันทึก)
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    เจ้าหน้าที่: <strong>{staffName}</strong>
+                    เจ้าหน้าที่: <strong>{staffName || 'ยังไม่ได้เลือก'}</strong>
                   </span>
                 </div>
 
-                {/* 3. เลือกประเภทแพ็กเกจ (Package Options) */}
+                {/* 3. เลือกประเภทแพ็กเกจ (Package Options) - Thai & English Descriptions */}
                 <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
                   <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
                     <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
@@ -693,7 +776,14 @@ export default function DayPassPage() {
                                 ฿{pkg.price}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 leading-snug">{pkg.desc}</p>
+                            {/* Thai Description */}
+                            <p className="text-xs font-medium text-slate-700 leading-snug">
+                              {pkg.descTh}
+                            </p>
+                            {/* English Description */}
+                            <p className="text-[11px] text-slate-500 italic leading-snug mt-0.5">
+                              {pkg.descEn}
+                            </p>
                           </div>
                         );
                       })}
@@ -758,7 +848,7 @@ export default function DayPassPage() {
                   </CardContent>
                 </Card>
 
-                {/* 5. ลายเซ็นพนักงานขาย / Staff Signature */}
+                {/* 5. ลายเซ็นพนักงานขาย / Staff Signature with Dropdown */}
                 <Card className="shadow-sm border-slate-200 rounded-xl overflow-hidden bg-white">
                   <CardHeader className="bg-slate-50 border-b border-slate-200/80 py-3.5 px-5">
                     <CardTitle className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
@@ -768,19 +858,50 @@ export default function DayPassPage() {
                       5. ลายเซ็นพนักงานขาย / Staff Signature
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-5 space-y-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="staffName" className="text-xs font-medium text-slate-600">
-                        ชื่อพนักงานผู้รับเงิน / ออกคูปอง:
+                  <CardContent className="p-5 space-y-4">
+                    {/* Staff Name Dropdown */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="staffName" className="text-xs font-semibold text-slate-700">
+                        ชื่อพนักงานผู้รับเงิน / ออกคูปอง: <span className="text-red-500">*</span>
                       </Label>
-                      <Input
-                        id="staffName"
-                        value={staffName}
-                        onChange={(e) => setStaffName(e.target.value)}
-                        placeholder="ชื่อพนักงาน"
-                        className="text-sm h-10 rounded-lg max-w-sm"
-                      />
+
+                      {staffMembers && staffMembers.length > 0 ? (
+                        <Select value={staffName} onValueChange={setStaffName}>
+                          <SelectTrigger className="w-full max-w-sm rounded-lg h-10 border-slate-300 bg-white text-slate-800">
+                            <SelectValue placeholder="-- เลือกรายชื่อพนักงาน --" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffMembers.map((staff) => (
+                              <SelectItem key={staff.id} value={staff.name}>
+                                {staff.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input
+                            id="staffName"
+                            value={staffName}
+                            onChange={(e) => setStaffName(e.target.value)}
+                            placeholder="พิมพ์ชื่อพนักงาน หรือเพิ่มรายชื่อในตั้งค่า"
+                            className="text-sm h-10 rounded-lg max-w-sm border-slate-300"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => setActiveTab('settings')}
+                            className="text-xs text-slate-700 gap-1.5"
+                          >
+                            <Settings className="w-3.5 h-3.5 text-slate-500" />
+                            เพิ่มรายชื่อในเมนูตั้งค่า
+                          </Button>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Staff Signature Pad */}
                     <SignaturePad
                       label="ลายเซ็นพนักงาน (Staff Signature):"
                       onSignatureChange={setStaffSignature}
@@ -973,7 +1094,82 @@ export default function DayPassPage() {
           </TabsContent>
 
           {/* ================= TAB 3: SETTINGS ================= */}
-          <TabsContent value="settings" className="space-y-6 max-w-xl mx-auto">
+          <TabsContent value="settings" className="space-y-6 max-w-2xl mx-auto">
+            {/* Section 1: Staff Members Management */}
+            <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b border-slate-200">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Users className="w-5 h-5 text-slate-700" />
+                  จัดการรายชื่อพนักงานขาย / ออกคูปอง (Staff List)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  เพิ่มหรือลบรายชื่อพนักงานเพื่อให้เลือกได้ใน Dropdown ของแบบฟอร์ม
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                {/* Add new staff form */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="กรอกชื่อพนักงานใหม่ เช่น นก, บอล, แนน..."
+                    value={newStaffInput}
+                    onChange={(e) => setNewStaffInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddStaff();
+                      }
+                    }}
+                    className="rounded-lg"
+                  />
+                  <Button
+                    onClick={handleAddStaff}
+                    disabled={isAddingStaff || !newStaffInput.trim()}
+                    className="bg-slate-900 hover:bg-slate-800 text-white shrink-0 gap-1.5"
+                  >
+                    {isAddingStaff ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="w-4 h-4" />
+                    )}
+                    เพิ่มพนักงาน
+                  </Button>
+                </div>
+
+                {/* Staff List */}
+                <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                  {isLoadingStaff ? (
+                    <div className="p-4 text-center text-xs text-slate-400">
+                      กำลังโหลดรายชื่อพนักงาน...
+                    </div>
+                  ) : !staffMembers || staffMembers.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-400">
+                      ยังไม่มีรายชื่อพนักงานในระบบ กรุณากรอกชื่อและกดเพิ่มพนักงานด้านบน
+                    </div>
+                  ) : (
+                    staffMembers.map((staff) => (
+                      <div
+                        key={staff.id}
+                        className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="font-medium text-slate-800 text-sm">
+                          {staff.name}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteStaff(staff.id, staff.name)}
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section 2: Running Number Sequence */}
             <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-slate-50 border-b border-slate-200">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -1055,6 +1251,7 @@ export default function DayPassPage() {
           top: '-9999px',
           opacity: 0,
           pointerEvents: 'none',
+          width: '750px',
         }}
       >
         <DayPassVoucher

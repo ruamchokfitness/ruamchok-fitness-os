@@ -30,15 +30,16 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
       <div
         ref={ref}
         id={id}
-        className={`bg-white text-slate-900 font-sans p-7 border border-slate-300 rounded-xl shadow-sm print:shadow-none print:border-none print:p-2 w-full max-w-[860px] mx-auto text-xs ${className}`}
+        className={`bg-white text-slate-900 font-sans p-6 sm:p-7 border border-slate-300 rounded-xl shadow-sm print:shadow-none print:border-none print:p-0 mx-auto text-xs ${className}`}
+        style={{ width: '750px', maxWidth: '100%', boxSizing: 'border-box' }}
       >
         {/* ================= HEADER ================= */}
-        <div className="flex items-center justify-between pb-4 border-b-2 border-slate-800 gap-4">
+        <div className="flex items-center justify-between pb-3.5 border-b-2 border-slate-800 gap-4">
           <div className="flex items-center gap-3">
             <img
               src={RCF_DAY_PASS_LOGO}
               alt="Ruamchok Fitness Logo"
-              className="h-12 object-contain"
+              className="h-11 object-contain"
             />
             <div>
               <h2 className="font-black text-base text-slate-900 tracking-wider uppercase">
@@ -51,7 +52,7 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
           </div>
 
           <div className="text-right">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
               COUPON NO.
             </span>
             <span className="font-mono font-black text-red-600 text-xl tracking-wider block">
@@ -64,62 +65,42 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
         </div>
 
         {/* ================= DETAILS SECTION ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 my-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 my-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
           {/* Customer Details */}
           <div className="space-y-2">
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Full Name / ชื่อ-สกุล:
-              </span>
-              <span className="font-bold text-slate-900 text-sm border-b border-dotted border-slate-400 flex-1 pl-1">
-                {ticket.client_name || '-'}
-              </span>
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Full Name / ชื่อ-สกุล:</span>
+              <span className="font-bold text-slate-900 text-right">{ticket.client_name || '-'}</span>
             </div>
 
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Phone / เบอร์โทรศัพท์:
-              </span>
-              <span className="font-mono font-medium text-slate-800 border-b border-dotted border-slate-400 flex-1 pl-1">
-                {ticket.phone || '-'}
-              </span>
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Phone / เบอร์โทรศัพท์:</span>
+              <span className="font-mono font-medium text-slate-800 text-right">{ticket.phone || '-'}</span>
             </div>
 
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Locker No. / ล็อกเกอร์:
-              </span>
-              <span className="font-bold text-slate-900 border-b border-dotted border-slate-400 flex-1 pl-1">
-                {ticket.locker_no || '-'}
-              </span>
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Locker No. / ล็อกเกอร์:</span>
+              <span className="font-bold text-slate-900 text-right">{ticket.locker_no || '-'}</span>
             </div>
           </div>
 
           {/* Package & Payment Details */}
-          <div className="space-y-2 md:pl-3 md:border-l border-slate-200">
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Package / แพ็กเกจ:
-              </span>
-              <span className="font-bold text-slate-900 border-b border-dotted border-slate-400 flex-1 pl-1">
-                {ticket.package_type || '-'}
-              </span>
+          <div className="space-y-2 pl-3 border-l border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Package / แพ็กเกจ:</span>
+              <span className="font-bold text-slate-900 text-right">{ticket.package_type || '-'}</span>
             </div>
 
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Fee / ค่าบริการ:
-              </span>
-              <span className="font-black text-slate-900 text-sm border-b border-dotted border-slate-400 flex-1 pl-1">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Fee / ค่าบริการ:</span>
+              <span className="font-black text-slate-900 text-right">
                 ฿{(ticket.price || 0).toLocaleString()}
               </span>
             </div>
 
-            <div className="flex items-baseline">
-              <span className="font-semibold text-slate-600 w-36 shrink-0">
-                Payment / การชำระเงิน:
-              </span>
-              <span className="font-medium text-slate-800 border-b border-dotted border-slate-400 flex-1 pl-1">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+              <span className="font-semibold text-slate-600">Payment / การชำระเงิน:</span>
+              <span className="font-medium text-slate-800 text-right">
                 {PAYMENT_METHOD_LABELS[ticket.payment_method] || ticket.payment_method || '-'}
               </span>
             </div>
@@ -127,8 +108,8 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
         </div>
 
         {/* ================= POLICY SECTION (4 BILINGUAL CLAUSES) ================= */}
-        <div className="my-4 p-3.5 bg-slate-50/70 border border-slate-200 rounded-lg text-[10.5px] space-y-2 leading-relaxed text-slate-700">
-          <div className="font-bold text-slate-900 text-xs border-b border-slate-200 pb-1">
+        <div className="my-3.5 p-3.5 bg-slate-50/70 border border-slate-200 rounded-lg text-[10px] space-y-2 leading-relaxed text-slate-700">
+          <div className="font-bold text-slate-900 text-[11px] border-b border-slate-200 pb-1">
             ข้อกำหนดการใช้บริการ / Ruamchok Fitness Policy
           </div>
 
@@ -170,10 +151,10 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
         </div>
 
         {/* ================= SIGNATURES ROW (3 COLUMNS) ================= */}
-        <div className="mt-5 pt-3 border-t border-slate-300 grid grid-cols-3 gap-4 text-center text-[10.5px]">
+        <div className="mt-4 pt-3 border-t border-slate-300 grid grid-cols-3 gap-3 text-center text-[10px]">
           {/* Member's Signature */}
           <div>
-            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1.5 p-1">
+            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1 p-1">
               {ticket.client_signature ? (
                 <img
                   src={ticket.client_signature}
@@ -191,7 +172,7 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
 
           {/* Staff Signature */}
           <div>
-            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1.5 p-1">
+            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1 p-1">
               {ticket.staff_signature ? (
                 <img
                   src={ticket.staff_signature}
@@ -199,7 +180,7 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
                   className="max-h-14 max-w-full object-contain"
                 />
               ) : ticket.staff_name ? (
-                <span className="text-slate-800 font-semibold">{ticket.staff_name}</span>
+                <span className="text-slate-800 font-semibold text-xs">{ticket.staff_name}</span>
               ) : (
                 <span className="text-slate-300 italic text-[10px]">ลายเซ็นพนักงาน</span>
               )}
@@ -211,7 +192,7 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
 
           {/* Date */}
           <div>
-            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1.5 font-bold text-slate-800 text-sm">
+            <div className="h-16 border-b border-slate-400 flex items-center justify-center bg-slate-50/50 rounded mb-1 font-bold text-slate-800 text-xs">
               {ticket.date}
             </div>
             <span className="text-slate-700 font-semibold block">
