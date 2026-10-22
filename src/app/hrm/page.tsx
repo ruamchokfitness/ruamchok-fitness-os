@@ -1,14 +1,11 @@
 
 'use client';
-import { ArrowLeft, UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive, Download, UserMinus, History } from "lucide-react";
+import { ArrowLeft, UserPlus, Users, Loader2, FileText, Clock, CalendarClock, FileArchive, Download } from "lucide-react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { EmployeeGrid } from "@/components/employees/employee-grid";
 import { PolicyFooter } from "@/components/policies/policy-footer";
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog";
-import { HrmEFormDialog } from "@/components/hrm/forms/hrm-eform-dialog";
-import { HrmHistoryDialog } from "@/components/hrm/forms/hrm-history-dialog";
-import type { HrmFormType } from "@/lib/hrm-forms-types";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, writeBatch, doc, getDocs, limit, orderBy } from 'firebase/firestore';
 import type { Employee, Leave, Quota, Policy, VacationTier, PublicHoliday, User } from "@/lib/types";
@@ -97,14 +94,6 @@ function HrmPageContent() {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [seeding, setSeeding] = useState(true);
-    const [eformDialogOpen, setEformDialogOpen] = useState(false);
-    const [activeFormType, setActiveFormType] = useState<HrmFormType>('leave');
-    const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
-
-    const openEForm = (type: HrmFormType) => {
-        setActiveFormType(type);
-        setEformDialogOpen(true);
-    };
 
     const employeesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "employees"), orderBy('name')) : null, [firestore]);
     const { data: employees } = useCollection<Employee>(employeesQuery);
@@ -161,115 +150,47 @@ function HrmPageContent() {
 
     return (
         <>
-            <div className="mb-8 p-4 bg-card rounded-xl shadow-sm border">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900">ยื่นคำร้องออนไลน์ / เอกสาร (E-Forms)</h3>
-                        <p className="text-xs text-muted-foreground">ระบบบันทึกเอกสารคำร้องออนไลน์ กรอกง่าย สะดวกบนมือถือ พร้อมสร้างแบบฟอร์มทางการ</p>
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => setHistoryDialogOpen(true)}
-                        className="gap-1.5 text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
-                    >
-                        <History className="w-3.5 h-3.5 text-slate-600" />
-                        ประวัติการยื่นคำร้องทั้งหมด
-                    </Button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => openEForm('leave')}
-                        className="w-full justify-start text-left h-auto py-3 px-3.5 border-blue-200 hover:bg-blue-50/60 hover:border-blue-300 transition-all group"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mr-2.5 shrink-0 group-hover:scale-105 transition-transform">
-                            <FileText className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-slate-900">ใบลา</p>
-                            <p className="text-[11px] text-muted-foreground">Leave Form</p>
-                        </div>
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => openEForm('overtime')}
-                        className="w-full justify-start text-left h-auto py-3 px-3.5 border-orange-200 hover:bg-orange-50/60 hover:border-orange-300 transition-all group"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mr-2.5 shrink-0 group-hover:scale-105 transition-transform">
-                            <Clock className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-slate-900">ใบทำงานล่วงเวลา</p>
-                            <p className="text-[11px] text-muted-foreground">Overtime Form</p>
-                        </div>
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => openEForm('timesheet')}
-                        className="w-full justify-start text-left h-auto py-3 px-3.5 border-emerald-200 hover:bg-emerald-50/60 hover:border-emerald-300 transition-all group"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mr-2.5 shrink-0 group-hover:scale-105 transition-transform">
-                            <CalendarClock className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-slate-900">ใบลงเวลาทำงาน</p>
-                            <p className="text-[11px] text-muted-foreground">Timesheet Form</p>
-                        </div>
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => openEForm('internal_memo')}
-                        className="w-full justify-start text-left h-auto py-3 px-3.5 border-purple-200 hover:bg-purple-50/60 hover:border-purple-300 transition-all group"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mr-2.5 shrink-0 group-hover:scale-105 transition-transform">
-                            <FileArchive className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-slate-900">ใบขอเอกสาร / ติดต่อ</p>
-                            <p className="text-[11px] text-muted-foreground">Document Request</p>
-                        </div>
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => openEForm('resignation')}
-                        className="w-full justify-start text-left h-auto py-3 px-3.5 border-rose-200 hover:bg-rose-50/60 hover:border-rose-300 transition-all group col-span-2 sm:col-span-1"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mr-2.5 shrink-0 group-hover:scale-105 transition-transform">
-                            <UserMinus className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-slate-900">ใบลาออก</p>
-                            <p className="text-[11px] text-muted-foreground">Resignation Form</p>
-                        </div>
-                    </Button>
+            <div className="mb-8 p-4 bg-card rounded-lg shadow-sm border">
+                <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     <Link href="https://www.jotform.com/sign/250938573129061/invite/01js96gv8r393cf244acf323f8" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <FileText className="mr-3 text-blue-500" />
+                            <div>
+                                <p className="font-semibold">ใบลา</p>
+                                <p className="text-xs text-muted-foreground">Leave Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                     <Link href="https://www.jotform.com/sign/251001899741054/invite/01jsxk2pwn8d091da3f941ed76" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <Clock className="mr-3 text-orange-500" />
+                            <div>
+                                <p className="font-semibold">ใบทำงานล่วงเวลา</p>
+                                <p className="text-xs text-muted-foreground">Overtime Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                    <Link href="https://www.jotform.com/sign/250951687461061/invite/01jwqs11ag5a2110789807e5f1" target="_blank" rel="noopener noreferrer">
+                         <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <CalendarClock className="mr-3 text-green-500" />
+                            <div>
+                                <p className="font-semibold">ใบลงเวลาทำงาน</p>
+                                <p className="text-xs text-muted-foreground">Timesheet Form</p>
+                            </div>
+                        </Button>
+                    </Link>
+                    <Link href="https://www.jotform.com/sign/252451871554056/invite/01k47cqbwc34d76b08e21c77d6" target="_blank" rel="noopener noreferrer">
+                         <Button variant="outline" className="w-full justify-start text-left h-auto py-3">
+                            <FileArchive className="mr-3 text-purple-500" />
+                             <div>
+                                <p className="font-semibold">ใบขอเอกสาร</p>
+                                <p className="text-xs text-muted-foreground">Document Request</p>
+                            </div>
+                        </Button>
+                    </Link>
                 </div>
             </div>
-
-            {/* Interactive E-Form Dialog */}
-            <HrmEFormDialog
-                open={eformDialogOpen}
-                onOpenChange={setEformDialogOpen}
-                formType={activeFormType}
-                onFormTypeChange={setActiveFormType}
-                employees={employees || []}
-            />
-
-            {/* History of Submitted E-Forms */}
-            <HrmHistoryDialog
-                open={historyDialogOpen}
-                onOpenChange={setHistoryDialogOpen}
-            />
             <div className="flex justify-end mb-8 gap-2">
             <Button variant="outline" onClick={generateExcelReport}>
                 <Download className="mr-2 h-4 w-4" />
