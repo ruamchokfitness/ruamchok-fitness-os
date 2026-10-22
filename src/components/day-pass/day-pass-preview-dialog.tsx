@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { DayPassVoucher } from './day-pass-voucher';
 import { exportVoucherToPdf } from '@/lib/day-pass-pdf';
 import type { DayPassTicket } from '@/lib/types';
-import { Download, Printer, Loader2, CheckCircle2 } from 'lucide-react';
+import { Download, Printer, Loader2, CheckCircle2, FolderOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DayPassPreviewDialogProps {
@@ -73,6 +73,20 @@ export function DayPassPreviewDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <a
+                href="https://drive.google.com/drive/folders/1CHwB12PBX0rBT0nQGYbg2MTlwAZq48xp?usp=drive_link"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                >
+                  <FolderOpen className="w-4 h-4 text-emerald-600" />
+                  เปิด Google Drive
+                </Button>
+              </a>
               <Button
                 variant="outline"
                 size="sm"
@@ -96,7 +110,7 @@ export function DayPassPreviewDialog({
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    ดาวน์โหลด PDF สำหรับ Google Drive
+                    ดาวน์โหลด PDF
                   </>
                 )}
               </Button>

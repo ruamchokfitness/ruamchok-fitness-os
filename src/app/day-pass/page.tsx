@@ -63,6 +63,9 @@ import {
   ShieldCheck,
   UserPlus,
   Users,
+  FolderOpen,
+  Save,
+  CheckCircle2,
 } from 'lucide-react';
 
 const PACKAGES: {
@@ -358,28 +361,9 @@ export default function DayPassPage() {
 
       if (createdTicket) {
         toast({
-          title: `สร้างคูปองสำเร็จ เลขที่ ${(createdTicket as DayPassTicket).ticket_no}`,
-          description: 'กำลังดาวน์โหลดไฟล์ PDF สำหรับจัดเก็บใน Google Drive...',
+          title: `บันทึกคูปองสำเร็จ เลขที่ ${(createdTicket as DayPassTicket).ticket_no}`,
+          description: 'บันทึกข้อมูลเรียบร้อย สามารถดูหรือดาวน์โหลด PDF ได้ที่แท็บ "ประวัติ"',
         });
-
-        // Open preview dialog
-        setPreviewTicket(createdTicket);
-        setPreviewOpen(true);
-
-        // Auto download PDF from hidden voucher ref
-        setTimeout(async () => {
-          if (hiddenVoucherRef.current && createdTicket) {
-            try {
-              await exportVoucherToPdf(
-                hiddenVoucherRef.current,
-                createdTicket.ticket_no,
-                createdTicket.client_name
-              );
-            } catch (err) {
-              console.error('Auto download PDF error:', err);
-            }
-          }
-        }, 300);
 
         // Clear form for the next customer
         handleResetForm();
@@ -921,12 +905,12 @@ export default function DayPassPage() {
                     {isSaving ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        กำลังบันทึกและสร้าง PDF...
+                        กำลังบันทึกข้อมูล...
                       </>
                     ) : (
                       <>
-                        <Download className="w-5 h-5" />
-                        บันทึกและดาวน์โหลด PDF สำหรับ Google Drive
+                        <Save className="w-5 h-5" />
+                        บันทึกข้อมูลคูปอง (Save)
                       </>
                     )}
                   </Button>
@@ -947,6 +931,27 @@ export default function DayPassPage() {
 
           {/* ================= TAB 2: HISTORY LIST ================= */}
           <TabsContent value="history" className="space-y-4">
+            {/* Google Drive Shortcut Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>โฟลเดอร์ Google Drive สำหรับจัดเก็บไฟล์ PDF คูปอง:</span>
+              </div>
+              <a
+                href="https://drive.google.com/drive/folders/1CHwB12PBX0rBT0nQGYbg2MTlwAZq48xp?usp=drive_link"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold"
+                >
+                  <FolderOpen className="w-4 h-4 text-emerald-600" />
+                  เปิดโฟลเดอร์ Google Drive
+                </Button>
+              </a>
+            </div>
             {/* Search and Filters Bar */}
             <Card className="rounded-xl border-slate-200 shadow-sm bg-white">
               <CardContent className="p-4">

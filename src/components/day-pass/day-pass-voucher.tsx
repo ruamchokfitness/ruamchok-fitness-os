@@ -39,15 +39,16 @@ export const DayPassVoucher = React.forwardRef<HTMLDivElement, DayPassVoucherPro
             <img
               src={RCF_DAY_PASS_LOGO}
               alt="Ruamchok Fitness Logo"
-              className="h-11 object-contain"
+              className="h-12 object-contain"
             />
+            <div className="h-8 w-px bg-slate-300" />
             <div>
-              <h2 className="font-black text-base text-slate-900 tracking-wider uppercase">
-                RUAMCHOK FITNESS
-              </h2>
-              <span className="inline-block bg-slate-900 text-white font-bold text-[10px] px-2.5 py-0.5 rounded tracking-widest uppercase">
+              <h1 className="text-base font-black text-slate-900 tracking-wider uppercase leading-none">
                 ONE DAY PASS
-              </span>
+              </h1>
+              <p className="text-[10.5px] text-slate-500 uppercase tracking-widest font-semibold mt-1">
+                Ruamchok Fitness
+              </p>
             </div>
           </div>
 
