@@ -1021,21 +1021,20 @@ export default function DayPassPage() {
                       <th className="py-3 px-4">แพ็กเกจ</th>
                       <th className="py-3 px-4 text-right">ราคา</th>
                       <th className="py-3 px-4">ชำระเงิน</th>
-                      <th className="py-3 px-4">Google Drive</th>
                       <th className="py-3 px-4 text-right">การจัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {isLoadingTickets ? (
                       <tr>
-                        <td colSpan={10} className="py-8 text-center text-slate-400">
+                        <td colSpan={9} className="py-8 text-center text-slate-400">
                           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-500" />
                           กำลังโหลดข้อมูลประวัติคูปอง...
                         </td>
                       </tr>
                     ) : filteredTickets.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-8 text-center text-slate-400">
+                        <td colSpan={9} className="py-8 text-center text-slate-400">
                           ไม่พบรายการคูปองที่ค้นหา
                         </td>
                       </tr>
@@ -1071,17 +1070,6 @@ export default function DayPassPage() {
                                 ? 'QR/Transfer'
                                 : 'Credit Card'}
                             </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <a
-                              href={ticket.drive_url || GDRIVE_FOLDER_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-200 font-medium transition-colors"
-                            >
-                              <FolderOpen className="w-3.5 h-3.5 text-emerald-600" />
-                              เปิดโฟลเดอร์ Drive ↗
-                            </a>
                           </td>
                           <td className="py-3 px-4 text-right space-x-1">
                             <Button
