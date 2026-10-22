@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature, ClipboardCheck, History } from 'lucide-react';
+import { BarChart, Users, Wrench, Trophy, Users2, Settings, LogOut, FileSignature, ClipboardCheck, History, Ticket } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,13 @@ export default function Home() {
   };
 
   const menuItems = [
+    {
+      title: 'Day Pass Coupon',
+      description: 'คูปองค่าบริการรายวัน เซ็นชื่อดิจิทัล และส่งออก PDF สำหรับ Google Drive',
+      href: '/day-pass',
+      icon: <Ticket className="w-8 h-8 text-primary" />,
+      disabled: false,
+    },
     {
       title: 'RCF Sales Dashboard',
       description: 'Dashboard for sales analytics.',

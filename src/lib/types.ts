@@ -292,3 +292,32 @@ export interface AssessmentServiceRecord {
   status: 'active' | 'completed';
   remark?: string;
 }
+
+// Day Pass Coupon Types
+export type DayPassPackageType = 
+  | 'Full Package'
+  | 'Full Package (SN/STD)'
+  | 'Gym Only'
+  | 'Gym Only (SN/STD)'
+  | 'Full Package (MB)'
+  | 'Gym Only (MB)';
+
+export type DayPassPaymentMethod = 'cash' | 'transfer' | 'credit_card';
+
+export interface DayPassTicket {
+  id: string;
+  ticket_no: string;          // e.g. "DP09770"
+  seq_number: number;         // e.g. 9770
+  date: string;               // YYYY-MM-DD
+  client_name: string;        // Full Name / ชื่อ-สกุล
+  phone: string;              // Phone / เบอร์โทรศัพท์
+  locker_no?: string;         // Locker No.
+  package_type: DayPassPackageType;
+  price: number;
+  payment_method: DayPassPaymentMethod;
+  client_signature?: string;  // Data URL (base64 PNG)
+  staff_signature?: string;   // Data URL (base64 PNG)
+  staff_name?: string;
+  created_at: any;            // Firestore Timestamp
+}
+
