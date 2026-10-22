@@ -250,10 +250,12 @@ const RecordsTable = ({ records, onViewDetails, onEdit, onDelete }: {
         let sortableItems = [...records];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) {
+                const aVal = a[sortConfig.key] ?? '';
+                const bVal = b[sortConfig.key] ?? '';
+                if (aVal < bVal) {
                     return sortConfig.direction === 'ascending' ? -1 : 1;
                 }
-                if (a[sortConfig.key] > b[sortConfig.key]) {
+                if (aVal > bVal) {
                     return sortConfig.direction === 'ascending' ? 1 : -1;
                 }
                 return 0;

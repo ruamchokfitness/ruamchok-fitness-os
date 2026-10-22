@@ -31,7 +31,6 @@ export function PublicHolidays({ publicHolidays, customHolidays }: PublicHoliday
                 itemKey={holiday.id}
                 initialValue={holiday.date}
                 label={holiday.name}
-                action={async (key, value, collection) => {}}
                 collectionName="publicHolidays"
                 className="py-2 px-3 items-center"
               >

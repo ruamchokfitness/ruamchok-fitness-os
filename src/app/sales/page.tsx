@@ -598,7 +598,7 @@ function SalesPageContent() {
             {/* Modals */}
              <ConfirmationDialog
                 open={confirmDialog.open}
-                onOpenChange={(open) => setConfirmDialog(p => ({...p, open}))}
+                onOpenChange={(open: boolean) => setConfirmDialog(p => ({...p, open}))}
                 title="Are you sure?"
                 description={confirmDialog.message}
                 onConfirm={confirmDialog.onConfirm}
@@ -606,19 +606,19 @@ function SalesPageContent() {
 
             <EmployeeModal 
                 open={employeeModal.open}
-                onOpenChange={(open) => setEmployeeModal({ open, data: null })}
+                onOpenChange={(open: boolean) => setEmployeeModal({ open, data: null })}
                 employee={employeeModal.data}
                 onSave={handleSaveEmployee}
             />
             <ProductModal 
                 open={productModal.open}
-                onOpenChange={(open) => setProductModal({ open, data: null })}
+                onOpenChange={(open: boolean) => setProductModal({ open, data: null })}
                 product={productModal.data}
                 onSave={handleSaveProduct}
             />
              <EditSaleModal
                 open={editSaleModal.open}
-                onOpenChange={(open) => setEditSaleModal({ open, data: null })}
+                onOpenChange={(open: boolean) => setEditSaleModal({ open, data: null })}
                 sale={editSaleModal.data}
                 employees={employees}
                 products={products}
@@ -680,17 +680,20 @@ function DashboardTab({ sales, employees, products, monthlyTargets, salespersonT
         const salespersonData = employees.map((emp: SalesEmployee) => ({
             id: emp.id,
             name: emp.name,
-            sales: monthlySalesList.filter(s => s.salesperson === emp.name).reduce((sum, s) => sum + s.amount, 0),
+            sales: monthlySalesList.filter((s: Sale) => s.salesperson === emp.name).reduce((sum: number, s: Sale) => sum + s.amount, 0),
         }));
 
-        const productCategoryMap = new Map(products.map((p: Product) => [p.name, p.category]));
-        const salesByCategory = monthlySalesList.reduce((acc, sale) => {
-            const category = productCategoryMap.get(sale.product) || 'Other';
-            acc[category] = (acc[category] || 0) + sale.amount;
-            return acc;
-        }, {} as Record<string, number>);
+        const productCategoryMap = new Map<string, string>();
+        products.forEach((p: Product) => productCategoryMap.set(p.name, p.category));
+        const salesByCategory: Record<string, number> = {};
+        monthlySalesList.forEach((sale: Sale) => {
+            const category: string = productCategoryMap.get(sale.product) || 'Other';
+            salesByCategory[category] = (salesByCategory[category] || 0) + (sale.amount || 0);
+        });
 
-        const productChartDataValue = Object.entries(salesByCategory).map(([name, value]) => ({ name, value })).filter(item => item.value > 0);
+        const productChartDataValue = Object.entries(salesByCategory)
+            .map(([name, value]) => ({ name, value }))
+            .filter(item => item.value > 0);
 
         return { todaySales: todaySalesValue, monthlySales: monthlySalesValue, totalTransactions: totalTransactionsValue, salespersonChartData: salespersonData, productChartDataValue};
     }, [sales, employees, products]);

@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addEmployee } from "@/lib/actions";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { useFirebase } from "@/firebase/provider";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";

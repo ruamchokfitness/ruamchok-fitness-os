@@ -358,7 +358,7 @@ function ClientsTab({ clients, packages, packageUsageMap, db, user }: { clients:
                                                         <TableCell className="font-medium">
                                                             <div className="flex items-center gap-2">
                                                                 {pkg.package_name}
-                                                                {hasMismatch && <AlertCircle className="h-3 w-3 text-orange-500" title="Data mismatch detected" />}
+                                                                {hasMismatch && <span title="Data mismatch detected"><AlertCircle className="h-3 w-3 text-orange-500" /></span>}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>

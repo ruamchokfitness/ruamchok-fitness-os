@@ -694,13 +694,13 @@ function SettingsDialog({ open, onOpenChange, classes, instructors, times, onDel
                         <TabsTrigger value="times"><Clock className="w-4 h-4 mr-2" />เวลา</TabsTrigger>
                     </TabsList>
                     <TabsContent value="classes">
-                        <SettingsList title="คลาส" items={classes} onAdd={() => handleAddItem('class', 'new-class', 'groupClasses')} onDelete={(id) => onDelete('groupClasses', id)} inputId="new-class" placeholder="ชื่อคลาสใหม่" />
+                        <SettingsList title="คลาส" items={classes} onAdd={() => handleAddItem('class', 'new-class', 'groupClasses')} onDelete={(id: string) => onDelete('groupClasses', id)} inputId="new-class" placeholder="ชื่อคลาสใหม่" />
                     </TabsContent>
                     <TabsContent value="instructors">
-                        <SettingsList title="ครูผู้สอน" items={instructors} onAdd={() => handleAddItem('instructor', 'new-instructor', 'groupClassInstructors')} onDelete={(id) => onDelete('groupClassInstructors', id)} inputId="new-instructor" placeholder="ชื่อครูผู้สอนใหม่" />
+                        <SettingsList title="ครูผู้สอน" items={instructors} onAdd={() => handleAddItem('instructor', 'new-instructor', 'groupClassInstructors')} onDelete={(id: string) => onDelete('groupClassInstructors', id)} inputId="new-instructor" placeholder="ชื่อครูผู้สอนใหม่" />
                     </TabsContent>
                      <TabsContent value="times">
-                        <SettingsList title="เวลา" items={times} onAdd={() => handleAddItem('time', 'new-time', 'groupClassTimes')} onDelete={(id) => onDelete('groupClassTimes', id)} inputId="new-time" inputType="time" />
+                        <SettingsList title="เวลา" items={times} onAdd={() => handleAddItem('time', 'new-time', 'groupClassTimes')} onDelete={(id: string) => onDelete('groupClassTimes', id)} inputId="new-time" inputType="time" />
                     </TabsContent>
                 </Tabs>
                 <DialogFooter>

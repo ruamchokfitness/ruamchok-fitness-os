@@ -5,7 +5,9 @@ import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser, getAuth, signOut } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import type { User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -78,16 +80,24 @@ function UserManagementPage() {
             toast({ title: "Error", description: "Password is required for new users.", variant: "destructive" });
             return;
           }
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          const newUser = userCredential.user;
-          
-          const userRef = doc(firestore, 'users', newUser.uid);
-          await setDoc(userRef, {
-            uid: newUser.uid,
-            email: email,
-            name: name,
-            role: role,
-          });
+          const secondaryAppName = `userCreation-${Date.now()}`;
+          const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+          try {
+            const secondaryAuth = getAuth(secondaryApp);
+            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+            const newUser = userCredential.user;
+            
+            const userRef = doc(firestore, 'users', newUser.uid);
+            await setDoc(userRef, {
+              uid: newUser.uid,
+              email: email,
+              name: name,
+              role: role,
+            });
+            await signOut(secondaryAuth);
+          } finally {
+            await deleteApp(secondaryApp);
+          }
           toast({ title: "Success", description: "User created successfully." });
         }
         setDialogOpen(false);
