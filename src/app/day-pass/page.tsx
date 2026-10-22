@@ -158,11 +158,13 @@ export default function DayPassPage() {
     folder_id: string;
     client_email: string;
     private_key: string;
+    script_url?: string;
     enabled: boolean;
   }>({
     folder_id: DEFAULT_GDRIVE_FOLDER_ID,
     client_email: '',
     private_key: '',
+    script_url: '',
     enabled: false,
   });
   const [serviceAccountJsonInput, setServiceAccountJsonInput] = useState('');
@@ -233,6 +235,7 @@ export default function DayPassPage() {
           folder_id: d.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
           client_email: d.client_email || '',
           private_key: d.private_key || '',
+          script_url: d.script_url || '',
           enabled: !!d.enabled,
         });
       }
@@ -426,7 +429,10 @@ export default function DayPassPage() {
                 fileName: formattedFileName,
                 fileBase64: pdfBase64,
                 folderId: driveSettings.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
-                credentials: driveSettings.client_email && driveSettings.private_key ? driveSettings : undefined,
+                credentials:
+                  driveSettings.script_url || (driveSettings.client_email && driveSettings.private_key)
+                    ? driveSettings
+                    : undefined,
               }),
             });
 
@@ -616,7 +622,11 @@ export default function DayPassPage() {
           folder_id: driveSettings.folder_id.trim() || DEFAULT_GDRIVE_FOLDER_ID,
           client_email: driveSettings.client_email.trim(),
           private_key: driveSettings.private_key.trim(),
-          enabled: !!(driveSettings.client_email && driveSettings.private_key),
+          script_url: (driveSettings.script_url || '').trim(),
+          enabled: !!(
+            (driveSettings.script_url && driveSettings.script_url.trim()) ||
+            (driveSettings.client_email && driveSettings.private_key)
+          ),
           updated_at: serverTimestamp(),
         },
         { merge: true }
@@ -624,7 +634,7 @@ export default function DayPassPage() {
 
       toast({
         title: 'บันทึกการตั้งค่า Google Drive สำเร็จ',
-        description: 'การตั้งค่า Service Account ถูกบันทึกเรียบร้อยแล้ว',
+        description: 'การตั้งค่า Google Drive ถูกบันทึกเรียบร้อยแล้ว',
       });
     } catch (error) {
       console.error('Save drive settings error:', error);
@@ -648,7 +658,10 @@ export default function DayPassPage() {
           fileName: `Test_Connection_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
           fileBase64: 'data:text/plain;base64,VGVzdCBDb25uZWN0aW9uIFN1Y2Nlc3Mh',
           folderId: driveSettings.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
-          credentials: driveSettings.client_email && driveSettings.private_key ? driveSettings : undefined,
+          credentials:
+            driveSettings.script_url || (driveSettings.client_email && driveSettings.private_key)
+              ? driveSettings
+              : undefined,
         }),
       });
 
@@ -1339,53 +1352,96 @@ export default function DayPassPage() {
                   </div>
                 </div>
 
-                {/* Paste entire Service Account JSON option */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="serviceAccountJson" className="text-xs font-semibold text-slate-700">
-                    วางไฟล์ Service Account JSON Key ที่นี่ (แนะนำ):
-                  </Label>
-                  <Textarea
-                    id="serviceAccountJson"
-                    value={serviceAccountJsonInput}
-                    onChange={(e) => handleParseServiceAccountJson(e.target.value)}
-                    placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", "private_key": "-----BEGIN PRIVATE KEY-----...", "client_email": "...@...iam.gserviceaccount.com"}'
-                    className="font-mono text-xs h-24 rounded-lg"
-                  />
-                  <p className="text-[11px] text-slate-500">
-                    * เมื่อวาง JSON ระบบจะดึงอีเมลและ Private Key มากรอกในช่องด้านล่างให้อัตโนมัติ
+                {/* Upload Method Option 1: Google Apps Script Webhook (Recommended for Gmail) */}
+                <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">1</span>
+                      Google Apps Script Webhook (แนะนำที่สุดสำหรับ Gmail ทั่วไป ฟรี 100% ไม่ติดโควต้า):
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
+                      แก้ปัญหา Quota 0 GB
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-900 leading-relaxed">
+                    เนื่องจากบัญชี Gmail ทั่วไป Google จะไม่อนุญาตให้ Service Account อัปโหลดเข้า Drive ส่วนตัวเพราะมีโควต้า 0 GB การใช้ Google Apps Script Web App จะทำงานในนามบัญชี Google ของฟิตเนสเองโดยตรง (ใช้พื้นที่ 15 GB ได้เต็มที่)
                   </p>
+                  <div className="space-y-1">
+                    <Label htmlFor="scriptUrl" className="text-[11px] font-semibold text-emerald-900">
+                      Google Apps Script Web App URL:
+                    </Label>
+                    <Input
+                      id="scriptUrl"
+                      value={driveSettings.script_url || ''}
+                      onChange={(e) =>
+                        setDriveSettings((prev) => ({ ...prev, script_url: e.target.value }))
+                      }
+                      placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                      className="font-mono text-xs bg-white rounded-lg border-emerald-300 focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
 
-                {/* Client Email */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="driveEmail" className="text-xs font-semibold text-slate-700">
-                    Service Account Client Email:
-                  </Label>
-                  <Input
-                    id="driveEmail"
-                    value={driveSettings.client_email}
-                    onChange={(e) =>
-                      setDriveSettings((prev) => ({ ...prev, client_email: e.target.value }))
-                    }
-                    placeholder="xxx@xxx.iam.gserviceaccount.com"
-                    className="font-mono text-xs rounded-lg"
-                  />
-                </div>
+                {/* Upload Method Option 2: Google Cloud Service Account (For Shared Drive) */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[10px]">2</span>
+                      Google Cloud Service Account (สำหรับ Google Workspace ไดรฟ์ที่แชร์ / Shared Drive):
+                    </span>
+                    <span className="text-[10px] bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded">
+                      Google Workspace
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    หากฟิตเนสใช้ Google Workspace และสร้างโฟลเดอร์ไว้ใน <strong>&quot;ไดรฟ์ที่แชร์&quot; (Shared Drive)</strong> สามารถใช้อีเมล Service Account เพื่ออัปโหลดได้ทันที
+                  </p>
 
-                {/* Private Key */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="driveKey" className="text-xs font-semibold text-slate-700">
-                    Service Account Private Key:
-                  </Label>
-                  <Textarea
-                    id="driveKey"
-                    value={driveSettings.private_key}
-                    onChange={(e) =>
-                      setDriveSettings((prev) => ({ ...prev, private_key: e.target.value }))
-                    }
-                    placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
-                    className="font-mono text-xs h-20 rounded-lg"
-                  />
+                  {/* Paste entire Service Account JSON option */}
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="serviceAccountJson" className="text-xs font-semibold text-slate-700">
+                      วางไฟล์ Service Account JSON Key:
+                    </Label>
+                    <Textarea
+                      id="serviceAccountJson"
+                      value={serviceAccountJsonInput}
+                      onChange={(e) => handleParseServiceAccountJson(e.target.value)}
+                      placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", "private_key": "-----BEGIN PRIVATE KEY-----...", "client_email": "...@...iam.gserviceaccount.com"}'
+                      className="font-mono text-xs h-20 rounded-lg bg-white"
+                    />
+                  </div>
+
+                  {/* Client Email */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="driveEmail" className="text-xs font-semibold text-slate-700">
+                      Service Account Client Email:
+                    </Label>
+                    <Input
+                      id="driveEmail"
+                      value={driveSettings.client_email}
+                      onChange={(e) =>
+                        setDriveSettings((prev) => ({ ...prev, client_email: e.target.value }))
+                      }
+                      placeholder="xxx@xxx.iam.gserviceaccount.com"
+                      className="font-mono text-xs rounded-lg bg-white"
+                    />
+                  </div>
+
+                  {/* Private Key */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="driveKey" className="text-xs font-semibold text-slate-700">
+                      Service Account Private Key:
+                    </Label>
+                    <Textarea
+                      id="driveKey"
+                      value={driveSettings.private_key}
+                      onChange={(e) =>
+                        setDriveSettings((prev) => ({ ...prev, private_key: e.target.value }))
+                      }
+                      placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                      className="font-mono text-xs h-16 rounded-lg bg-white"
+                    />
+                  </div>
                 </div>
 
                 {/* Action buttons */}
@@ -1406,7 +1462,7 @@ export default function DayPassPage() {
                   <Button
                     variant="outline"
                     onClick={handleTestDriveConnection}
-                    disabled={isTestingDrive || !driveSettings.client_email}
+                    disabled={isTestingDrive || (!driveSettings.client_email && !driveSettings.script_url)}
                     className="border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-xs font-semibold py-5"
                   >
                     {isTestingDrive ? (
@@ -1419,23 +1475,24 @@ export default function DayPassPage() {
                 </div>
 
                 {/* Step by Step Guide Notice */}
-                <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 space-y-1 leading-relaxed">
-                  <span className="font-bold text-slate-800 block">
-                    📌 ขั้นตอนการสร้าง Service Account เพื่อให้อัปโหลดอัตโนมัติ:
+                <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 space-y-2 leading-relaxed">
+                  <span className="font-bold text-slate-800 block text-xs">
+                    💡 สรุปวิธีแก้ปัญหา Error &quot;Service Accounts do not have storage quota&quot;:
                   </span>
-                  <ol className="list-decimal pl-4 space-y-0.5">
-                    <li>เข้าสู่ Google Cloud Console แล้วเลือกโปรเจกต์ของคุณ</li>
-                    <li>เปิดใช้งาน <strong>Google Drive API</strong></li>
-                    <li>สร้าง <strong>Service Account</strong> และกด Create Key เลือกประเภท <strong>JSON</strong></li>
-                    <li>
-                      เปิดโฟลเดอร์ Google Drive{' '}
-                      <a href={GDRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-semibold">
-                        (ลิงก์นี้)
-                      </a>{' '}
-                      แล้วกด <strong>แชร์ (Share)</strong> ให้กับอีเมลของ Service Account เป็น <strong>Editor</strong>
-                    </li>
-                    <li>นำไฟล์ JSON มาวางในช่องด้านบนแล้วกดบันทึก</li>
-                  </ol>
+                  <div className="space-y-1.5">
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                      <strong className="text-slate-800 block mb-0.5">🟢 ทางเลือก ก (ง่ายที่สุดสำหรับ Gmail): ใช้ Google Apps Script</strong>
+                      <p className="text-[10px] text-slate-500">
+                        สร้างสคริปต์ใน Google Drive บัญชีนั้น เพื่อทำหน้าที่รับไฟล์แล้วเซฟลงโฟลเดอร์ โดยใช้โควต้า 15GB ของบัญชี Gmail โดยตรง ไม่ติดปัญหาบอท 0 GB
+                      </p>
+                    </div>
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
+                      <strong className="text-slate-800 block mb-0.5">🔵 ทางเลือก ข (สำหรับ Google Workspace): ย้ายโฟลเดอร์ไปไว้ที่ &quot;ไดรฟ์ที่แชร์&quot; (Shared Drive)</strong>
+                      <p className="text-[10px] text-slate-500">
+                        สร้างโฟลเดอร์ในเมนู &quot;ไดรฟ์ที่แชร์&quot; (ไม่ใช่ไดรฟ์ของฉัน) แล้วแชร์สิทธิ์ Content Manager ให้กับอีเมล Service Account จะสามารถอัปโหลดได้ทันที
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

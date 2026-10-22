@@ -17,7 +17,35 @@ export async function POST(req: NextRequest) {
       folderId ||
       process.env.GOOGLE_DRIVE_FOLDER_ID ||
       '1CHwB12PBX0rBT0nQGYbg2MTlwAZq48xp';
+    // 0. Support Google Apps Script Webhook URL (Bypasses Service Account Quota limitation for personal Gmail)
+    const scriptUrl =
+      credentials?.script_url ||
+      process.env.GOOGLE_SCRIPT_WEBHOOK_URL;
 
+    if (scriptUrl) {
+      try {
+        const scriptRes = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName,
+            fileBase64,
+            folderId: targetFolderId,
+          }),
+        });
+        const scriptData = await scriptRes.json();
+        return NextResponse.json(scriptData);
+      } catch (scriptErr: any) {
+        console.error('Apps Script Webhook Error:', scriptErr);
+        return NextResponse.json(
+          {
+            success: false,
+            error: scriptErr?.message || 'Failed to upload via Google Apps Script Webhook',
+          },
+          { status: 500 }
+        );
+      }
+    }
     // 1. Check environment variables first
     let clientEmail =
       process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
@@ -69,6 +97,7 @@ export async function POST(req: NextRequest) {
     stream.push(null);
 
     const response = await drive.files.create({
+      supportsAllDrives: true,
       requestBody: {
         name: fileName,
         parents: [targetFolderId],
