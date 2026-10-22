@@ -1019,9 +1019,9 @@ export default function DayPassPage() {
                       <th className="py-3 px-4">เบอร์โทร</th>
                       <th className="py-3 px-4">ล็อกเกอร์</th>
                       <th className="py-3 px-4">แพ็กเกจ</th>
-                      <th className="py-3 px-4 text-right">ราคา</th>
+                      <th className="py-3 px-4 text-left">ราคา</th>
                       <th className="py-3 px-4">ชำระเงิน</th>
-                      <th className="py-3 px-4 text-right">การจัดการ</th>
+                      <th className="py-3 px-4 text-left">การจัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1059,7 +1059,7 @@ export default function DayPassPage() {
                           <td className="py-3 px-4 text-xs text-slate-700">
                             {ticket.package_type}
                           </td>
-                          <td className="py-3 px-4 text-right font-black text-slate-900">
+                          <td className="py-3 px-4 text-left font-black text-slate-900">
                             ฿{(ticket.price || 0).toLocaleString()}
                           </td>
                           <td className="py-3 px-4">
@@ -1071,7 +1071,7 @@ export default function DayPassPage() {
                                 : 'Credit Card'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right space-x-1">
+                          <td className="py-3 px-4 text-left space-x-1">
                             <Button
                               size="sm"
                               variant="outline"
