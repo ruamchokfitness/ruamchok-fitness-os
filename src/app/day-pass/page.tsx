@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   runTransaction,
   setDoc,
+  updateDoc,
   addDoc,
   onSnapshot,
 } from 'firebase/firestore';
@@ -21,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -31,7 +33,7 @@ import {
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { DayPassVoucher } from '@/components/day-pass/day-pass-voucher';
 import { DayPassPreviewDialog } from '@/components/day-pass/day-pass-preview-dialog';
-import { exportVoucherToPdf } from '@/lib/day-pass-pdf';
+import { exportVoucherToPdf, generateVoucherPdfBlob, getDayPassFileName } from '@/lib/day-pass-pdf';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -66,6 +68,10 @@ import {
   FolderOpen,
   Save,
   CheckCircle2,
+  CloudUpload,
+  ExternalLink,
+  KeyRound,
+  FileCheck,
 } from 'lucide-react';
 
 const PACKAGES: {
@@ -104,6 +110,9 @@ const PACKAGES: {
     descEn: 'Standard pass for Seniors (60+) or Students with valid ID.',
   },
 ];
+
+const DEFAULT_GDRIVE_FOLDER_ID = '1CHwB12PBX0rBT0nQGYbg2MTlwAZq48xp';
+const GDRIVE_FOLDER_URL = `https://drive.google.com/drive/folders/${DEFAULT_GDRIVE_FOLDER_ID}?usp=drive_link`;
 
 export default function DayPassPage() {
   const { firestore: db } = useFirebase();
@@ -144,12 +153,28 @@ export default function DayPassPage() {
   const [newStaffInput, setNewStaffInput] = useState('');
   const [isAddingStaff, setIsAddingStaff] = useState(false);
 
+  // Google Drive API Settings state
+  const [driveSettings, setDriveSettings] = useState<{
+    folder_id: string;
+    client_email: string;
+    private_key: string;
+    enabled: boolean;
+  }>({
+    folder_id: DEFAULT_GDRIVE_FOLDER_ID,
+    client_email: '',
+    private_key: '',
+    enabled: false,
+  });
+  const [serviceAccountJsonInput, setServiceAccountJsonInput] = useState('');
+  const [isSavingDriveSettings, setIsSavingDriveSettings] = useState(false);
+  const [isTestingDrive, setIsTestingDrive] = useState(false);
+
   // Modal / Preview state
   const [previewTicket, setPreviewTicket] = useState<DayPassTicket | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Hidden voucher ref for immediate export
+  // Hidden voucher ref for immediate export and upload
   const hiddenVoucherRef = useRef<HTMLDivElement>(null);
 
   // Settings tab sequence form state
@@ -192,6 +217,25 @@ export default function DayPassPage() {
         setSettingsPrefix('DP');
       }
       setIsLoadingSeq(false);
+    });
+
+    return () => unsub();
+  }, [db]);
+
+  // Listen to Google Drive settings in real time
+  useEffect(() => {
+    if (!db) return;
+    const driveRef = doc(db, 'app_settings', 'google_drive');
+    const unsub = onSnapshot(driveRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const d = snapshot.data();
+        setDriveSettings({
+          folder_id: d.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
+          client_email: d.client_email || '',
+          private_key: d.private_key || '',
+          enabled: !!d.enabled,
+        });
+      }
     });
 
     return () => unsub();
@@ -266,8 +310,8 @@ export default function DayPassPage() {
     setStaffSignature('');
   };
 
-  // Submit and Save Day Pass
-  const handleSaveAndExport = async () => {
+  // Submit and Save Day Pass (With automated background Google Drive API upload)
+  const handleSaveTicket = async () => {
     if (!db) return;
 
     if (!clientName.trim()) {
@@ -301,8 +345,9 @@ export default function DayPassPage() {
 
     try {
       let createdTicket: DayPassTicket | null = null;
+      let newTicketId = '';
 
-      // Use Firestore transaction for safe sequential number assignment
+      // 1. Safe sequential number assignment via Firestore Transaction
       await runTransaction(db, async (transaction) => {
         const seqRef = doc(db, 'app_settings', 'day_pass_sequence');
         const seqSnap = await transaction.get(seqRef);
@@ -317,7 +362,6 @@ export default function DayPassPage() {
           prefix = sData.prefix || 'DP';
           padding = Number(sData.padding) || 5;
         } else {
-          // Initialize sequence
           transaction.set(seqRef, {
             prefix: 'DP',
             next_seq: 9771,
@@ -328,6 +372,7 @@ export default function DayPassPage() {
 
         const formattedNo = `${prefix}${String(currentSeq).padStart(padding, '0')}`;
         const newTicketRef = doc(collection(db, 'day_pass_tickets'));
+        newTicketId = newTicketRef.id;
 
         const newTicketData: Omit<DayPassTicket, 'id'> = {
           ticket_no: formattedNo,
@@ -355,15 +400,63 @@ export default function DayPassPage() {
 
         createdTicket = {
           ...newTicketData,
-          id: newTicketRef.id,
+          id: newTicketId,
         };
       });
 
       if (createdTicket) {
-        toast({
-          title: `บันทึกคูปองสำเร็จ เลขที่ ${(createdTicket as DayPassTicket).ticket_no}`,
-          description: 'บันทึกข้อมูลเรียบร้อย สามารถดูหรือดาวน์โหลด PDF ได้ที่แท็บ "ประวัติ"',
-        });
+        const targetTicket = createdTicket as DayPassTicket;
+        const formattedFileName = getDayPassFileName(
+          targetTicket.ticket_no,
+          targetTicket.client_name,
+          targetTicket.date
+        );
+
+        // 2. Generate PDF and upload to Google Drive via API in the background
+        let driveUploadSuccess = false;
+        try {
+          if (hiddenVoucherRef.current) {
+            const { base64: pdfBase64 } = await generateVoucherPdfBlob(hiddenVoucherRef.current);
+
+            // Call server Google Drive API
+            const driveRes = await fetch('/api/drive/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: formattedFileName,
+                fileBase64: pdfBase64,
+                folderId: driveSettings.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
+                credentials: driveSettings.client_email && driveSettings.private_key ? driveSettings : undefined,
+              }),
+            });
+
+            const driveData = await driveRes.json();
+
+            if (driveData.success && driveData.fileId) {
+              driveUploadSuccess = true;
+              // Update ticket with Google Drive reference
+              await updateDoc(doc(db, 'day_pass_tickets', newTicketId), {
+                drive_file_id: driveData.fileId,
+                drive_url: driveData.webViewLink,
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Background Google Drive upload attempt:', err);
+        }
+
+        // Show appropriate toast feedback
+        if (driveUploadSuccess) {
+          toast({
+            title: `บันทึกคูปองสำเร็จ และอัปโหลดไปยัง Google Drive แล้ว! 🚀`,
+            description: `เลขที่ ${targetTicket.ticket_no} | ไฟล์: ${formattedFileName}`,
+          });
+        } else {
+          toast({
+            title: `บันทึกคูปองสำเร็จ เลขที่ ${targetTicket.ticket_no}`,
+            description: `บันทึกข้อมูลเรียบร้อยแล้ว (สามารถดูหรือดาวน์โหลด PDF ได้ที่แท็บประวัติ)`,
+          });
+        }
 
         // Clear form for the next customer
         handleResetForm();
@@ -486,6 +579,101 @@ export default function DayPassPage() {
         title: 'เกิดข้อผิดพลาดในการลบ',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Handle parsing Service Account JSON
+  const handleParseServiceAccountJson = (jsonStr: string) => {
+    setServiceAccountJsonInput(jsonStr);
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.client_email && parsed.private_key) {
+        setDriveSettings((prev) => ({
+          ...prev,
+          client_email: parsed.client_email,
+          private_key: parsed.private_key,
+          enabled: true,
+        }));
+        toast({
+          title: 'แยกข้อมูล Service Account สำเร็จ',
+          description: `อีเมล: ${parsed.client_email}`,
+        });
+      }
+    } catch (e) {
+      // not valid JSON yet, user still typing
+    }
+  };
+
+  // Save Google Drive Settings to Firestore
+  const handleSaveDriveSettings = async () => {
+    if (!db) return;
+    setIsSavingDriveSettings(true);
+    try {
+      const driveRef = doc(db, 'app_settings', 'google_drive');
+      await setDoc(
+        driveRef,
+        {
+          folder_id: driveSettings.folder_id.trim() || DEFAULT_GDRIVE_FOLDER_ID,
+          client_email: driveSettings.client_email.trim(),
+          private_key: driveSettings.private_key.trim(),
+          enabled: !!(driveSettings.client_email && driveSettings.private_key),
+          updated_at: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      toast({
+        title: 'บันทึกการตั้งค่า Google Drive สำเร็จ',
+        description: 'การตั้งค่า Service Account ถูกบันทึกเรียบร้อยแล้ว',
+      });
+    } catch (error) {
+      console.error('Save drive settings error:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาดในการบันทึก',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingDriveSettings(false);
+    }
+  };
+
+  // Test Google Drive Connection
+  const handleTestDriveConnection = async () => {
+    setIsTestingDrive(true);
+    try {
+      const res = await fetch('/api/drive/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: `Test_Connection_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`,
+          fileBase64: 'data:text/plain;base64,VGVzdCBDb25uZWN0aW9uIFN1Y2Nlc3Mh',
+          folderId: driveSettings.folder_id || DEFAULT_GDRIVE_FOLDER_ID,
+          credentials: driveSettings.client_email && driveSettings.private_key ? driveSettings : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast({
+          title: 'เชื่อมต่อ Google Drive สำเร็จ! 🎉',
+          description: `สร้างไฟล์ทดสอบสำเร็จในโฟลเดอร์ Google Drive เรียบร้อยแล้ว`,
+        });
+      } else {
+        toast({
+          title: 'ไม่สามารถเชื่อมต่อ Google Drive ได้',
+          description: data.message || data.error || 'กรุณาตรวจสอบการแชร์สิทธิ์โฟลเดอร์หรือ Key',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'เกิดข้อผิดพลาดในการทดสอบ',
+        description: error?.message || 'Network error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTestingDrive(false);
     }
   };
 
@@ -898,14 +1086,14 @@ export default function DayPassPage() {
                 <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <Button
                     size="lg"
-                    onClick={handleSaveAndExport}
+                    onClick={handleSaveTicket}
                     disabled={isSaving}
                     className="flex-1 py-6 text-sm md:text-base font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl gap-2 active:scale-[0.99]"
                   >
                     {isSaving ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        กำลังบันทึกข้อมูล...
+                        กำลังบันทึกข้อมูลและอัปโหลด...
                       </>
                     ) : (
                       <>
@@ -938,7 +1126,7 @@ export default function DayPassPage() {
                 <span>โฟลเดอร์ Google Drive สำหรับจัดเก็บไฟล์ PDF คูปอง:</span>
               </div>
               <a
-                href="https://drive.google.com/drive/folders/1CHwB12PBX0rBT0nQGYbg2MTlwAZq48xp?usp=drive_link"
+                href={GDRIVE_FOLDER_URL}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -949,9 +1137,11 @@ export default function DayPassPage() {
                 >
                   <FolderOpen className="w-4 h-4 text-emerald-600" />
                   เปิดโฟลเดอร์ Google Drive
+                  <ExternalLink className="w-3 h-3 text-emerald-500" />
                 </Button>
               </a>
             </div>
+
             {/* Search and Filters Bar */}
             <Card className="rounded-xl border-slate-200 shadow-sm bg-white">
               <CardContent className="p-4">
@@ -1005,7 +1195,7 @@ export default function DayPassPage() {
                       <th className="py-3 px-4">แพ็กเกจ</th>
                       <th className="py-3 px-4 text-right">ราคา</th>
                       <th className="py-3 px-4">ชำระเงิน</th>
-                      <th className="py-3 px-4">ลายเซ็น</th>
+                      <th className="py-3 px-4">Google Drive</th>
                       <th className="py-3 px-4 text-right">การจัดการ</th>
                     </tr>
                   </thead>
@@ -1057,14 +1247,18 @@ export default function DayPassPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            {ticket.client_signature ? (
-                              <img
-                                src={ticket.client_signature}
-                                alt="Signature"
-                                className="h-6 w-16 object-contain bg-white border rounded"
-                              />
+                            {ticket.drive_url ? (
+                              <a
+                                href={ticket.drive_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-medium"
+                              >
+                                <CloudUpload className="w-3 h-3 text-emerald-600" />
+                                เปิดใน Drive ↗
+                              </a>
                             ) : (
-                              <span className="text-slate-300 text-xs">-</span>
+                              <span className="text-slate-400 text-xs italic">-</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-right space-x-1">
@@ -1100,7 +1294,153 @@ export default function DayPassPage() {
 
           {/* ================= TAB 3: SETTINGS ================= */}
           <TabsContent value="settings" className="space-y-6 max-w-2xl mx-auto">
-            {/* Section 1: Staff Members Management */}
+            {/* Section 1: Google Drive API (Service Account) Settings */}
+            <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b border-slate-200">
+                <CardTitle className="text-base font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CloudUpload className="w-5 h-5 text-emerald-600" />
+                    ตั้งค่า Google Drive API (บันทึกไฟล์อัตโนมัติ)
+                  </span>
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                      driveSettings.client_email && driveSettings.private_key
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {driveSettings.client_email && driveSettings.private_key
+                      ? '✓ ตั้งค่าแล้ว'
+                      : 'ยังไม่ได้เชื่อมต่อ Service Account'}
+                  </span>
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  ระบบจะอัปโหลดไฟล์ PDF คูปองเข้า Google Drive ทันทีเมื่อพนักงานกดบันทึก
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                {/* Folder Info */}
+                <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-1">
+                  <span className="text-xs font-semibold text-slate-600">
+                    Google Drive Folder ID ปัจจุบัน:
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-xs font-mono font-bold text-slate-800 break-all">
+                      {driveSettings.folder_id || DEFAULT_GDRIVE_FOLDER_ID}
+                    </code>
+                    <a
+                      href={GDRIVE_FOLDER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-700 hover:underline flex items-center gap-1 shrink-0 font-medium"
+                    >
+                      เปิดโฟลเดอร์ <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Paste entire Service Account JSON option */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="serviceAccountJson" className="text-xs font-semibold text-slate-700">
+                    วางไฟล์ Service Account JSON Key ที่นี่ (แนะนำ):
+                  </Label>
+                  <Textarea
+                    id="serviceAccountJson"
+                    value={serviceAccountJsonInput}
+                    onChange={(e) => handleParseServiceAccountJson(e.target.value)}
+                    placeholder='{"type": "service_account", "project_id": "...", "private_key_id": "...", "private_key": "-----BEGIN PRIVATE KEY-----...", "client_email": "...@...iam.gserviceaccount.com"}'
+                    className="font-mono text-xs h-24 rounded-lg"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    * เมื่อวาง JSON ระบบจะดึงอีเมลและ Private Key มากรอกในช่องด้านล่างให้อัตโนมัติ
+                  </p>
+                </div>
+
+                {/* Client Email */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="driveEmail" className="text-xs font-semibold text-slate-700">
+                    Service Account Client Email:
+                  </Label>
+                  <Input
+                    id="driveEmail"
+                    value={driveSettings.client_email}
+                    onChange={(e) =>
+                      setDriveSettings((prev) => ({ ...prev, client_email: e.target.value }))
+                    }
+                    placeholder="xxx@xxx.iam.gserviceaccount.com"
+                    className="font-mono text-xs rounded-lg"
+                  />
+                </div>
+
+                {/* Private Key */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="driveKey" className="text-xs font-semibold text-slate-700">
+                    Service Account Private Key:
+                  </Label>
+                  <Textarea
+                    id="driveKey"
+                    value={driveSettings.private_key}
+                    onChange={(e) =>
+                      setDriveSettings((prev) => ({ ...prev, private_key: e.target.value }))
+                    }
+                    placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                    className="font-mono text-xs h-20 rounded-lg"
+                  />
+                </div>
+
+                {/* Action buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={handleSaveDriveSettings}
+                    disabled={isSavingDriveSettings}
+                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold py-5"
+                  >
+                    {isSavingDriveSettings ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    บันทึกการตั้งค่า Google Drive
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleTestDriveConnection}
+                    disabled={isTestingDrive || !driveSettings.client_email}
+                    className="border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-xs font-semibold py-5"
+                  >
+                    {isTestingDrive ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <CloudUpload className="w-4 h-4 mr-2 text-emerald-600" />
+                    )}
+                    ทดสอบเชื่อมต่อ Drive
+                  </Button>
+                </div>
+
+                {/* Step by Step Guide Notice */}
+                <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 space-y-1 leading-relaxed">
+                  <span className="font-bold text-slate-800 block">
+                    📌 ขั้นตอนการสร้าง Service Account เพื่อให้อัปโหลดอัตโนมัติ:
+                  </span>
+                  <ol className="list-decimal pl-4 space-y-0.5">
+                    <li>เข้าสู่ Google Cloud Console แล้วเลือกโปรเจกต์ของคุณ</li>
+                    <li>เปิดใช้งาน <strong>Google Drive API</strong></li>
+                    <li>สร้าง <strong>Service Account</strong> และกด Create Key เลือกประเภท <strong>JSON</strong></li>
+                    <li>
+                      เปิดโฟลเดอร์ Google Drive{' '}
+                      <a href={GDRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-semibold">
+                        (ลิงก์นี้)
+                      </a>{' '}
+                      แล้วกด <strong>แชร์ (Share)</strong> ให้กับอีเมลของ Service Account เป็น <strong>Editor</strong>
+                    </li>
+                    <li>นำไฟล์ JSON มาวางในช่องด้านบนแล้วกดบันทึก</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section 2: Staff Members Management */}
             <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-slate-50 border-b border-slate-200">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -1174,7 +1514,7 @@ export default function DayPassPage() {
               </CardContent>
             </Card>
 
-            {/* Section 2: Running Number Sequence */}
+            {/* Section 3: Running Number Sequence */}
             <Card className="rounded-xl border-slate-200 shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-slate-50 border-b border-slate-200">
                 <CardTitle className="text-base font-bold flex items-center gap-2">

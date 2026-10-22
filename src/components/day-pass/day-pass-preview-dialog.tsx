@@ -34,7 +34,8 @@ export function DayPassPreviewDialog({
       await exportVoucherToPdf(
         voucherRef.current,
         ticket.ticket_no,
-        ticket.client_name
+        ticket.client_name,
+        ticket.date
       );
       toast({
         title: 'ดาวน์โหลดสำเร็จ',

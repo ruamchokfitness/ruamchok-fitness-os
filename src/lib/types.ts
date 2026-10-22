@@ -317,6 +317,8 @@ export interface DayPassTicket {
   client_signature?: string;  // Data URL (base64 PNG)
   staff_signature?: string;   // Data URL (base64 PNG)
   staff_name?: string;
+  drive_file_id?: string;
+  drive_url?: string;
   created_at: any;            // Firestore Timestamp
 }
 
